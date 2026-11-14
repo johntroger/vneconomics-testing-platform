@@ -1,0 +1,28 @@
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  RewriteBase /
+
+  # Preserve Authorization header for PHP-FPM / FastCGI on Plesk Apache
+  RewriteCond %{HTTP:Authorization} ^(.*)
+  RewriteRule .* - [e=HTTP_AUTHORIZATION:%1]
+
+  # Security Headers
+  <IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+    Header set X-Frame-Options "SAMEORIGIN"
+    Header set X-XSS-Protection "1; mode=block"
+    Header set Referrer-Policy "strict-origin-when-cross-origin"
+  </IfModule>
+
+  # SPA Routing: Route non-existing paths to index.html, keeping /api/ handled by PHP
+  RewriteCond %{REQUEST_FILENAME} !-f
+  RewriteCond %{REQUEST_FILENAME} !-d
+  RewriteCond %{REQUEST_URI} !^/api/
+  RewriteRule ^ index.html [L]
+</IfModule>
+
+# Bảo vệ tuyệt đối tệp cấu hình, cơ sở dữ liệu và file nhạy cảm
+<FilesMatch "(\.env|\.sql|\.sqlite|\.sqlite-wal|\.sqlite-shm|\.db|\.jsonl|_store\.json|config\.php|config\.sample\.php)$">
+  Order allow,deny
+  Deny from all
+</FilesMatch>
