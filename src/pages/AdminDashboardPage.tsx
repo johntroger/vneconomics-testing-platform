@@ -1,5 +1,5 @@
-import React, { useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   Activity,
   BarChart3,
@@ -87,8 +87,11 @@ export const AdminDashboardPage: React.FC = () => {
     resetDemoData,
   } = useExamPlatform();
 
+  const [searchParams, setSearchParams] = useSearchParams();
   const [passcode, setPasscode] = useState('');
   const [authError, setAuthError] = useState('');
+  const [authLoading, setAuthLoading] = useState(false);
+  const demoAutoLoginTriedRef = useRef(false);
   const [selectedExamId, setSelectedExamId] = useState(exams[0]?.id ?? '');
   const [activeTab, setActiveTab] = useState<AdminTab>('LIVE');
   const [toast, setToast] = useState<string | null>(null);
@@ -129,6 +132,28 @@ export const AdminDashboardPage: React.FC = () => {
     setToast(msg);
     window.setTimeout(() => setToast(null), 3500);
   };
+
+  useEffect(() => {
+    if (
+      searchParams.get('demo') === '1' &&
+      !isAdminAuthenticated &&
+      !demoAutoLoginTriedRef.current
+    ) {
+      demoAutoLoginTriedRef.current = true;
+      setAuthLoading(true);
+      void adminLogin('vne2026').then((ok) => {
+        setAuthLoading(false);
+        if (ok) {
+          const next = new URLSearchParams(searchParams);
+          next.delete('demo');
+          setSearchParams(next, { replace: true });
+          showToast('Đã đăng nhập Tài khoản Giảng viên Demo (vne2026).');
+        } else {
+          setAuthError('Không thể tự động đăng nhập tài khoản Giảng viên Demo.');
+        }
+      });
+    }
+  }, [adminLogin, isAdminAuthenticated, searchParams, setSearchParams]);
 
   const selectedExam = useMemo(
     () => exams.find((e) => e.id === selectedExamId) ?? exams[0],
@@ -218,14 +243,28 @@ export const AdminDashboardPage: React.FC = () => {
   if (!isAdminAuthenticated) {
     const handleAuth = async (e: React.FormEvent) => {
       e.preventDefault();
+      setAuthError('');
+      setAuthLoading(true);
       const ok = await adminLogin(passcode);
+      setAuthLoading(false);
       if (!ok) {
-        setAuthError('Mã khóa không đúng. Mặc định demo: vne2026');
+        setAuthError('Mã khóa không đúng. Mã Giảng viên Demo công khai: vne2026');
       }
     };
+
+    const handleDemoLogin = async () => {
+      setAuthError('');
+      setAuthLoading(true);
+      const ok = await adminLogin('vne2026');
+      setAuthLoading(false);
+      if (!ok) {
+        setAuthError('Không thể kết nối đăng nhập Giảng viên Demo (vne2026).');
+      }
+    };
+
     return (
       <div className="min-h-screen bg-surface-100 flex items-center justify-center p-4">
-        <div className="w-full max-w-sm bg-white rounded-2xl border border-slate-200 shadow-card p-6 space-y-4">
+        <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-card p-6 space-y-4">
           <div className="w-12 h-12 rounded-2xl bg-brand-600 text-white flex items-center justify-center mx-auto">
             <Lock className="w-6 h-6" />
           </div>
@@ -237,34 +276,52 @@ export const AdminDashboardPage: React.FC = () => {
               Bảo vệ bằng HMAC-SHA256 Bearer Auth
             </p>
           </div>
+
+          {/* 1-Tap Public Demo Instructor Box */}
+          <div className="rounded-xl border border-brand-200 bg-brand-50/70 p-3.5 space-y-2.5">
+            <div>
+              <p className="text-xs font-extrabold text-brand-900">
+                Trải nghiệm nhanh (Tài khoản Giảng viên Demo)
+              </p>
+              <p className="text-[11px] text-ink-600 mt-1 leading-relaxed">
+                Mã công khai <span className="font-mono font-bold text-brand-700">vne2026</span> cho phép test Ngân hàng câu hỏi, Ma trận Đề, Giám sát Live &amp; Chấm Rubric. Có nút <strong>Khôi phục mẫu</strong> ở góc trên để reset 3 phòng <span className="font-mono">101202</span>, <span className="font-mono">202303</span>, <span className="font-mono">303404</span> bất kỳ lúc nào.
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={authLoading}
+              onClick={() => void handleDemoLogin()}
+              className="w-full h-10 rounded-xl bg-support-600 hover:bg-support-700 disabled:opacity-60 text-white text-xs font-bold shadow-sm transition"
+            >
+              {authLoading
+                ? 'Đang mở Dashboard Demo...'
+                : 'Vào ngay bằng Tài khoản Giảng viên Demo (vne2026)'}
+            </button>
+          </div>
+
+          <div className="flex items-center gap-2 text-[11px] text-ink-400">
+            <div className="h-px bg-slate-200 flex-1" />
+            <span>Hoặc nhập mã khóa Giảng viên</span>
+            <div className="h-px bg-slate-200 flex-1" />
+          </div>
+
           <form onSubmit={handleAuth} className="space-y-3">
             <input
               type="password"
               value={passcode}
               onChange={(e) => setPasscode(e.target.value)}
-              placeholder="Nhập mã khóa Giảng viên (vne2026)"
+              placeholder="Nhập mã khóa Giảng viên (mẫu: vne2026)"
               className="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-sm font-mono"
             />
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => {
-                  setPasscode('vne2026');
-                  setAuthError('');
-                }}
-                className="text-[11px] font-semibold text-brand-700 hover:underline"
-              >
-                Điền nhanh mã khóa Demo (vne2026)
-              </button>
-            </div>
             {authError && (
               <p className="text-xs text-rose-600 font-semibold">{authError}</p>
             )}
             <button
               type="submit"
-              className="w-full h-11 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold"
+              disabled={authLoading}
+              className="w-full h-11 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white text-xs font-bold"
             >
-              Xác thực & Mở Dashboard
+              Xác thực &amp; Mở Dashboard
             </button>
           </form>
           <div className="text-center pt-1">
@@ -400,12 +457,13 @@ export const AdminDashboardPage: React.FC = () => {
               type="button"
               onClick={() => {
                 resetDemoData();
-                showToast('Đã khôi phục dữ liệu mẫu ban đầu.');
+                showToast('Đã khôi phục 3 phòng thi và ngân hàng câu hỏi mẫu Demo.');
               }}
-              title="Reset dữ liệu demo"
-              className="h-9 w-9 rounded-xl border border-slate-200 bg-white text-ink-600 flex items-center justify-center hover:bg-slate-50"
+              title="Khôi phục dữ liệu mẫu Demo (101202, 202303, 303404)"
+              className="h-9 px-3 rounded-xl border border-slate-200 bg-white text-ink-700 text-xs font-bold flex items-center gap-1.5 hover:bg-slate-50 hover:border-brand-300"
             >
               <RefreshCw className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Khôi phục mẫu</span>
             </button>
 
             <button

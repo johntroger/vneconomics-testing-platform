@@ -2001,7 +2001,40 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
     };
     persistState(fresh);
     setState(fresh);
-  }, [persistState]);
+
+    if (backendConnected) {
+      void (async () => {
+        const res = await apiRequestDetailed<{
+          ok: boolean;
+          courses?: Course[];
+          questions?: Question[];
+          exams?: Exam[];
+        }>('/api/exams.php?action=reset_demo', {
+          method: 'POST',
+          body: JSON.stringify({}),
+        });
+        if (res.ok && res.data?.ok) {
+          const liveRes = await apiRequestDetailed<{
+            ok: boolean;
+            attempts?: Array<Record<string, unknown>>;
+          }>('/api/proctor.php?action=live', { method: 'GET' });
+          const nextAttempts =
+            liveRes.ok && liveRes.data?.ok && Array.isArray(liveRes.data.attempts)
+              ? liveRes.data.attempts.map(normalizeServerAttempt)
+              : undefined;
+          updateState((prev) => ({
+            ...prev,
+            courses: res.data?.courses ?? prev.courses,
+            questions: res.data?.questions ?? prev.questions,
+            exams: Array.isArray(res.data?.exams)
+              ? res.data.exams.map(normalizeServerExam)
+              : prev.exams,
+            attempts: nextAttempts ?? prev.attempts,
+          }));
+        }
+      })();
+    }
+  }, [backendConnected, persistState, updateState]);
 
   return (
     <ExamContext.Provider

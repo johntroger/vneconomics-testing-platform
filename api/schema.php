@@ -322,15 +322,46 @@ function ensureExamSchema(PDO $pdo, string $driver): void
     $checked = true;
 }
 
-function seedDefaultEconomicsData(PDO $pdo): void
+function seedDefaultEconomicsData(PDO $pdo, bool $forceReset = false): void
 {
-    $count = (int) $pdo->query('SELECT COUNT(*) FROM courses')->fetchColumn();
-    if ($count > 0) {
-        return;
+    if (!$forceReset) {
+        $count = (int) $pdo->query('SELECT COUNT(*) FROM courses')->fetchColumn();
+        if ($count > 0) {
+            return;
+        }
     }
 
     $pdo->beginTransaction();
     try {
+        if ($forceReset) {
+            $demoCoursePh = "'course_micro_101','course_macro_201','course_econometrics_301'";
+            $demoExamStmt = $pdo->query(
+                "SELECT id FROM exams WHERE id IN ('exam_micro_midterm','exam_macro_quiz','exam_ecmt_lab') OR room_pin IN ('101202','202303','303404')"
+            );
+            $targetExamIds = array_values(array_unique(array_merge(
+                ['exam_micro_midterm', 'exam_macro_quiz', 'exam_ecmt_lab'],
+                $demoExamStmt ? $demoExamStmt->fetchAll(PDO::FETCH_COLUMN) : []
+            )));
+
+            $examIn = implode(',', array_fill(0, count($targetExamIds), '?'));
+            $attStmt = $pdo->prepare("SELECT id FROM exam_attempts WHERE exam_id IN ($examIn)");
+            $attStmt->execute($targetExamIds);
+            $attIds = $attStmt->fetchAll(PDO::FETCH_COLUMN);
+
+            if (count($attIds) > 0) {
+                foreach (array_chunk($attIds, 200) as $chunk) {
+                    $attIn = implode(',', array_fill(0, count($chunk), '?'));
+                    $pdo->prepare("DELETE FROM attempt_answers WHERE attempt_id IN ($attIn)")->execute($chunk);
+                    $pdo->prepare("DELETE FROM violation_logs WHERE attempt_id IN ($attIn)")->execute($chunk);
+                    $pdo->prepare("DELETE FROM exam_attempts WHERE id IN ($attIn)")->execute($chunk);
+                }
+            }
+
+            $pdo->prepare("DELETE FROM exams WHERE id IN ($examIn)")->execute($targetExamIds);
+            $pdo->exec("DELETE FROM questions WHERE course_id IN ($demoCoursePh)");
+            $pdo->exec("DELETE FROM courses WHERE id IN ($demoCoursePh)");
+        }
+
         $stmtCourse = $pdo->prepare(
             'INSERT INTO courses (id, code, name, semester, credits) VALUES (:id, :code, :name, :semester, :credits)'
         );

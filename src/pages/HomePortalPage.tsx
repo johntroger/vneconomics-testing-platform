@@ -8,8 +8,11 @@ import {
   GraduationCap,
   Lock,
   Mail,
+  RefreshCw,
   ShieldCheck,
   Smartphone,
+  Sparkles,
+  UserCheck,
 } from 'lucide-react';
 import { useExamPlatform } from '../context/ExamContext';
 
@@ -56,42 +59,118 @@ export const HomePortalPage: React.FC = () => {
     setStudentEmail(`${localPart}${domain}`);
   };
 
-  const fillDemoStudent = (targetPin?: string) => {
-    const activePin = (targetPin ?? pin).trim();
+  const isDefaultDemoEmail = (email: string) => {
+    const lower = email.trim().toLowerCase();
+    return (
+      !lower ||
+      lower === 'sinhvien.demo@vneconomics.com' ||
+      lower === 'tranthanhtung37@gmail.com'
+    );
+  };
+
+  const buildDemoProfile = (targetPin?: string) => {
+    const activePin = (targetPin ?? pin).trim() || '101202';
     const targetExam = exams.find((e) => e.roomPin === activePin);
-    const submittedCodes = new Set(
+    const usedCodes = new Set(
       targetExam
         ? attempts
-            .filter(
-              (a) =>
-                a.examId === targetExam.id &&
-                (a.status === 'SUBMITTED' || a.status === 'AUTO_SUBMITTED'),
-            )
+            .filter((a) => a.examId === targetExam.id)
             .map((a) => a.studentCode.toUpperCase())
         : [],
     );
 
-    const nextDemoCode = () => {
-      let seq = 3122102888;
-      while (submittedCodes.has(String(seq)) && seq < 3122102999) {
-        seq += 1;
+    let demoCode = '';
+    for (let i = 0; i < 20; i += 1) {
+      const rand = Math.floor(100000 + Math.random() * 900000);
+      const candidate = `DEMO${rand}`;
+      if (!usedCodes.has(candidate)) {
+        demoCode = candidate;
+        break;
       }
-      return String(seq);
-    };
-
-    const currentCode = studentCode.trim().toUpperCase();
-    if (!currentCode || (currentCode.startsWith('31221028') && submittedCodes.has(currentCode))) {
-      setStudentCode(nextDemoCode());
     }
-    if (!className.trim()) setClassName('K48-KT01');
-    if (!studentName.trim()) setStudentName('Trần Thanh Tùng');
-    if (!studentEmail.trim()) setStudentEmail('tranthanhtung37@gmail.com');
+    if (!demoCode) {
+      demoCode = `DEMO${Date.now().toString().slice(-6)}`;
+    }
+
+    const suffix = demoCode.slice(-4);
+    const chosenClass =
+      !className.trim() || className === 'K48-KT01' || className === 'K48-DEMO'
+        ? 'K48-DEMO'
+        : className.trim();
+    const chosenName =
+      !studentName.trim() ||
+      studentName === 'Trần Thanh Tùng' ||
+      studentName.startsWith('Sinh viên ')
+        ? `Sinh viên Trải nghiệm #${suffix}`
+        : studentName.trim();
+    const chosenEmail = isDefaultDemoEmail(studentEmail)
+      ? 'sinhvien.demo@vneconomics.com'
+      : studentEmail.trim();
+
+    return {
+      activePin,
+      demoCode,
+      chosenClass,
+      chosenName,
+      chosenEmail,
+    };
+  };
+
+  const fillDemoStudent = (targetPin?: string, forceFreshCode = true) => {
+    const profile = buildDemoProfile(targetPin);
+    if (targetPin || !pin.trim()) {
+      setPin(profile.activePin);
+    }
+    const currentCode = studentCode.trim().toUpperCase();
+    if (
+      forceFreshCode ||
+      !currentCode ||
+      currentCode.startsWith('DEMO') ||
+      currentCode.startsWith('31221028')
+    ) {
+      setStudentCode(profile.demoCode);
+      setStudentName(profile.chosenName);
+    }
+    setClassName(profile.chosenClass);
+    setStudentEmail(profile.chosenEmail);
     setError('');
   };
 
   const selectDemoRoomPin = (roomPin: string) => {
     setPin(roomPin);
-    fillDemoStudent(roomPin);
+    fillDemoStudent(roomPin, true);
+  };
+
+  const startQuickDemoStudent = async (targetPin = '101202') => {
+    const profile = buildDemoProfile(targetPin);
+    setPin(profile.activePin);
+    setStudentCode(profile.demoCode);
+    setClassName(profile.chosenClass);
+    setStudentName(profile.chosenName);
+    setStudentEmail(profile.chosenEmail);
+    setError('');
+    setLoading(true);
+
+    const res = await startOrResumeAttempt({
+      pin: profile.activePin,
+      studentCode: profile.demoCode,
+      studentName: profile.chosenName,
+      className: profile.chosenClass,
+      studentEmail: profile.chosenEmail,
+    });
+    setLoading(false);
+
+    if (!res.ok || !res.attemptId || !res.examId) {
+      setError(res.error ?? 'Không thể khởi tạo phiên thi thử Demo.');
+      return;
+    }
+
+    if (res.alreadySubmitted) {
+      navigate(`/exam/${res.examId}/result?attempt=${res.attemptId}`);
+      return;
+    }
+
+    navigate(`/exam/${res.examId}/lobby?attempt=${res.attemptId}`);
   };
 
   const handleOpenExternalBrowser = () => {
@@ -176,7 +255,74 @@ export const HomePortalPage: React.FC = () => {
       </header>
 
       <main className="flex-1 flex flex-col items-center justify-center p-4 py-6">
-        <div className="w-full max-w-md space-y-4">
+        <div className="w-full max-w-xl space-y-4">
+          {/* Public Demo Sandbox Quick-Access Banner (Student & Instructor) */}
+          <div className="bg-gradient-to-br from-brand-50 via-white to-support-50 rounded-2xl border border-brand-200 shadow-sm p-4 sm:p-5 space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-brand-700 bg-brand-100/80 px-2.5 py-0.5 rounded-full">
+                  <Sparkles className="w-3 h-3" /> Trải nghiệm Công khai (Demo 1-Chạm)
+                </span>
+                <h2 className="text-sm sm:text-base font-extrabold text-ink-900 mt-1.5">
+                  Dùng thử Hệ thống cho Sinh viên &amp; Giảng viên bất kỳ
+                </h2>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Student Demo Card */}
+              <div className="bg-white/95 rounded-xl border border-brand-200/80 p-3.5 flex flex-col justify-between gap-2.5">
+                <div>
+                  <p className="text-xs font-extrabold text-brand-900 flex items-center gap-1.5">
+                    <UserCheck className="w-4 h-4 text-brand-600 shrink-0" />
+                    Tài khoản Sinh viên Demo
+                  </p>
+                  <p className="text-[11px] text-ink-600 mt-1 leading-relaxed">
+                    Tự động cấp MSSV <span className="font-mono font-bold text-brand-700">DEMOxxxxxx</span> mới tinh không trùng người thi khác để bạn vào thi thử nhiều lần trên mọi thiết bị.
+                  </p>
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <button
+                    type="button"
+                    disabled={loading}
+                    onClick={() => void startQuickDemoStudent('101202')}
+                    className="w-full py-2 px-3 rounded-lg bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition"
+                  >
+                    {loading ? 'Đang tạo phiên thi Demo...' : 'Thi thử ngay (SV Demo • 101202)'}
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => fillDemoStudent('101202', true)}
+                    className="text-[11px] font-semibold text-brand-700 hover:underline text-center"
+                  >
+                    Chỉ điền sẵn SV Demo (để tự đổi Email nhận điểm)
+                  </button>
+                </div>
+              </div>
+
+              {/* Instructor Demo Card */}
+              <div className="bg-white/95 rounded-xl border border-support-200/90 p-3.5 flex flex-col justify-between gap-2.5">
+                <div>
+                  <p className="text-xs font-extrabold text-ink-900 flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-support-600 shrink-0" />
+                    Tài khoản Giảng viên Demo
+                  </p>
+                  <p className="text-[11px] text-ink-600 mt-1 leading-relaxed">
+                    Vào ngay Cổng Quản trị (<span className="font-mono font-bold">vne2026</span>) để test Tạo đề Ma trận, Ngân hàng câu hỏi, Giám sát Live &amp; Chấm Rubric.
+                  </p>
+                </div>
+                <Link
+                  to="/admin?demo=1"
+                  className="w-full py-2 px-3 rounded-lg bg-support-600 hover:bg-support-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  Vào Quản trị Giảng viên Demo
+                </Link>
+              </div>
+            </div>
+          </div>
+
           {/* Zalo/Messenger In-App Browser Guard */}
           {isInAppWebView && !bypassWebViewNotice && (
             <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-4 space-y-3 shadow-sm">
@@ -272,10 +418,11 @@ export const HomePortalPage: React.FC = () => {
                 <div className="flex items-center justify-end">
                   <button
                     type="button"
-                    onClick={() => fillDemoStudent()}
-                    className="text-[11px] font-semibold text-brand-700 hover:text-brand-800 hover:underline"
+                    onClick={() => fillDemoStudent(undefined, true)}
+                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-700 hover:text-brand-800 hover:underline"
                   >
-                    Điền nhanh SV mẫu
+                    <RefreshCw className="w-3 h-3" />
+                    Cấp MSSV Demo mới ngẫu nhiên
                   </button>
                 </div>
                 <div className="grid grid-cols-2 gap-3">
@@ -349,6 +496,11 @@ export const HomePortalPage: React.FC = () => {
                 {typoWarning && (
                   <p className="text-[11px] text-amber-700 font-semibold mt-1.5">
                     Cảnh báo: Địa chỉ có chứa "{typoWarning}" — có thể bạn gõ nhầm "@gmail.com" hoặc "@yahoo.com"?
+                  </p>
+                )}
+                {studentEmail.trim().toLowerCase() === 'sinhvien.demo@vneconomics.com' && (
+                  <p className="text-[11px] text-ink-500 mt-1.5">
+                    Mẹo: Có thể thay bằng Email thật của bạn để nhận thử biên nhận bảng điểm tự động sau khi nộp bài.
                   </p>
                 )}
               </div>

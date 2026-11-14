@@ -180,9 +180,22 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         if ($pin === '') {
             jsonError('Vui lòng nhập mã PIN phòng thi.', 400);
         }
+        $demoPins = ['101202', '202303', '303404'];
         $stmt = $pdo->prepare('SELECT * FROM exams WHERE UPPER(room_pin) = :pin LIMIT 1');
         $stmt->execute([':pin' => $pin]);
         $row = $stmt->fetch();
+
+        if (!$row && in_array($pin, $demoPins, true)) {
+            seedDefaultEconomicsData($pdo, true);
+            $stmt->execute([':pin' => $pin]);
+            $row = $stmt->fetch();
+        } elseif ($row && in_array($pin, $demoPins, true) && (string) ($row['status'] ?? '') !== 'OPEN') {
+            $pdo->prepare("UPDATE exams SET status = 'OPEN', report_sent_status = 'PENDING', report_sent_at = NULL WHERE id = :id")
+                ->execute([':id' => $row['id']]);
+            $stmt->execute([':pin' => $pin]);
+            $row = $stmt->fetch();
+        }
+
         if (!$row) {
             jsonError('Không tìm thấy phòng thi với mã PIN này.', 404);
         }
@@ -194,6 +207,16 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         $stmtQ = $pdo->prepare('SELECT * FROM questions WHERE course_id = :cid');
         $stmtQ->execute([':cid' => $row['course_id']]);
         $qRows = $stmtQ->fetchAll();
+
+        if (in_array($pin, $demoPins, true) && (!$courseRow || count($qRows) === 0)) {
+            seedDefaultEconomicsData($pdo, true);
+            $stmt->execute([':pin' => $pin]);
+            $row = $stmt->fetch() ?: $row;
+            $stmtC->execute([':cid' => $row['course_id']]);
+            $courseRow = $stmtC->fetch();
+            $stmtQ->execute([':cid' => $row['course_id']]);
+            $qRows = $stmtQ->fetchAll();
+        }
 
         jsonResponse([
             'ok' => true,
@@ -218,6 +241,20 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             'questions' => $questions,
             'exams' => $exams,
             'emailLogs' => $emails,
+        ]);
+    }
+
+    if ($action === 'reset_demo') {
+        seedDefaultEconomicsData($pdo, true);
+        $courses = array_map('formatCourseRow', $pdo->query('SELECT * FROM courses ORDER BY code ASC')->fetchAll());
+        $questions = array_map(static fn ($r) => formatQuestionRow($r, false), $pdo->query('SELECT * FROM questions')->fetchAll());
+        $exams = array_map(static fn ($r) => formatExamRow($r, false), $pdo->query('SELECT * FROM exams ORDER BY created_at DESC')->fetchAll());
+
+        jsonResponse([
+            'ok' => true,
+            'courses' => $courses,
+            'questions' => $questions,
+            'exams' => $exams,
         ]);
     }
 
