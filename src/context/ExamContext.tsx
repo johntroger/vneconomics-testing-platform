@@ -1,4 +1,4 @@
-import React, { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import {
   SEED_ATTEMPTS,
   SEED_COURSES,
@@ -9,12 +9,14 @@ import {
 import {
   ADMIN_TOKEN_KEY,
   apiRequest,
+  apiRequestDetailed,
   getOrCreateDeviceToken,
   pingPhpApi,
   STORAGE_KEY,
   SYNC_CHANNEL_NAME,
 } from '../services/apiClient';
 import type {
+  AttemptAnswer,
   Course,
   EmailLogEntry,
   Exam,
@@ -124,6 +126,79 @@ interface ExamContextValue extends ExamPlatformState {
 
 const ExamContext = createContext<ExamContextValue | null>(null);
 
+function upsertById<T extends { id: string }>(existing: T[], incoming: T[]): T[] {
+  const map = new Map<string, T>();
+  for (const item of existing) map.set(item.id, item);
+  for (const item of incoming) map.set(item.id, item);
+  return Array.from(map.values());
+}
+
+function normalizeServerExam(raw: Exam): Exam {
+  return {
+    ...raw,
+    unlockPin: raw.unlockPin ?? '',
+    rosterWhitelist: Array.isArray(raw.rosterWhitelist) ? raw.rosterWhitelist : [],
+    chapterMatrix: Array.isArray(raw.chapterMatrix) ? raw.chapterMatrix : [],
+    pinnedQuestionIds: Array.isArray(raw.pinnedQuestionIds) ? raw.pinnedQuestionIds : [],
+  };
+}
+
+function normalizeServerEmailLog(raw: Record<string, unknown>): EmailLogEntry {
+  return {
+    id: String(raw.id ?? `mail_${Date.now().toString(36)}`),
+    recipient: String(raw.recipient ?? ''),
+    subject: String(raw.subject ?? ''),
+    kind: (raw.kind as EmailLogEntry['kind']) ?? 'STUDENT_SCORE',
+    status: raw.status === 'FAILED' ? 'FAILED' : 'SENT',
+    summary: String(raw.summary ?? ''),
+    csvAttachmentName:
+      typeof raw.csvAttachmentName === 'string' && raw.csvAttachmentName
+        ? raw.csvAttachmentName
+        : undefined,
+    sentAt: String(raw.sentAt || raw.created_at || new Date().toISOString()),
+  };
+}
+
+function normalizeServerAttempt(raw: Record<string, unknown>): ExamAttempt {
+  const rawAnswers = raw.answers;
+  const answersMap: Record<string, AttemptAnswer> =
+    rawAnswers && typeof rawAnswers === 'object' && !Array.isArray(rawAnswers)
+      ? (rawAnswers as Record<string, AttemptAnswer>)
+      : {};
+  return {
+    ...(raw as unknown as ExamAttempt),
+    deviceToken: typeof raw.deviceToken === 'string' ? raw.deviceToken : '',
+    assignedQuestions: Array.isArray(raw.assignedQuestions)
+      ? (raw.assignedQuestions as ExamAttempt['assignedQuestions'])
+      : [],
+    answers: answersMap,
+    flaggedQuestionIds: Array.isArray(raw.flaggedQuestionIds)
+      ? (raw.flaggedQuestionIds as string[])
+      : [],
+    violations: Array.isArray(raw.violations)
+      ? (raw.violations as ViolationEvent[])
+      : [],
+    lockedAt: typeof raw.lockedAt === 'string' && raw.lockedAt ? raw.lockedAt : undefined,
+    unlockRequestNote:
+      typeof raw.unlockRequestNote === 'string' && raw.unlockRequestNote
+        ? raw.unlockRequestNote
+        : undefined,
+    aiFlagReason:
+      typeof raw.aiFlagReason === 'string' && raw.aiFlagReason
+        ? raw.aiFlagReason
+        : undefined,
+    emailSentAt:
+      typeof raw.emailSentAt === 'string' && raw.emailSentAt
+        ? raw.emailSentAt
+        : undefined,
+    submittedAt:
+      typeof raw.submittedAt === 'string' && raw.submittedAt
+        ? raw.submittedAt
+        : undefined,
+    emailEditCount: Number(raw.emailEditCount ?? 0),
+  };
+}
+
 function loadInitialState(): ExamPlatformState {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -160,6 +235,9 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
   const [state, setState] = useState<ExamPlatformState>(loadInitialState);
+  const stateRef = useRef<ExamPlatformState>(state);
+  stateRef.current = state;
+  const autoSubmittedPollRef = useRef<string | null>(null);
   const [backendConnected, setBackendConnected] = useState(false);
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() =>
     Boolean(sessionStorage.getItem(ADMIN_TOKEN_KEY)),
@@ -218,32 +296,119 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, []);
 
-  const adminLogin = useCallback(
-    async (passcode: string): Promise<boolean> => {
-      if (backendConnected) {
-        const res = await apiRequest<{ ok: boolean; token?: string }>(
-          '/api/admin_auth.php',
-          {
-            method: 'POST',
-            body: JSON.stringify({ passcode }),
-          },
-        );
-        if (res?.ok && res.token) {
-          sessionStorage.setItem(ADMIN_TOKEN_KEY, res.token);
-          setIsAdminAuthenticated(true);
-          return true;
+  useEffect(() => {
+    if (!backendConnected || !isAdminAuthenticated) return;
+
+    let cancelled = false;
+    let inFlight = false;
+
+    const pullAdminState = async (withBootstrap: boolean) => {
+      if (cancelled || inFlight) return;
+      inFlight = true;
+      try {
+        let nextCourses: Course[] | undefined;
+        let nextQuestions: Question[] | undefined;
+        let nextExams: Exam[] | undefined;
+        let nextEmailLogs: EmailLogEntry[] | undefined;
+
+        if (withBootstrap) {
+          const bootRes = await apiRequestDetailed<{
+            ok: boolean;
+            courses?: Course[];
+            questions?: Question[];
+            exams?: Exam[];
+            emailLogs?: Array<Record<string, unknown>>;
+          }>('/api/exams.php?action=bootstrap', { method: 'GET' });
+
+          if (cancelled) return;
+          if (bootRes.reachedJson && (bootRes.status === 401 || bootRes.status === 403)) {
+            sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+            setIsAdminAuthenticated(false);
+            return;
+          }
+          if (bootRes.ok && bootRes.data?.ok) {
+            nextCourses = bootRes.data.courses;
+            nextQuestions = bootRes.data.questions;
+            nextExams = Array.isArray(bootRes.data.exams)
+              ? bootRes.data.exams.map(normalizeServerExam)
+              : undefined;
+            nextEmailLogs = Array.isArray(bootRes.data.emailLogs)
+              ? bootRes.data.emailLogs.map(normalizeServerEmailLog)
+              : undefined;
+          }
         }
+
+        const liveRes = await apiRequestDetailed<{
+          ok: boolean;
+          attempts?: Array<Record<string, unknown>>;
+        }>('/api/proctor.php?action=live', { method: 'GET' });
+
+        if (cancelled) return;
+        if (liveRes.reachedJson && (liveRes.status === 401 || liveRes.status === 403)) {
+          sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+          setIsAdminAuthenticated(false);
+          return;
+        }
+
+        const nextAttempts =
+          liveRes.ok && liveRes.data?.ok && Array.isArray(liveRes.data.attempts)
+            ? liveRes.data.attempts.map(normalizeServerAttempt)
+            : undefined;
+
+        if (nextCourses || nextQuestions || nextExams || nextEmailLogs || nextAttempts) {
+          updateState((prev) => ({
+            courses: nextCourses ?? prev.courses,
+            questions: nextQuestions ?? prev.questions,
+            exams: nextExams ?? prev.exams,
+            attempts: nextAttempts ?? prev.attempts,
+            emailLogs: nextEmailLogs ?? prev.emailLogs,
+          }));
+        }
+      } finally {
+        inFlight = false;
       }
-      if (passcode.trim() === 'vne2026' || passcode.trim() === '8888') {
-        const localToken = `local_hmac_${btoa(passcode + ':' + Date.now())}`;
-        sessionStorage.setItem(ADMIN_TOKEN_KEY, localToken);
+    };
+
+    void pullAdminState(true);
+    let tickCount = 0;
+    const intervalId = window.setInterval(() => {
+      tickCount += 1;
+      void pullAdminState(tickCount % 5 === 0);
+    }, 4000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [backendConnected, isAdminAuthenticated, updateState]);
+
+  const adminLogin = useCallback(async (passcode: string): Promise<boolean> => {
+    const res = await apiRequestDetailed<{ ok: boolean; token?: string }>(
+      '/api/admin_auth.php',
+      {
+        method: 'POST',
+        body: JSON.stringify({ passcode }),
+      },
+    );
+
+    if (res.reachedJson) {
+      setBackendConnected(true);
+      if (res.ok && res.data?.ok && res.data.token) {
+        sessionStorage.setItem(ADMIN_TOKEN_KEY, res.data.token);
         setIsAdminAuthenticated(true);
         return true;
       }
       return false;
-    },
-    [backendConnected],
-  );
+    }
+
+    if (passcode.trim() === 'vne2026' || passcode.trim() === '8888') {
+      const localToken = `local_hmac_${btoa(passcode + ':' + Date.now())}`;
+      sessionStorage.setItem(ADMIN_TOKEN_KEY, localToken);
+      setIsAdminAuthenticated(true);
+      return true;
+    }
+    return false;
+  }, []);
 
   const adminLogout = useCallback(() => {
     sessionStorage.removeItem(ADMIN_TOKEN_KEY);
@@ -255,8 +420,271 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
       const normalizedPin = input.pin.trim();
       const normalizedCode = input.studentCode.trim().toUpperCase();
       const normalizedEmail = input.studentEmail.trim().toLowerCase();
+      const myDeviceToken = getOrCreateDeviceToken();
 
-      const exam = state.exams.find((e) => e.roomPin === normalizedPin);
+      let alive = backendConnected;
+      if (!alive) {
+        alive = await pingPhpApi();
+        if (alive) setBackendConnected(true);
+      }
+
+      if (alive) {
+        const roomRes = await apiRequestDetailed<{
+          ok: boolean;
+          exam?: Exam;
+          course?: Course | null;
+          questions?: Question[];
+        }>(`/api/exams.php?action=room&pin=${encodeURIComponent(normalizedPin)}`, {
+          method: 'GET',
+        });
+
+        if (roomRes.reachedJson) {
+          if (!roomRes.ok || !roomRes.data?.ok || !roomRes.data.exam) {
+            return {
+              ok: false,
+              error: roomRes.error ?? 'Không tìm thấy phòng thi với mã PIN này.',
+            };
+          }
+
+          const serverExam = normalizeServerExam(roomRes.data.exam);
+          if (serverExam.status !== 'OPEN') {
+            return {
+              ok: false,
+              error:
+                serverExam.status === 'CLOSED'
+                  ? 'Ca thi này đã kết thúc và đóng cổng nộp bài.'
+                  : 'Phòng thi đang ở trạng thái Nháp, giảng viên chưa mở phòng.',
+            };
+          }
+
+          const serverCourse = roomRes.data.course ?? null;
+          const serverQuestions = Array.isArray(roomRes.data.questions)
+            ? roomRes.data.questions
+            : [];
+
+          updateState((prev) => {
+            const existingExam = prev.exams.find((e) => e.id === serverExam.id);
+            const mergedExam: Exam = existingExam
+              ? {
+                  ...existingExam,
+                  ...serverExam,
+                  unlockPin: serverExam.unlockPin || existingExam.unlockPin,
+                  rosterWhitelist:
+                    serverExam.rosterWhitelist.length > 0
+                      ? serverExam.rosterWhitelist
+                      : existingExam.rosterWhitelist,
+                }
+              : serverExam;
+
+            const prevQMap = new Map(prev.questions.map((q) => [q.id, q]));
+            const mergedQuestions = serverQuestions.map((sq) => {
+              const eq = prevQMap.get(sq.id);
+              return eq
+                ? {
+                    ...eq,
+                    ...sq,
+                    trueFalseItems: sq.trueFalseItems ?? eq.trueFalseItems,
+                  }
+                : sq;
+            });
+
+            return {
+              ...prev,
+              courses: serverCourse
+                ? upsertById(prev.courses, [serverCourse])
+                : prev.courses,
+              questions: upsertById(prev.questions, mergedQuestions),
+              exams: upsertById(prev.exams, [mergedExam]),
+            };
+          });
+
+          const assigned = buildAssignedQuestions(
+            serverExam,
+            serverQuestions,
+            normalizedCode,
+          );
+          if (assigned.length === 0) {
+            return { ok: false, error: 'Đề thi chưa có câu hỏi trong ngân hàng.' };
+          }
+
+          const maxTotalScore =
+            Math.round(assigned.reduce((s, q) => s + q.maxPoints, 0) * 100) / 100;
+          const clientAttemptId = `att_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+          const clientStartedAt = new Date().toISOString();
+
+          const startRes = await apiRequestDetailed<{
+            ok: boolean;
+            resumed?: boolean;
+            alreadySubmitted?: boolean;
+            attemptId?: string;
+            examId?: string;
+            assignedQuestions?: ExamAttempt['assignedQuestions'];
+            answers?: Record<string, AttemptAnswer>;
+            attempt?: Record<string, unknown>;
+            status?: ExamAttempt['status'];
+            currentQuestionIndex?: number;
+            flaggedQuestionIds?: string[];
+            leaveCount?: number;
+            extraLeaveAllowance?: number;
+            minorBlurCount?: number;
+            totalAwaySeconds?: number;
+            lockedAt?: string | null;
+            lockedWaitSeconds?: number;
+            bonusSeconds?: number;
+            unlockRequestNote?: string | null;
+            integrityScore?: number;
+            startedAt?: string;
+          }>('/api/attempts.php?action=start', {
+            method: 'POST',
+            body: JSON.stringify({
+              id: clientAttemptId,
+              pin: normalizedPin,
+              examId: serverExam.id,
+              studentCode: normalizedCode,
+              studentName: input.studentName.trim(),
+              studentEmail: normalizedEmail,
+              className: input.className.trim(),
+              deviceToken: myDeviceToken,
+              assignedQuestions: assigned,
+              startedAt: clientStartedAt,
+            }),
+          });
+
+          if (startRes.reachedJson && !startRes.ok) {
+            return {
+              ok: false,
+              error: startRes.error ?? 'Không thể tham gia phòng thi.',
+            };
+          }
+
+          if (startRes.ok && startRes.data?.ok) {
+            const payload = startRes.data;
+            const resolvedAttemptId = payload.attemptId ?? clientAttemptId;
+
+            if (payload.alreadySubmitted) {
+              const submittedAtt: ExamAttempt = payload.attempt
+                ? normalizeServerAttempt(payload.attempt)
+                : {
+                    id: resolvedAttemptId,
+                    examId: serverExam.id,
+                    studentCode: normalizedCode,
+                    studentName: input.studentName.trim(),
+                    studentEmail: normalizedEmail,
+                    className: input.className.trim(),
+                    deviceToken: myDeviceToken,
+                    assignedQuestions: assigned,
+                    answers: {},
+                    status: 'SUBMITTED',
+                    currentQuestionIndex: 0,
+                    flaggedQuestionIds: [],
+                    leaveCount: 0,
+                    extraLeaveAllowance: 0,
+                    minorBlurCount: 0,
+                    totalAwaySeconds: 0,
+                    lockedWaitSeconds: 0,
+                    bonusSeconds: 0,
+                    integrityScore: 100,
+                    aiFlag: false,
+                    autoScore: 0,
+                    essayScore: 0,
+                    totalScore: 0,
+                    maxTotalScore,
+                    scale10Score: 0,
+                    emailSentStatus: 'SENT',
+                    emailEditCount: 0,
+                    startedAt: clientStartedAt,
+                    violations: [],
+                  };
+
+              updateState((prev) => ({
+                ...prev,
+                attempts: upsertById(prev.attempts, [submittedAtt]),
+              }));
+
+              return {
+                ok: true,
+                attemptId: resolvedAttemptId,
+                examId: serverExam.id,
+                resumed: true,
+                alreadySubmitted: true,
+              };
+            }
+
+            const serverAnswers =
+              payload.answers && !Array.isArray(payload.answers)
+                ? payload.answers
+                : {};
+            const localSame = stateRef.current.attempts.find(
+              (a) => a.id === resolvedAttemptId,
+            );
+            const syncedAttempt: ExamAttempt = {
+              id: resolvedAttemptId,
+              examId: serverExam.id,
+              studentCode: normalizedCode,
+              studentName: input.studentName.trim(),
+              studentEmail: normalizedEmail,
+              className: input.className.trim(),
+              deviceToken: myDeviceToken,
+              assignedQuestions:
+                Array.isArray(payload.assignedQuestions) &&
+                payload.assignedQuestions.length > 0
+                  ? payload.assignedQuestions
+                  : assigned,
+              answers: { ...serverAnswers, ...(localSame?.answers ?? {}) },
+              status: payload.status ?? 'IN_PROGRESS',
+              currentQuestionIndex:
+                payload.currentQuestionIndex ?? localSame?.currentQuestionIndex ?? 0,
+              flaggedQuestionIds: Array.isArray(payload.flaggedQuestionIds)
+                ? payload.flaggedQuestionIds
+                : (localSame?.flaggedQuestionIds ?? []),
+              leaveCount: payload.leaveCount ?? localSame?.leaveCount ?? 0,
+              extraLeaveAllowance:
+                payload.extraLeaveAllowance ?? localSame?.extraLeaveAllowance ?? 0,
+              minorBlurCount:
+                payload.minorBlurCount ?? localSame?.minorBlurCount ?? 0,
+              totalAwaySeconds:
+                payload.totalAwaySeconds ?? localSame?.totalAwaySeconds ?? 0,
+              lockedAt: payload.lockedAt || undefined,
+              lockedWaitSeconds:
+                payload.lockedWaitSeconds ?? localSame?.lockedWaitSeconds ?? 0,
+              bonusSeconds: payload.bonusSeconds ?? localSame?.bonusSeconds ?? 0,
+              unlockRequestNote: payload.unlockRequestNote || undefined,
+              integrityScore:
+                payload.integrityScore ?? localSame?.integrityScore ?? 100,
+              aiFlag: localSame?.aiFlag ?? false,
+              autoScore: localSame?.autoScore ?? 0,
+              essayScore: localSame?.essayScore ?? 0,
+              totalScore: localSame?.totalScore ?? 0,
+              maxTotalScore,
+              scale10Score: localSame?.scale10Score ?? 0,
+              emailSentStatus: localSame?.emailSentStatus ?? 'PENDING',
+              emailEditCount: localSame?.emailEditCount ?? 0,
+              startedAt: payload.startedAt ?? clientStartedAt,
+              violations: localSame?.violations ?? [],
+            };
+
+            updateState((prev) => ({
+              ...prev,
+              attempts: upsertById(prev.attempts, [syncedAttempt]),
+            }));
+
+            return {
+              ok: true,
+              attemptId: resolvedAttemptId,
+              examId: serverExam.id,
+              resumed: Boolean(payload.resumed),
+            };
+          }
+
+          return {
+            ok: false,
+            error: 'Mất kết nối máy chủ khi khởi tạo bài thi. Vui lòng thử lại.',
+          };
+        }
+      }
+
+      const currentState = stateRef.current;
+      const exam = currentState.exams.find((e) => e.roomPin === normalizedPin);
       if (!exam) {
         return { ok: false, error: 'Không tìm thấy phòng thi với mã PIN này.' };
       }
@@ -279,8 +707,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         };
       }
 
-      const myDeviceToken = getOrCreateDeviceToken();
-      const existing = state.attempts.find(
+      const existing = currentState.attempts.find(
         (a) =>
           a.examId === exam.id &&
           a.studentCode.toUpperCase() === normalizedCode,
@@ -345,7 +772,11 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         };
       }
 
-      const assigned = buildAssignedQuestions(exam, state.questions, normalizedCode);
+      const assigned = buildAssignedQuestions(
+        exam,
+        currentState.questions,
+        normalizedCode,
+      );
       if (assigned.length === 0) {
         return { ok: false, error: 'Đề thi chưa có câu hỏi trong ngân hàng.' };
       }
@@ -389,13 +820,6 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         attempts: [newAttempt, ...prev.attempts],
       }));
 
-      if (backendConnected) {
-        void apiRequest('/api/attempts.php?action=start', {
-          method: 'POST',
-          body: JSON.stringify(newAttempt),
-        });
-      }
-
       return {
         ok: true,
         attemptId: newAttempt.id,
@@ -403,7 +827,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         resumed: false,
       };
     },
-    [backendConnected, state.attempts, state.exams, state.questions, updateState],
+    [backendConnected, updateState],
   );
 
   const saveAnswer = useCallback(
@@ -445,11 +869,17 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
       });
 
       if (backendConnected) {
+        const attSnap = stateRef.current.attempts
+          .find((a) => a.id === attemptId)
+          ?.assignedQuestions.find((s) => s.questionId === questionId);
         void apiRequest('/api/attempts.php?action=heartbeat', {
           method: 'POST',
           body: JSON.stringify({
             attemptId,
             questionId,
+            chapterCategory: attSnap?.chapterCategory,
+            renderedSeedVars: attSnap?.seedVars,
+            maxPoints: attSnap?.maxPoints,
             answerPayload: payload,
             keystrokeTelemetry: telemetry,
             currentQuestionIndex: nextQuestionIndex,
@@ -642,57 +1072,239 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
       attemptId: string,
       forcedByRejectOrSweep = false,
     ): Promise<ExamAttempt | null> => {
-      let finalized: ExamAttempt | null = null;
-      const nowIso = new Date().toISOString();
-
-      updateState((prev) => {
-        const current = prev.attempts.find((a) => a.id === attemptId);
-        if (!current) return prev;
-        const exam = prev.exams.find((e) => e.id === current.examId);
-        const reScored = recalculateAttemptScores(current, prev.questions);
-
-        const isDelayed = exam?.emailDeliveryMode === 'DELAYED_BATCH' && exam.status !== 'CLOSED';
-        finalized = {
-          ...reScored,
-          status: forcedByRejectOrSweep ? 'AUTO_SUBMITTED' : 'SUBMITTED',
-          submittedAt: reScored.submittedAt ?? nowIso,
-          lockedAt: undefined,
-          emailSentStatus: isDelayed ? 'RECEIPT_SENT' : 'SENT',
-          emailSentAt: nowIso,
-        };
-
-        const mailLog: EmailLogEntry = {
-          id: `mail_${Date.now().toString(36)}`,
-          recipient: finalized.studentEmail,
-          subject: isDelayed
-            ? `[VNEconomics Testing] Biên nhận nộp bài: ${exam?.title ?? ''}`
-            : `[VNEconomics Testing] Kết quả bài thi: ${exam?.title ?? ''}`,
-          kind: isDelayed ? 'STUDENT_RECEIPT' : 'STUDENT_SCORE',
-          status: 'SENT',
-          summary: isDelayed
-            ? `Biên nhận thu bài thành công (${finalized.studentCode}). Điểm chi tiết gửi sau khi đóng ca thi.`
-            : `Điểm quy đổi ${finalized.scale10Score.toFixed(2)}/10 (${finalized.totalScore}/${finalized.maxTotalScore}đ) | Tin cậy: ${finalized.integrityScore}%`,
-          sentAt: nowIso,
-        };
-
-        return {
-          ...prev,
-          attempts: prev.attempts.map((a) => (a.id === attemptId ? finalized! : a)),
-          emailLogs: [mailLog, ...prev.emailLogs],
-        };
-      });
-
-      if (backendConnected && finalized) {
-        void apiRequest('/api/attempts.php?action=submit', {
-          method: 'POST',
-          body: JSON.stringify(finalized),
-        });
+      const currentState = stateRef.current;
+      const current = currentState.attempts.find((a) => a.id === attemptId);
+      if (!current) return null;
+      if (current.status === 'SUBMITTED' || current.status === 'AUTO_SUBMITTED') {
+        return current;
       }
+
+      const exam = currentState.exams.find((e) => e.id === current.examId);
+      const localScored = recalculateAttemptScores(current, currentState.questions);
+      const nowIso = new Date().toISOString();
+      const isDelayed =
+        exam?.emailDeliveryMode === 'DELAYED_BATCH' && exam.status !== 'CLOSED';
+
+      let finalized: ExamAttempt = {
+        ...localScored,
+        status: forcedByRejectOrSweep ? 'AUTO_SUBMITTED' : 'SUBMITTED',
+        submittedAt: localScored.submittedAt ?? nowIso,
+        lockedAt: undefined,
+        emailSentStatus: isDelayed ? 'RECEIPT_SENT' : 'SENT',
+        emailSentAt: nowIso,
+      };
+
+      if (backendConnected) {
+        const submitRes = await apiRequestDetailed<{
+          ok: boolean;
+          result?: Partial<ExamAttempt>;
+          answers?: Array<{
+            questionId: string;
+            chapterCategory?: string;
+            isCorrect?: boolean | null;
+            maxPoints?: number;
+            earnedPoints?: number;
+            gradingFeedback?: string;
+            gradingStatus?: AttemptAnswer['gradingStatus'];
+            rubricBreakdown?: AttemptAnswer['rubricBreakdown'];
+            matchedHighlights?: string[];
+            blockedHighlights?: string[];
+            honeypotTriggered?: boolean;
+          }>;
+        }>('/api/attempts.php?action=submit', {
+          method: 'POST',
+          body: JSON.stringify({
+            ...localScored,
+            attemptId: current.id,
+            forcedByRejectOrSweep,
+          }),
+        });
+
+        if (submitRes.ok && submitRes.data?.ok && submitRes.data.result) {
+          const srv = submitRes.data.result;
+          const mergedAnswers: Record<string, AttemptAnswer> = {
+            ...localScored.answers,
+          };
+          let hasHoneypot = current.aiFlag;
+          for (const sa of submitRes.data.answers ?? []) {
+            const prevAns = mergedAnswers[sa.questionId];
+            if (sa.honeypotTriggered) hasHoneypot = true;
+            const snap = current.assignedQuestions.find(
+              (s) => s.questionId === sa.questionId,
+            );
+            mergedAnswers[sa.questionId] = {
+              questionId: sa.questionId,
+              chapterCategory:
+                sa.chapterCategory ??
+                prevAns?.chapterCategory ??
+                snap?.chapterCategory ??
+                '',
+              renderedSeedVars: prevAns?.renderedSeedVars ?? snap?.seedVars ?? {},
+              answerPayload: prevAns?.answerPayload ?? '',
+              keystrokeTelemetry: prevAns?.keystrokeTelemetry,
+              isCorrect: sa.isCorrect ?? prevAns?.isCorrect ?? null,
+              maxPoints: sa.maxPoints ?? prevAns?.maxPoints ?? snap?.maxPoints ?? 1,
+              earnedPoints: sa.earnedPoints ?? prevAns?.earnedPoints ?? 0,
+              gradingFeedback: sa.gradingFeedback ?? prevAns?.gradingFeedback,
+              gradingStatus: sa.gradingStatus ?? prevAns?.gradingStatus ?? 'AUTO',
+              rubricBreakdown: sa.rubricBreakdown ?? prevAns?.rubricBreakdown,
+              matchedHighlights: sa.matchedHighlights ?? prevAns?.matchedHighlights,
+              blockedHighlights: sa.blockedHighlights ?? prevAns?.blockedHighlights,
+              honeypotTriggered: Boolean(sa.honeypotTriggered),
+            };
+          }
+
+          finalized = {
+            ...localScored,
+            answers: mergedAnswers,
+            status:
+              srv.status ?? (forcedByRejectOrSweep ? 'AUTO_SUBMITTED' : 'SUBMITTED'),
+            submittedAt: srv.submittedAt ?? nowIso,
+            lockedAt: undefined,
+            autoScore: srv.autoScore ?? localScored.autoScore,
+            essayScore: srv.essayScore ?? localScored.essayScore,
+            totalScore: srv.totalScore ?? localScored.totalScore,
+            maxTotalScore: srv.maxTotalScore ?? localScored.maxTotalScore,
+            scale10Score: srv.scale10Score ?? localScored.scale10Score,
+            integrityScore: srv.integrityScore ?? localScored.integrityScore,
+            aiFlag: hasHoneypot,
+            emailSentStatus:
+              srv.emailSentStatus ?? (isDelayed ? 'RECEIPT_SENT' : 'SENT'),
+            emailSentAt: nowIso,
+          };
+        }
+      }
+
+      const mailLog: EmailLogEntry = {
+        id: `mail_${Date.now().toString(36)}`,
+        recipient: finalized.studentEmail,
+        subject: isDelayed
+          ? `[VNEconomics Testing] Biên nhận nộp bài: ${exam?.title ?? ''}`
+          : `[VNEconomics Testing] Kết quả bài thi: ${exam?.title ?? ''}`,
+        kind: isDelayed ? 'STUDENT_RECEIPT' : 'STUDENT_SCORE',
+        status: 'SENT',
+        summary: isDelayed
+          ? `Biên nhận thu bài thành công (${finalized.studentCode}). Điểm chi tiết gửi sau khi đóng ca thi.`
+          : `Điểm quy đổi ${finalized.scale10Score.toFixed(2)}/10 (${finalized.totalScore}/${finalized.maxTotalScore}đ) | Tin cậy: ${finalized.integrityScore}%`,
+        sentAt: nowIso,
+      };
+
+      updateState((prev) => ({
+        ...prev,
+        attempts: prev.attempts.map((a) => (a.id === attemptId ? finalized : a)),
+        emailLogs: [mailLog, ...prev.emailLogs],
+      }));
 
       return finalized;
     },
     [backendConnected, updateState],
   );
+
+  const myDeviceTokenForPoll = getOrCreateDeviceToken();
+  const activePollAttempt = state.attempts.find(
+    (a) =>
+      a.deviceToken === myDeviceTokenForPoll &&
+      (a.status === 'IN_PROGRESS' || a.status === 'PAUSED' || a.status === 'LOCKED'),
+  );
+  const activePollAttemptId = activePollAttempt?.id ?? null;
+
+  useEffect(() => {
+    if (!backendConnected || !activePollAttemptId) return;
+
+    let cancelled = false;
+    let inFlight = false;
+
+    const tickPoll = async () => {
+      if (cancelled || inFlight) return;
+      inFlight = true;
+      try {
+        const res = await apiRequestDetailed<{
+          ok: boolean;
+          s?: ExamAttempt['status'];
+          b?: number;
+          x?: number;
+          w?: number;
+          e?: Exam['status'];
+        }>(`/api/proctor.php?action=poll&attemptId=${encodeURIComponent(activePollAttemptId)}`, {
+          method: 'GET',
+        });
+
+        if (cancelled || !res.ok || !res.data?.ok || !res.data.s) return;
+        const { s, b, x, w, e } = res.data;
+
+        if (s === 'AUTO_SUBMITTED' || s === 'SUBMITTED' || e === 'CLOSED') {
+          if (e === 'CLOSED') {
+            const targetExamId = stateRef.current.attempts.find(
+              (a) => a.id === activePollAttemptId,
+            )?.examId;
+            if (targetExamId) {
+              updateState((prev) => ({
+                ...prev,
+                exams: prev.exams.map((ex) =>
+                  ex.id === targetExamId && ex.status !== 'CLOSED'
+                    ? { ...ex, status: 'CLOSED' }
+                    : ex,
+                ),
+              }));
+            }
+          }
+          if (autoSubmittedPollRef.current !== activePollAttemptId) {
+            autoSubmittedPollRef.current = activePollAttemptId;
+            void submitAttempt(activePollAttemptId, true);
+          }
+          return;
+        }
+
+        const curr = stateRef.current.attempts.find((a) => a.id === activePollAttemptId);
+        const currExam = curr
+          ? stateRef.current.exams.find((ex) => ex.id === curr.examId)
+          : undefined;
+        const attemptChanged =
+          curr &&
+          (curr.status !== s ||
+            (b !== undefined && curr.bonusSeconds !== b) ||
+            (x !== undefined && curr.extraLeaveAllowance !== x) ||
+            (w !== undefined && curr.lockedWaitSeconds !== w));
+        const examChanged = Boolean(currExam && e && currExam.status !== e);
+
+        if (!attemptChanged && !examChanged) return;
+
+        updateState((prev) => ({
+          ...prev,
+          exams:
+            examChanged && currExam && e
+              ? prev.exams.map((ex) =>
+                  ex.id === currExam.id ? { ...ex, status: e } : ex,
+                )
+              : prev.exams,
+          attempts: attemptChanged
+            ? prev.attempts.map((a) => {
+                if (a.id !== activePollAttemptId) return a;
+                return {
+                  ...a,
+                  status: s,
+                  lockedAt: s === 'IN_PROGRESS' ? undefined : a.lockedAt,
+                  bonusSeconds: b ?? a.bonusSeconds,
+                  extraLeaveAllowance: x ?? a.extraLeaveAllowance,
+                  lockedWaitSeconds: w ?? a.lockedWaitSeconds,
+                };
+              })
+            : prev.attempts,
+        }));
+      } finally {
+        inFlight = false;
+      }
+    };
+
+    const intervalId = window.setInterval(() => {
+      void tickPoll();
+    }, 3000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(intervalId);
+    };
+  }, [backendConnected, activePollAttemptId, submitAttempt, updateState]);
 
   const correctStudentEmail = useCallback(
     (attemptId: string, newEmail: string): boolean => {
@@ -755,6 +1367,41 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
       extraSeconds?: number,
     ) => {
       if (decision === 'REJECT') {
+        if (backendConnected) {
+          const nowIso = new Date().toISOString();
+          updateState((prev) => ({
+            ...prev,
+            attempts: prev.attempts.map((a) =>
+              a.id === attemptId
+                ? {
+                    ...a,
+                    status: 'AUTO_SUBMITTED',
+                    submittedAt: a.submittedAt ?? nowIso,
+                    lockedAt: undefined,
+                  }
+                : a,
+            ),
+          }));
+          void apiRequest<{ ok: boolean; attempt?: Partial<ExamAttempt> }>(
+            '/api/proctor.php?action=decision',
+            {
+              method: 'POST',
+              body: JSON.stringify({ attemptId, decision: 'REJECT' }),
+            },
+          ).then((res) => {
+            if (res?.ok && res.attempt) {
+              updateState((prev) => ({
+                ...prev,
+                attempts: prev.attempts.map((a) =>
+                  a.id === attemptId
+                    ? { ...a, ...res.attempt, lockedAt: undefined }
+                    : a,
+                ),
+              }));
+            }
+          });
+          return;
+        }
         void submitAttempt(attemptId, true);
         return;
       }

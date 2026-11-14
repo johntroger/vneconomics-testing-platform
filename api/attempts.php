@@ -314,9 +314,15 @@ function finalizeAndGradeAttempt(PDO $pdo, string $attemptId, bool $forcedByReje
             $formattedAnswers[] = [
                 'questionId' => $qid,
                 'chapterCategory' => (string) ($slot['chapterCategory'] ?? ''),
+                'isCorrect' => $existingDb['is_correct'] === null ? null : (bool) $existingDb['is_correct'],
                 'maxPoints' => $maxPts,
                 'earnedPoints' => $earned,
                 'gradingFeedback' => (string) ($existingDb['grading_feedback'] ?? ''),
+                'gradingStatus' => 'MANUAL_OVERRIDE',
+                'rubricBreakdown' => decodeJsonSafe($existingDb['rubric_breakdown_json'] ?? null, null),
+                'matchedHighlights' => decodeJsonSafe($existingDb['matched_highlights_json'] ?? null, null),
+                'blockedHighlights' => decodeJsonSafe($existingDb['blocked_highlights_json'] ?? null, null),
+                'honeypotTriggered' => (bool) ($existingDb['honeypot_triggered'] ?? false),
             ];
             continue;
         }
@@ -379,9 +385,15 @@ function finalizeAndGradeAttempt(PDO $pdo, string $attemptId, bool $forcedByReje
         $formattedAnswers[] = [
             'questionId' => $qid,
             'chapterCategory' => (string) ($slot['chapterCategory'] ?? ''),
+            'isCorrect' => $graded['isCorrect'] ?? null,
             'maxPoints' => $maxPts,
             'earnedPoints' => (float) $graded['earnedPoints'],
             'gradingFeedback' => (string) ($graded['gradingFeedback'] ?? ''),
+            'gradingStatus' => (string) ($graded['gradingStatus'] ?? 'AUTO'),
+            'rubricBreakdown' => $graded['rubricBreakdown'] ?? null,
+            'matchedHighlights' => $graded['matchedHighlights'] ?? null,
+            'blockedHighlights' => $graded['blockedHighlights'] ?? null,
+            'honeypotTriggered' => !empty($graded['honeypotTriggered']),
         ];
     }
 
@@ -461,6 +473,51 @@ function finalizeAndGradeAttempt(PDO $pdo, string $attemptId, bool $forcedByReje
     ];
 }
 
+/**
+ * Hydrate attempt_answers keyed by questionId so proctor/resume endpoints share one mapper.
+ */
+function fetchAttemptAnswersMapPhp(PDO $pdo, string $attemptId, bool $includeGrading = true): array
+{
+    $stmt = $pdo->prepare('SELECT * FROM attempt_answers WHERE attempt_id = :aid');
+    $stmt->execute([':aid' => $attemptId]);
+    $ansMap = [];
+    foreach ($stmt->fetchAll() as $a) {
+        $rsv = decodeJsonSafe($a['rendered_seed_vars'] ?? null, []);
+        $kt = decodeJsonSafe($a['keystroke_telemetry'] ?? null, null);
+        $entry = [
+            'questionId' => $a['question_id'],
+            'chapterCategory' => (string) ($a['chapter_category'] ?? ''),
+            'renderedSeedVars' => (is_array($rsv) && count($rsv) > 0) ? $rsv : new stdClass(),
+            'answerPayload' => decodeJsonSafe($a['answer_payload'] ?? null, ''),
+            'isCorrect' => $includeGrading ? ($a['is_correct'] === null ? null : (bool) $a['is_correct']) : null,
+            'maxPoints' => (float) $a['max_points'],
+            'earnedPoints' => $includeGrading ? (float) $a['earned_points'] : 0.0,
+            'gradingFeedback' => $includeGrading ? ($a['grading_feedback'] ?? '') : '',
+            'gradingStatus' => $includeGrading ? (string) ($a['grading_status'] ?: 'AUTO') : 'AUTO',
+            'honeypotTriggered' => $includeGrading ? (bool) ($a['honeypot_triggered'] ?? false) : false,
+        ];
+        if ($kt !== null) {
+            $entry['keystrokeTelemetry'] = $kt;
+        }
+        if ($includeGrading) {
+            $rb = decodeJsonSafe($a['rubric_breakdown_json'] ?? null, null);
+            $mh = decodeJsonSafe($a['matched_highlights_json'] ?? null, null);
+            $bh = decodeJsonSafe($a['blocked_highlights_json'] ?? null, null);
+            if ($rb !== null) {
+                $entry['rubricBreakdown'] = $rb;
+            }
+            if ($mh !== null) {
+                $entry['matchedHighlights'] = $mh;
+            }
+            if ($bh !== null) {
+                $entry['blockedHighlights'] = $bh;
+            }
+        }
+        $ansMap[$a['question_id']] = $entry;
+    }
+    return $ansMap;
+}
+
 if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) === __FILE__) {
     applyCorsHeaders();
     $pdo = getDb();
@@ -516,6 +573,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
 
         if ($existing) {
             if (in_array($existing['status'], ['SUBMITTED', 'AUTO_SUBMITTED'], true)) {
+                $ansMap = fetchAttemptAnswersMapPhp($pdo, $existing['id'], true);
                 jsonResponse([
                     'ok' => true,
                     'resumed' => true,
@@ -523,6 +581,39 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
                     'attemptId' => $existing['id'],
                     'examId' => $exam['id'],
                     'exam' => formatExamRow($examRow, true),
+                    'attempt' => [
+                        'id' => $existing['id'],
+                        'examId' => $existing['exam_id'],
+                        'studentCode' => $existing['student_code'],
+                        'studentName' => $existing['student_name'],
+                        'studentEmail' => $existing['student_email'],
+                        'className' => $existing['class_name'],
+                        'deviceToken' => $existing['device_token'] ?? '',
+                        'assignedQuestions' => decodeJsonSafe($existing['assigned_questions_json'] ?? null, []),
+                        'answers' => count($ansMap) > 0 ? $ansMap : new stdClass(),
+                        'status' => $existing['status'],
+                        'currentQuestionIndex' => (int) $existing['current_question_index'],
+                        'flaggedQuestionIds' => decodeJsonSafe($existing['flagged_question_ids_json'] ?? null, []),
+                        'leaveCount' => (int) $existing['leave_count'],
+                        'extraLeaveAllowance' => (int) $existing['extra_leave_allowance'],
+                        'minorBlurCount' => (int) $existing['minor_blur_count'],
+                        'totalAwaySeconds' => (int) $existing['total_away_seconds'],
+                        'lockedWaitSeconds' => (int) $existing['locked_wait_seconds'],
+                        'bonusSeconds' => (int) $existing['bonus_seconds'],
+                        'integrityScore' => (int) $existing['integrity_score'],
+                        'aiFlag' => (bool) $existing['ai_flag'],
+                        'aiFlagReason' => $existing['ai_flag_reason'] ?: null,
+                        'autoScore' => (float) $existing['auto_score'],
+                        'essayScore' => (float) $existing['essay_score'],
+                        'totalScore' => (float) $existing['total_score'],
+                        'maxTotalScore' => (float) $existing['max_total_score'],
+                        'scale10Score' => (float) $existing['scale10_score'],
+                        'emailSentStatus' => $existing['email_sent_status'],
+                        'emailSentAt' => $existing['email_sent_at'] ?: null,
+                        'emailEditCount' => (int) ($existing['email_edit_count'] ?? 0),
+                        'startedAt' => $existing['started_at'],
+                        'submittedAt' => $existing['submitted_at'] ?: null,
+                    ],
                 ]);
             }
             if ((string) $existing['device_token'] !== '' && $existing['device_token'] !== $deviceToken) {
@@ -543,14 +634,26 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
                 $pdo->prepare('UPDATE exam_attempts SET device_token = :dt WHERE id = :id')->execute([':dt' => $deviceToken, ':id' => $existing['id']]);
             }
             $assigned = decodeJsonSafe($existing['assigned_questions_json'], []);
+            $ansMap = fetchAttemptAnswersMapPhp($pdo, $existing['id'], false);
             jsonResponse([
                 'ok' => true,
                 'resumed' => true,
                 'attemptId' => $existing['id'],
                 'exam' => formatExamRow($examRow, true),
                 'assignedQuestions' => $assigned,
+                'answers' => count($ansMap) > 0 ? $ansMap : new stdClass(),
                 'status' => $existing['status'],
+                'currentQuestionIndex' => (int) $existing['current_question_index'],
+                'flaggedQuestionIds' => decodeJsonSafe($existing['flagged_question_ids_json'] ?? null, []),
+                'leaveCount' => (int) $existing['leave_count'],
+                'extraLeaveAllowance' => (int) $existing['extra_leave_allowance'],
+                'minorBlurCount' => (int) $existing['minor_blur_count'],
+                'totalAwaySeconds' => (int) $existing['total_away_seconds'],
+                'lockedAt' => $existing['locked_at'] ?: null,
+                'lockedWaitSeconds' => (int) $existing['locked_wait_seconds'],
                 'bonusSeconds' => (int) $existing['bonus_seconds'],
+                'unlockRequestNote' => $existing['unlock_request_note'] ?: null,
+                'integrityScore' => (int) $existing['integrity_score'],
                 'startedAt' => $existing['started_at'],
             ]);
         }
@@ -644,9 +747,11 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         }
 
         // Ensure attempt exists if submitted from hybrid offline client directly
-        $chk = $pdo->prepare('SELECT COUNT(*) FROM exam_attempts WHERE id = :id');
+        $chk = $pdo->prepare('SELECT status, email_sent_status FROM exam_attempts WHERE id = :id LIMIT 1');
         $chk->execute([':id' => $attemptId]);
-        if ((int) $chk->fetchColumn() === 0 && !empty($body['examId'])) {
+        $existingAtt = $chk->fetch();
+        $alreadySentEmail = $existingAtt && in_array($existingAtt['email_sent_status'] ?? '', ['SENT', 'RECEIPT_SENT'], true);
+        if (!$existingAtt && !empty($body['examId'])) {
             $pdo->prepare(
                 'INSERT INTO exam_attempts (id, exam_id, student_code, student_name, student_email, class_name, device_token, assigned_questions_json, status, leave_count, minor_blur_count, total_away_seconds, integrity_score, max_total_score, started_at)
                  VALUES (:id, :eid, :sc, :sn, :se, :cn, :dt, :aq, :st, :lc, :mb, :tas, :intg, :mts, :sa)'
@@ -678,12 +783,15 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         );
 
         // Return immediate HTTP response to student, then flush SMTP email cleanly if FastCGI supports it
-        $payloadOut = json_encode(['ok' => true, 'result' => $result['attempt']], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $payloadOut = json_encode(
+            ['ok' => true, 'result' => $result['attempt'], 'answers' => $result['answers']],
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES
+        );
         header('Content-Type: application/json; charset=utf-8');
         echo $payloadOut;
 
         $recipient = (string) ($result['attempt']['studentEmail'] ?? '');
-        if ($recipient !== '' && filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+        if (!$alreadySentEmail && $recipient !== '' && filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
             runAfterResponse(static function () use ($pdo, $result, $recipient): void {
                 $examTitle = (string) ($result['exam']['title'] ?? 'Bài thi');
                 if ($result['isDelayed']) {

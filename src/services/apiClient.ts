@@ -45,10 +45,18 @@ export async function pingPhpApi(): Promise<boolean> {
   }
 }
 
-export async function apiRequest<T>(
+export interface ApiDetailedResponse<T> {
+  reachedJson: boolean;
+  ok: boolean;
+  status: number;
+  data: T | null;
+  error?: string;
+}
+
+export async function apiRequestDetailed<T>(
   path: string,
   options: RequestInit = {},
-): Promise<T | null> {
+): Promise<ApiDetailedResponse<T>> {
   try {
     const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
     const headers: Record<string, string> = {
@@ -63,12 +71,28 @@ export async function apiRequest<T>(
       headers,
     });
     const ct = res.headers.get('content-type') ?? '';
-    if (!ct.includes('application/json')) return null;
-    if (!res.ok) return null;
-    return (await res.json()) as T;
+    if (!ct.includes('application/json')) {
+      return { reachedJson: false, ok: false, status: res.status, data: null };
+    }
+    const json = (await res.json()) as T & { error?: string };
+    return {
+      reachedJson: true,
+      ok: res.ok,
+      status: res.status,
+      data: json,
+      error: typeof json?.error === 'string' ? json.error : undefined,
+    };
   } catch {
-    return null;
+    return { reachedJson: false, ok: false, status: 0, data: null };
   }
+}
+
+export async function apiRequest<T>(
+  path: string,
+  options: RequestInit = {},
+): Promise<T | null> {
+  const res = await apiRequestDetailed<T>(path, options);
+  return res.ok ? res.data : null;
 }
 
 export function generateClientReceiptId(attemptId: string): string {

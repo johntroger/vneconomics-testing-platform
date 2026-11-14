@@ -181,6 +181,8 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
                 'occurredAt' => $v['occurred_at'],
             ], $vStmt->fetchAll());
 
+            $ansMap = fetchAttemptAnswersMapPhp($pdo, $r['id'], true);
+
             $attOut[] = [
                 'id' => $r['id'],
                 'examId' => $r['exam_id'],
@@ -188,27 +190,33 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
                 'studentName' => $r['student_name'],
                 'studentEmail' => $r['student_email'],
                 'className' => $r['class_name'],
+                'deviceToken' => $r['device_token'] ?? '',
+                'assignedQuestions' => decodeJsonSafe($r['assigned_questions_json'] ?? null, []),
+                'answers' => count($ansMap) > 0 ? $ansMap : new stdClass(),
                 'status' => $r['status'],
                 'currentQuestionIndex' => (int) $r['current_question_index'],
+                'flaggedQuestionIds' => decodeJsonSafe($r['flagged_question_ids_json'] ?? null, []),
                 'leaveCount' => (int) $r['leave_count'],
                 'extraLeaveAllowance' => (int) $r['extra_leave_allowance'],
                 'minorBlurCount' => (int) $r['minor_blur_count'],
                 'totalAwaySeconds' => (int) $r['total_away_seconds'],
-                'lockedAt' => $r['locked_at'],
+                'lockedAt' => $r['locked_at'] ?: null,
                 'lockedWaitSeconds' => (int) $r['locked_wait_seconds'],
                 'bonusSeconds' => (int) $r['bonus_seconds'],
-                'unlockRequestNote' => $r['unlock_request_note'],
+                'unlockRequestNote' => $r['unlock_request_note'] ?: null,
                 'integrityScore' => (int) $r['integrity_score'],
                 'aiFlag' => (bool) $r['ai_flag'],
-                'aiFlagReason' => $r['ai_flag_reason'],
+                'aiFlagReason' => $r['ai_flag_reason'] ?: null,
                 'autoScore' => (float) $r['auto_score'],
                 'essayScore' => (float) $r['essay_score'],
                 'totalScore' => (float) $r['total_score'],
                 'maxTotalScore' => (float) $r['max_total_score'],
                 'scale10Score' => (float) $r['scale10_score'],
                 'emailSentStatus' => $r['email_sent_status'],
+                'emailSentAt' => $r['email_sent_at'] ?: null,
+                'emailEditCount' => (int) ($r['email_edit_count'] ?? 0),
                 'startedAt' => $r['started_at'],
-                'submittedAt' => $r['submitted_at'],
+                'submittedAt' => $r['submitted_at'] ?: null,
                 'violations' => $vios,
             ];
         }
