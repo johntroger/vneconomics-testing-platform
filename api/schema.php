@@ -22,6 +22,7 @@ function ensureExamSchema(PDO $pdo, string $driver): void
         $pdo->query('SELECT flagged_question_ids_json, email_edit_count, device_label, location_lat, location_lng, location_accuracy, login_devices_json FROM exam_attempts LIMIT 1');
         $pdo->query('SELECT grading_rubric_json, numerical_formula FROM questions LIMIT 1');
         $pdo->query('SELECT status FROM email_queue LIMIT 1');
+        $pdo->query('SELECT id FROM demo_mailer_quota LIMIT 1');
         if ($driver === 'mysql') {
             $uIdx = $pdo->query("SHOW INDEX FROM exams WHERE Column_name = 'room_pin' AND Non_unique = 0")->fetch();
             if ($uIdx) {
@@ -215,6 +216,18 @@ function ensureExamSchema(PDO $pdo, string $driver): void
                 sent_at VARCHAR(40) NULL,
                 INDEX idx_email_status (status)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+            "CREATE TABLE IF NOT EXISTS demo_mailer_quota (
+                id VARCHAR(80) PRIMARY KEY,
+                browser_id VARCHAR(80) NOT NULL,
+                ip_address VARCHAR(64) NOT NULL,
+                recipient VARCHAR(190) NOT NULL,
+                test_date VARCHAR(10) NOT NULL,
+                created_at VARCHAR(40) NOT NULL,
+                INDEX idx_demo_mailer_browser_date (browser_id, test_date),
+                INDEX idx_demo_mailer_ip_date (ip_address, test_date),
+                INDEX idx_demo_mailer_recipient_date (recipient, test_date)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         ];
     } else {
         $statements = [
@@ -361,6 +374,17 @@ function ensureExamSchema(PDO $pdo, string $driver): void
                 sent_at TEXT NULL
             )",
             "CREATE INDEX IF NOT EXISTS idx_email_status ON email_queue(status)",
+            "CREATE TABLE IF NOT EXISTS demo_mailer_quota (
+                id TEXT PRIMARY KEY,
+                browser_id TEXT NOT NULL,
+                ip_address TEXT NOT NULL,
+                recipient TEXT NOT NULL,
+                test_date TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )",
+            "CREATE INDEX IF NOT EXISTS idx_demo_mailer_browser_date ON demo_mailer_quota(browser_id, test_date)",
+            "CREATE INDEX IF NOT EXISTS idx_demo_mailer_ip_date ON demo_mailer_quota(ip_address, test_date)",
+            "CREATE INDEX IF NOT EXISTS idx_demo_mailer_recipient_date ON demo_mailer_quota(recipient, test_date)",
         ];
     }
 

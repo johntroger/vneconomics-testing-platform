@@ -10,8 +10,11 @@ import {
   ADMIN_TOKEN_KEY,
   apiRequest,
   apiRequestDetailed,
+  getOrCreateBrowserId,
   getOrCreateDeviceToken,
   pingPhpApi,
+  readLocalDemoMailerQuota,
+  saveLocalDemoMailerQuota,
   STORAGE_KEY,
   SYNC_CHANNEL_NAME,
 } from '../services/apiClient';
@@ -158,7 +161,19 @@ interface ExamContextValue extends ExamPlatformState {
   deleteExam: (examId: string) => Promise<{ ok: boolean; error?: string }>;
   cloneExam: (examId: string, customTitle?: string) => Promise<{ exam: Exam | null; error?: string }>;
   resendStudentScoreEmail: (attemptId: string, editedEmail?: string) => void;
-  sendTestMailer: (recipient: string) => EmailLogEntry;
+  checkDemoMailerQuota: () => Promise<{
+    isDemo: boolean;
+    allowed: boolean;
+    alreadyTestedRecipient?: string;
+    message?: string;
+  }>;
+  sendTestMailer: (recipient: string) => Promise<{
+    ok: boolean;
+    entry?: EmailLogEntry;
+    error?: string;
+    quotaExceeded?: boolean;
+    alreadyTestedRecipient?: string;
+  }>;
   resetDemoData: () => void;
 }
 
@@ -2471,15 +2486,112 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
     [backendConnected, updateState],
   );
 
+  const checkDemoMailerQuota = useCallback(async () => {
+    const isDemo = instructorUser?.role !== 'OFFICIAL';
+    if (!isDemo) {
+      return { isDemo: false, allowed: true };
+    }
+    const localQuota = readLocalDemoMailerQuota();
+    if (localQuota) {
+      return {
+        isDemo: true,
+        allowed: false,
+        alreadyTestedRecipient: localQuota.recipient,
+        message: `Trình duyệt này đã gửi Email thử nghiệm hôm nay (${localQuota.recipient}). Chế độ Demo giới hạn tối đa 1 lần/ngày/trình duyệt để tránh spam.`,
+      };
+    }
+    if (backendConnected) {
+      const browserId = getOrCreateBrowserId();
+      const res = await apiRequestDetailed<{
+        ok: boolean;
+        allowed?: boolean;
+        alreadyTestedRecipient?: string;
+        message?: string;
+      }>(`/api/mailer.php?action=test_quota&browserId=${encodeURIComponent(browserId)}`, {
+        method: 'GET',
+      });
+      if (res.ok && res.data && res.data.allowed === false) {
+        if (res.data.alreadyTestedRecipient) {
+          saveLocalDemoMailerQuota(res.data.alreadyTestedRecipient);
+        }
+        return {
+          isDemo: true,
+          allowed: false,
+          alreadyTestedRecipient: res.data.alreadyTestedRecipient,
+          message: res.data.message,
+        };
+      }
+    }
+    return { isDemo: true, allowed: true };
+  }, [backendConnected, instructorUser?.role]);
+
   const sendTestMailer = useCallback(
-    (recipient: string): EmailLogEntry => {
+    async (recipient: string) => {
+      const clean = recipient.trim();
+      const isDemo = instructorUser?.role !== 'OFFICIAL';
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) {
+        return { ok: false, error: 'Địa chỉ Email không hợp lệ.' };
+      }
+
+      if (isDemo) {
+        const localQuota = readLocalDemoMailerQuota();
+        if (localQuota) {
+          return {
+            ok: false,
+            quotaExceeded: true,
+            alreadyTestedRecipient: localQuota.recipient,
+            error: `Trình duyệt này đã gửi Email thử nghiệm hôm nay (${localQuota.recipient}). Vui lòng thử lại vào ngày mai.`,
+          };
+        }
+      }
+
+      if (backendConnected) {
+        const browserId = getOrCreateBrowserId();
+        const res = await apiRequestDetailed<{
+          ok: boolean;
+          quotaExceeded?: boolean;
+          alreadyTestedRecipient?: string;
+          error?: string;
+        }>('/api/mailer.php?action=test', {
+          method: 'POST',
+          body: JSON.stringify({ to: clean, browserId }),
+        });
+
+        if (!res.ok || !res.data?.ok) {
+          if (res.status === 429 || res.data?.quotaExceeded) {
+            if (res.data?.alreadyTestedRecipient) {
+              saveLocalDemoMailerQuota(res.data.alreadyTestedRecipient);
+            }
+            return {
+              ok: false,
+              quotaExceeded: true,
+              alreadyTestedRecipient: res.data?.alreadyTestedRecipient,
+              error:
+                res.data?.error ||
+                res.error ||
+                'Trình duyệt này đã hết lượt gửi Email thử nghiệm hôm nay.',
+            };
+          }
+          return {
+            ok: false,
+            error: res.data?.error || res.error || 'Không thể gửi Email thử nghiệm qua SMTP.',
+          };
+        }
+      }
+
+      if (isDemo) {
+        saveLocalDemoMailerQuota(clean);
+      }
+
       const entry: EmailLogEntry = {
         id: `mail_test_${Date.now().toString(36)}`,
-        recipient: recipient.trim(),
+        recipient: clean,
         subject: '[VNEconomics Testing] Email Kiểm thử Hệ thống Pre-Flight',
         kind: 'TEST_MAIL',
         status: 'SENT',
-        summary: 'Xác nhận SMTP / Mailer sẵn sàng trước giờ mở ca thi.',
+        summary: isDemo
+          ? `[Demo Test] Đã gửi thư kiểm thử tới ${clean}`
+          : `Xác nhận SMTP / Mailer sẵn sàng trước giờ mở ca thi.`,
         sentAt: new Date().toISOString(),
       };
       updateState((prev) => ({
@@ -2487,16 +2599,9 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         emailLogs: [entry, ...prev.emailLogs],
       }));
 
-      if (backendConnected) {
-        void apiRequest('/api/mailer.php?action=test', {
-          method: 'POST',
-          body: JSON.stringify({ to: recipient.trim() }),
-        });
-      }
-
-      return entry;
+      return { ok: true, entry };
     },
-    [backendConnected, updateState],
+    [backendConnected, instructorUser?.role, updateState],
   );
 
   const resetDemoData = useCallback(() => {
@@ -2584,6 +2689,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         deleteExam,
         cloneExam,
         resendStudentScoreEmail,
+        checkDemoMailerQuota,
         sendTestMailer,
         resetDemoData,
       }}

@@ -468,41 +468,181 @@ function runAfterResponse(callable $fn): void
     $fn();
 }
 
+function resolveMailerClientIp(): string
+{
+    $candidates = [
+        $_SERVER['HTTP_CF_CONNECTING_IP'] ?? '',
+        explode(',', (string) ($_SERVER['HTTP_X_FORWARDED_FOR'] ?? ''))[0] ?? '',
+        $_SERVER['REMOTE_ADDR'] ?? '',
+    ];
+    foreach ($candidates as $raw) {
+        $ip = trim((string) $raw);
+        if ($ip !== '' && filter_var($ip, FILTER_VALIDATE_IP)) {
+            return substr($ip, 0, 64);
+        }
+    }
+    return '0.0.0.0';
+}
+
+function getVietnamTodayDate(): string
+{
+    return (new DateTimeImmutable('now', new DateTimeZone('Asia/Ho_Chi_Minh')))->format('Y-m-d');
+}
+
+function checkDemoMailerQuota(
+    PDO $pdo,
+    string $browserId,
+    string $ip,
+    string $today,
+    ?string $recipient = null
+): array {
+    $stmt = $pdo->prepare(
+        'SELECT recipient, created_at FROM demo_mailer_quota WHERE browser_id = :bid AND test_date = :d LIMIT 1'
+    );
+    $stmt->execute([':bid' => $browserId, ':d' => $today]);
+    $row = $stmt->fetch();
+    if ($row) {
+        return [
+            'allowed' => false,
+            'reason' => 'BROWSER_LIMIT',
+            'alreadyTestedRecipient' => (string) $row['recipient'],
+            'sentAt' => (string) $row['created_at'],
+            'message' => 'Trình duyệt này đã gửi Email thử nghiệm trong ngày hôm nay (' . $row['recipient'] . '). Chế độ Demo giới hạn tối đa 1 lần/ngày/trình duyệt để tránh spam.',
+        ];
+    }
+
+    if ($recipient !== null && $recipient !== '') {
+        $recStmt = $pdo->prepare(
+            'SELECT COUNT(*) AS cnt FROM demo_mailer_quota WHERE recipient = :rec AND test_date = :d'
+        );
+        $recStmt->execute([':rec' => strtolower($recipient), ':d' => $today]);
+        if ((int) ($recStmt->fetchColumn() ?: 0) >= 2) {
+            return [
+                'allowed' => false,
+                'reason' => 'RECIPIENT_LIMIT',
+                'message' => 'Hộp thư này đã nhận đủ số lần gửi thử Demo trong ngày hôm nay. Vui lòng thử lại vào ngày mai.',
+            ];
+        }
+    }
+
+    $ipStmt = $pdo->prepare(
+        'SELECT COUNT(*) AS cnt FROM demo_mailer_quota WHERE ip_address = :ip AND test_date = :d'
+    );
+    $ipStmt->execute([':ip' => $ip, ':d' => $today]);
+    if ((int) ($ipStmt->fetchColumn() ?: 0) >= 10) {
+        return [
+            'allowed' => false,
+            'reason' => 'IP_LIMIT',
+            'message' => 'Mạng/IP hiện tại đã đạt giới hạn gửi thử Demo hôm nay. Vui lòng đăng nhập tài khoản Giảng viên chính thức để gửi không giới hạn.',
+        ];
+    }
+
+    return ['allowed' => true];
+}
+
 // Direct HTTP Endpoint handling
 if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) === __FILE__) {
     applyCorsHeaders();
     $action = $_GET['action'] ?? 'list';
     $pdo = getDb();
-    requireAdminAuth();
+    $admin = requireAdminAuth();
+    $isDemo = (($admin['role'] ?? 'DEMO') !== 'OFFICIAL');
 
     if ($action === 'list') {
         $rows = $pdo->query('SELECT id, recipient, subject, kind, status, summary, csv_filename, error_message, created_at, sent_at FROM email_queue ORDER BY created_at DESC LIMIT 200')->fetchAll();
         jsonResponse(['ok' => true, 'logs' => $rows]);
     }
 
+    if ($action === 'test_quota') {
+        $browserId = trim((string) ($_GET['browserId'] ?? ''));
+        if (!$isDemo) {
+            jsonResponse(['ok' => true, 'isDemo' => false, 'allowed' => true]);
+        }
+        if (!preg_match('/^[a-zA-Z0-9_-]{8,80}$/', $browserId)) {
+            jsonResponse(['ok' => true, 'isDemo' => true, 'allowed' => true]);
+        }
+        $today = getVietnamTodayDate();
+        $ip = resolveMailerClientIp();
+        $quota = checkDemoMailerQuota($pdo, $browserId, $ip, $today);
+        jsonResponse(array_merge(['ok' => true, 'isDemo' => true, 'today' => $today], $quota));
+    }
+
     if ($action === 'test') {
         $body = readJsonBody();
         $cfg = getAppConfig();
-        $to = trim((string) ($body['to'] ?? $cfg['default_instructor_email']));
+        $to = trim((string) ($body['to'] ?? ($isDemo ? '' : $cfg['default_instructor_email'])));
         if (!filter_var($to, FILTER_VALIDATE_EMAIL)) {
-            jsonError('Email người nhận không hợp lệ.', 400);
+            jsonError('Vui lòng nhập địa chỉ Email hợp lệ để nhận thư thử nghiệm.', 400);
         }
-        $html = "<div style='font-family:Arial,sans-serif;padding:20px;border:1px solid #0F766E;border-radius:8px;'>"
-            . "<h3 style='color:#0F766E;margin-top:0;'>VNEconomics Testing Platform — SMTP Test Thành Công</h3>"
-            . "<p>Thư kiểm tra kết nối SMTP/Mailer được gửi lúc <strong>" . nowIso() . "</strong>.</p></div>";
+
+        $browserId = trim((string) ($body['browserId'] ?? ''));
+        $today = getVietnamTodayDate();
+        $ip = resolveMailerClientIp();
+
+        if ($isDemo) {
+            if (!preg_match('/^[a-zA-Z0-9_-]{8,80}$/', $browserId)) {
+                jsonError('Không xác định được mã trình duyệt (Browser ID) hợp lệ.', 400);
+            }
+            $quota = checkDemoMailerQuota($pdo, $browserId, $ip, $today, $to);
+            if (empty($quota['allowed'])) {
+                jsonResponse([
+                    'ok' => false,
+                    'quotaExceeded' => true,
+                    'alreadyTestedRecipient' => $quota['alreadyTestedRecipient'] ?? null,
+                    'error' => $quota['message'] ?? 'Đã hết lượt gửi Email thử nghiệm hôm nay.',
+                ], 429);
+            }
+        }
+
+        $sentTimeVn = (new DateTimeImmutable('now', new DateTimeZone('Asia/Ho_Chi_Minh')))->format('H:i:s d/m/Y');
+        $safeTo = htmlspecialchars($to, ENT_QUOTES, 'UTF-8');
+        $modeLabel = $isDemo ? 'Chế độ Trải nghiệm Demo' : 'Tài khoản Giảng viên Chính thức';
+        $html = "<div style='font-family:Arial,sans-serif;max-width:560px;margin:0 auto;padding:20px;border:1px solid #cbd5e1;border-radius:12px;background:#ffffff;color:#0f172a;'>"
+            . "<h3 style='color:#0F766E;margin-top:0;'>VNEconomics Testing Platform — Kiểm thử Email Thành công</h3>"
+            . "<p>Xin chào Thầy/Cô,</p>"
+            . "<p>Đây là thư kiểm thử được gửi từ <strong>{$modeLabel}</strong> tới địa chỉ <strong>{$safeTo}</strong> lúc <strong>{$sentTimeVn}</strong> (giờ Việt Nam).</p>"
+            . "<div style='background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px;margin:14px 0;font-size:13px;'>"
+            . "<strong>Khi tổ chức thi thật trên hệ thống:</strong>"
+            . "<ul style='margin:6px 0 0 18px;padding:0;line-height:1.6;'>"
+            . "<li>Sinh viên nộp bài sẽ nhận ngay phiếu điểm chi tiết (hoặc biên nhận nếu chọn chế độ hoãn điểm).</li>"
+            . "<li>Giảng viên bấm <em>Kết thúc Ca thi</em> sẽ nhận được Bảng điểm tổng hợp kèm file CSV toàn lớp.</li>"
+            . "</ul></div>"
+            . "<p style='font-size:12px;color:#64748b;margin-bottom:0;'>Thư được gửi tự động bởi VNEconomics Testing Platform.</p>"
+            . "</div>";
 
         $res = enqueueAndSendEmail(
             $pdo,
             $to,
-            '[VNEconomics] Kiểm tra cấu hình gửi Email hệ thống thi',
+            '[VNEconomics Testing] Email Kiểm thử Hệ thống Pre-Flight',
             $html,
             'TEST_MAIL',
-            'Email kiểm tra cấu hình SMTP từ Admin Dashboard',
+            ($isDemo ? '[Demo Test] ' : '') . 'Email kiểm tra gửi tới ' . $to,
             null,
             null,
             true
         );
-        jsonResponse(['ok' => $res['status'] === 'SENT', 'result' => $res]);
+
+        if ($isDemo && ($res['status'] ?? '') === 'SENT') {
+            $ins = $pdo->prepare(
+                'INSERT INTO demo_mailer_quota (id, browser_id, ip_address, recipient, test_date, created_at)
+                 VALUES (:id, :bid, :ip, :rec, :d, :at)'
+            );
+            $ins->execute([
+                ':id' => 'dmq_' . bin2hex(random_bytes(8)),
+                ':bid' => $browserId,
+                ':ip' => $ip,
+                ':rec' => strtolower($to),
+                ':d' => $today,
+                ':at' => nowIso(),
+            ]);
+        }
+
+        $isSent = ($res['status'] ?? '') === 'SENT';
+        jsonResponse([
+            'ok' => $isSent,
+            'error' => $isSent ? null : ($res['error'] ?? 'Không thể gửi Email thử nghiệm qua SMTP.'),
+            'result' => $res,
+        ]);
     }
 
     if ($action === 'retry') {

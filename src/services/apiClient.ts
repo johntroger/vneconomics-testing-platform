@@ -17,6 +17,8 @@ export interface PlatformSnapshot {
 export const STORAGE_KEY = 'vne_testing_platform_v1';
 export const ADMIN_TOKEN_KEY = 'vne_admin_bearer_token';
 export const DEVICE_TOKEN_KEY = 'vne_student_device_token';
+export const BROWSER_ID_KEY = 'vne_browser_id';
+export const DEMO_MAILER_QUOTA_KEY = 'vne_demo_mailer_quota_v1';
 export const SYNC_CHANNEL_NAME = 'vne_exam_sync_channel';
 
 export function getOrCreateDeviceToken(): string {
@@ -26,6 +28,66 @@ export function getOrCreateDeviceToken(): string {
     localStorage.setItem(DEVICE_TOKEN_KEY, token);
   }
   return token;
+}
+
+export function getOrCreateBrowserId(): string {
+  const cookieMatch = document.cookie.match(/(?:^|;\s*)vne_browser_id=([^;]+)/);
+  const fromCookie = cookieMatch?.[1] ? decodeURIComponent(cookieMatch[1]) : '';
+  const fromStorage = localStorage.getItem(BROWSER_ID_KEY) || '';
+  let id =
+    (fromStorage && /^[a-zA-Z0-9_-]{8,80}$/.test(fromStorage) && fromStorage) ||
+    (fromCookie && /^[a-zA-Z0-9_-]{8,80}$/.test(fromCookie) && fromCookie) ||
+    '';
+  if (!id) {
+    id = `brw_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+  }
+  localStorage.setItem(BROWSER_ID_KEY, id);
+  document.cookie = `vne_browser_id=${encodeURIComponent(id)}; max-age=31536000; path=/; SameSite=Lax`;
+  return id;
+}
+
+export function getTodayVnDateKey(): string {
+  try {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Ho_Chi_Minh',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(new Date());
+  } catch {
+    return new Date().toISOString().slice(0, 10);
+  }
+}
+
+export interface LocalDemoMailerQuota {
+  date: string;
+  recipient: string;
+  sentAt: string;
+}
+
+export function readLocalDemoMailerQuota(): LocalDemoMailerQuota | null {
+  try {
+    const raw = localStorage.getItem(DEMO_MAILER_QUOTA_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as LocalDemoMailerQuota;
+    if (!parsed || parsed.date !== getTodayVnDateKey()) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+export function saveLocalDemoMailerQuota(recipient: string): void {
+  try {
+    const payload: LocalDemoMailerQuota = {
+      date: getTodayVnDateKey(),
+      recipient: recipient.trim(),
+      sentAt: new Date().toISOString(),
+    };
+    localStorage.setItem(DEMO_MAILER_QUOTA_KEY, JSON.stringify(payload));
+  } catch {
+    // Ignore storage errors
+  }
 }
 
 export async function pingPhpApi(): Promise<boolean> {

@@ -102,6 +102,7 @@ export const AdminDashboardPage: React.FC = () => {
     deleteExam,
     cloneExam,
     resendStudentScoreEmail,
+    checkDemoMailerQuota,
     sendTestMailer,
     resetDemoData,
   } = useExamPlatform();
@@ -158,6 +159,17 @@ export const AdminDashboardPage: React.FC = () => {
   const [modalCourseCode, setModalCourseCode] = useState('');
   const [modalCourseName, setModalCourseName] = useState('');
   const [bankTemplateTypes, setBankTemplateTypes] = useState<QuestionType[]>([]);
+  const [testMailerModalOpen, setTestMailerModalOpen] = useState(false);
+  const [testMailerEmail, setTestMailerEmail] = useState('');
+  const [testMailerSending, setTestMailerSending] = useState(false);
+  const [testMailerError, setTestMailerError] = useState('');
+  const [testMailerSuccess, setTestMailerSuccess] = useState('');
+  const [testMailerQuota, setTestMailerQuota] = useState<{
+    loading: boolean;
+    allowed: boolean;
+    alreadyTestedRecipient?: string;
+    message?: string;
+  }>({ loading: false, allowed: true });
 
   const effectiveBankTemplateTypes = useMemo<QuestionType[]>(
     () => (bankTemplateTypes.length > 0 ? bankTemplateTypes : ['SINGLE_CHOICE']),
@@ -2285,21 +2297,35 @@ export const AdminDashboardPage: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  const targetEmail =
-                    selectedExam?.instructorEmail ||
-                    instructorUser?.email ||
-                    'giangvien@vneconomics.com';
-                  sendTestMailer(targetEmail);
-                  showToast(`Đã gửi Email thử nghiệm tới ${targetEmail}`);
+                  const defaultEmail = isDemoMode
+                    ? ''
+                    : selectedExam?.instructorEmail || instructorUser?.email || '';
+                  setTestMailerEmail(defaultEmail);
+                  setTestMailerError('');
+                  setTestMailerSuccess('');
+                  setTestMailerModalOpen(true);
+                  if (isDemoMode) {
+                    setTestMailerQuota({ loading: true, allowed: true });
+                    void checkDemoMailerQuota().then((q) => {
+                      setTestMailerQuota({
+                        loading: false,
+                        allowed: q.allowed,
+                        alreadyTestedRecipient: q.alreadyTestedRecipient,
+                        message: q.message,
+                      });
+                    });
+                  } else {
+                    setTestMailerQuota({ loading: false, allowed: true });
+                  }
                 }}
                 className="h-9 px-3 rounded-xl border border-brand-200 bg-brand-50 text-brand-800 text-xs font-bold flex items-center gap-1.5 hover:bg-brand-100"
               >
                 <Mail className="w-3.5 h-3.5" />
                 <span>Test Mailer</span>
                 <InfoHint
-                  title="Kiểm tra hệ thống gửi Email trước giờ thi"
+                  title="Kiểm tra gửi Email thật tới hộp thư của thầy/cô"
                   text={
-                    '• Bấm nút này để gửi thử 1 Email kiểm tra tới địa chỉ Email giảng viên của ca thi đang chọn.\n• Khuyên dùng trước khi tổ chức thi để chắc chắn hộp thư nhận được bình thường (nhớ kiểm tra thêm mục Thư rác/Spam nếu cần).'
+                    '• Bấm vào để mở cửa sổ nhập địa chỉ Email và nhận thử 1 thư mẫu từ hệ thống.\n• Ở chế độ Demo: để chống spam, mỗi trình duyệt chỉ được gửi thử tối đa 1 lần / ngày.\n• Tài khoản Giảng viên chính thức: gửi kiểm tra không giới hạn trước mỗi ca thi.'
                   }
                 />
               </button>
@@ -2661,6 +2687,176 @@ export const AdminDashboardPage: React.FC = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Test Mailer */}
+      {testMailerModalOpen && (
+        <div className="fixed inset-0 z-[105] bg-ink-900/60 flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-2xl p-5 sm:p-6 space-y-4">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <span
+                  className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                    isDemoMode
+                      ? 'bg-amber-100 text-amber-900'
+                      : 'bg-support-100 text-support-800'
+                  }`}
+                >
+                  {isDemoMode
+                    ? 'CHẾ ĐỘ DEMO • GIỚI HẠN 1 LẦN / NGÀY / TRÌNH DUYỆT'
+                    : 'GIẢNG VIÊN CHÍNH THỨC • TEST SMTP'}
+                </span>
+                <h2 className="text-base font-extrabold text-ink-900 mt-1.5">
+                  Kiểm thử Gửi Email (Test Mailer)
+                </h2>
+                <p className="text-xs text-ink-600 mt-1">
+                  {isDemoMode
+                    ? 'Nhập địa chỉ Email của thầy/cô để nhận thư thử nghiệm trực tiếp từ hệ thống (mỗi trình duyệt được dùng 1 lần/ngày để chống spam).'
+                    : 'Nhập địa chỉ Email cần kiểm tra kết nối gửi thư tự động trước giờ mở phòng thi.'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTestMailerModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-slate-100 shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {isDemoMode && testMailerQuota.loading ? (
+              <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs text-ink-600">
+                Đang kiểm tra lượt gửi thử hôm nay của trình duyệt...
+              </div>
+            ) : isDemoMode && !testMailerQuota.allowed && !testMailerSuccess ? (
+              <div className="space-y-3">
+                <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-1.5">
+                  <p className="font-extrabold">
+                    Trình duyệt này đã dùng hết 1/1 lượt gửi Email thử Demo hôm nay
+                  </p>
+                  {testMailerQuota.alreadyTestedRecipient && (
+                    <p>
+                      Đã gửi tới:{' '}
+                      <strong className="font-mono">
+                        {testMailerQuota.alreadyTestedRecipient}
+                      </strong>
+                    </p>
+                  )}
+                  <p className="text-amber-800">
+                    {testMailerQuota.message ||
+                      'Thầy/cô có thể thử lại vào ngày mai (00:00), hoặc đăng nhập tài khoản Giảng viên chính thức để gửi kiểm tra không giới hạn.'}
+                  </p>
+                </div>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTestMailerModalOpen(false)}
+                    className="px-4 py-2 rounded-xl border border-slate-200 text-xs font-bold text-ink-700"
+                  >
+                    Đóng
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTestMailerModalOpen(false);
+                      setUpgradeModalOpen(true);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold"
+                  >
+                    Đăng nhập tài khoản Giảng viên
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  setTestMailerError('');
+                  setTestMailerSuccess('');
+                  const clean = testMailerEmail.trim();
+                  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean)) {
+                    setTestMailerError('Vui lòng nhập đúng định dạng Email (VD: ten@ueh.edu.vn).');
+                    return;
+                  }
+                  setTestMailerSending(true);
+                  const res = await sendTestMailer(clean);
+                  setTestMailerSending(false);
+                  if (res.ok) {
+                    setTestMailerSuccess(
+                      `Đã gửi Email thử nghiệm tới ${clean}. Thầy/cô vui lòng kiểm tra hộp thư đến (hoặc mục Thư rác/Spam nếu chưa thấy).`,
+                    );
+                    if (isDemoMode) {
+                      setTestMailerQuota({
+                        loading: false,
+                        allowed: false,
+                        alreadyTestedRecipient: clean,
+                      });
+                    }
+                    showToast(`Đã gửi Email thử nghiệm tới ${clean}`);
+                  } else {
+                    setTestMailerError(res.error || 'Không thể gửi Email thử nghiệm.');
+                    if (res.quotaExceeded) {
+                      setTestMailerQuota({
+                        loading: false,
+                        allowed: false,
+                        alreadyTestedRecipient: res.alreadyTestedRecipient,
+                        message: res.error,
+                      });
+                    }
+                  }
+                }}
+                className="space-y-3 text-xs"
+              >
+                <div>
+                  <label className="block font-bold text-ink-700 mb-1">
+                    Email nhận thư thử nghiệm *
+                  </label>
+                  <input
+                    type="email"
+                    required
+                    value={testMailerEmail}
+                    onChange={(e) => setTestMailerEmail(e.target.value)}
+                    placeholder="VD: giangvien@ueh.edu.vn"
+                    disabled={testMailerSending || Boolean(testMailerSuccess)}
+                    className="w-full h-10 px-3 rounded-xl border border-slate-300 bg-white font-semibold disabled:bg-slate-50"
+                  />
+                </div>
+
+                {testMailerError && (
+                  <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 font-semibold">
+                    {testMailerError}
+                  </div>
+                )}
+
+                {testMailerSuccess && (
+                  <div className="p-3 rounded-xl bg-support-50 border border-support-200 text-support-800 font-semibold">
+                    {testMailerSuccess}
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setTestMailerModalOpen(false)}
+                    className="px-4 py-2 rounded-xl border border-slate-200 font-bold text-ink-700"
+                  >
+                    Đóng
+                  </button>
+                  {!testMailerSuccess && (
+                    <button
+                      type="submit"
+                      disabled={testMailerSending}
+                      className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white font-bold flex items-center gap-1.5"
+                    >
+                      <Mail className="w-3.5 h-3.5" />
+                      {testMailerSending ? 'Đang gửi...' : 'Gửi Email Thử Nghiệm'}
+                    </button>
+                  )}
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
