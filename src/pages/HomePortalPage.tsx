@@ -354,7 +354,7 @@ export const HomePortalPage: React.FC = () => {
           </div>
           <Link
             to="/admin"
-            className="text-xs font-semibold px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-ink-700 hover:border-brand-400 hover:text-brand-700 hover:bg-brand-50/40 flex items-center gap-1.5 transition shadow-2xs shrink-0 whitespace-nowrap"
+            className="text-xs font-bold px-4 py-2 rounded-xl bg-slate-900 hover:bg-brand-700 text-white flex items-center gap-1.5 transition shadow-sm shrink-0 whitespace-nowrap"
           >
             <Lock className="w-3.5 h-3.5" />
             Giảng viên
