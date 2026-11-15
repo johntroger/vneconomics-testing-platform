@@ -591,49 +591,59 @@ export const AdminDashboardPage: React.FC = () => {
 
           <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pb-0.5 md:pb-0 md:flex-wrap">
             {courses.length > 0 && (
-              <select
-                value={selectedCourse?.id ?? ''}
-                onChange={(e) => {
-                  const cid = e.target.value;
-                  setSelectedCourseId(cid);
-                  const firstCourseExam = exams.find((ex) => ex.courseId === cid);
-                  if (firstCourseExam) {
-                    setSelectedExamId(firstCourseExam.id);
-                  }
-                }}
-                aria-label="Chọn học phần"
-                className="h-9 px-2.5 sm:px-3 rounded-xl border border-slate-300 bg-slate-50 text-xs font-bold text-ink-900 max-w-[190px] shrink-0"
-              >
-                {courses.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.code} — {c.name}
-                  </option>
-                ))}
-              </select>
+              <label className="inline-flex items-center h-9 px-2.5 sm:px-3 rounded-xl border border-slate-300 bg-slate-50 shrink-0">
+                <span className="text-[11px] font-semibold text-ink-500 mr-1.5 whitespace-nowrap">
+                  Học phần:
+                </span>
+                <select
+                  value={selectedCourse?.id ?? ''}
+                  onChange={(e) => {
+                    const cid = e.target.value;
+                    setSelectedCourseId(cid);
+                    const firstCourseExam = exams.find((ex) => ex.courseId === cid);
+                    if (firstCourseExam) {
+                      setSelectedExamId(firstCourseExam.id);
+                    }
+                  }}
+                  aria-label="Chọn học phần"
+                  className="bg-transparent text-xs font-bold text-ink-900 max-w-[160px] focus:outline-none"
+                >
+                  {courses.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.code} — {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
             )}
 
-            <select
-              value={selectedExam?.id ?? ''}
-              onChange={(e) => {
-                const eid = e.target.value;
-                setSelectedExamId(eid);
-                const ex = exams.find((item) => item.id === eid);
-                if (ex) setSelectedCourseId(ex.courseId);
-              }}
-              disabled={exams.length === 0}
-              aria-label="Chọn đề thi"
-              className="h-9 px-2.5 sm:px-3 rounded-xl border border-slate-300 bg-slate-50 text-xs font-bold text-ink-900 min-w-[165px] max-w-[240px] shrink-0 disabled:opacity-60"
-            >
-              {exams.length === 0 ? (
-                <option value="">Chưa có đề thi nào</option>
-              ) : (
-                exams.map((ex) => (
-                  <option key={ex.id} value={ex.id}>
-                    [{ex.roomPin}] {ex.title}
-                  </option>
-                ))
-              )}
-            </select>
+            <label className="inline-flex items-center h-9 px-2.5 sm:px-3 rounded-xl border border-slate-300 bg-slate-50 shrink-0">
+              <span className="text-[11px] font-semibold text-ink-500 mr-1.5 whitespace-nowrap">
+                Đề thi:
+              </span>
+              <select
+                value={selectedExam?.id ?? ''}
+                onChange={(e) => {
+                  const eid = e.target.value;
+                  setSelectedExamId(eid);
+                  const ex = exams.find((item) => item.id === eid);
+                  if (ex) setSelectedCourseId(ex.courseId);
+                }}
+                disabled={exams.length === 0}
+                aria-label="Chọn đề thi"
+                className="bg-transparent text-xs font-bold text-ink-900 min-w-[130px] max-w-[200px] focus:outline-none disabled:opacity-60"
+              >
+                {exams.length === 0 ? (
+                  <option value="">Chưa có đề thi nào</option>
+                ) : (
+                  exams.map((ex) => (
+                    <option key={ex.id} value={ex.id}>
+                      PIN {ex.roomPin} — {ex.title}
+                    </option>
+                  ))
+                )}
+              </select>
+            </label>
 
             {isDemoMode && (
               <button
