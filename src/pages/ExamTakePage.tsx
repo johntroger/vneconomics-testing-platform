@@ -293,55 +293,6 @@ export const ExamTakePage: React.FC = () => {
               onChange={handleAnswerChange}
             />
           </div>
-
-          {/* Inline quick navigation right below the question card */}
-          <div className="flex items-center justify-between gap-2 pt-1">
-            <div className="flex items-center gap-1.5">
-              {!exam.oneWayMode && (
-                <button
-                  type="button"
-                  disabled={currentIndex === 0}
-                  onClick={() => updateCurrentIndex(attempt.id, currentIndex - 1)}
-                  className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-ink-800 disabled:opacity-40 text-xs font-bold flex items-center gap-1 shrink-0 whitespace-nowrap shadow-xs"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                  Câu trước
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => toggleFlagQuestion(attempt.id, currentQuestion.id)}
-                className={`h-11 px-3 rounded-xl border text-xs font-bold flex items-center gap-1.5 shrink-0 whitespace-nowrap transition shadow-xs ${
-                  isFlagged
-                    ? 'bg-amber-100 border-amber-300 text-amber-800'
-                    : 'bg-white border-slate-200 text-ink-600'
-                }`}
-              >
-                <Flag className="w-4 h-4" />
-                {isFlagged ? 'Đã đánh dấu' : 'Đánh dấu'}
-              </button>
-            </div>
-
-            {currentIndex < attempt.assignedQuestions.length - 1 ? (
-              <button
-                type="button"
-                onClick={() => updateCurrentIndex(attempt.id, currentIndex + 1)}
-                className="h-11 px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm shrink-0 whitespace-nowrap"
-              >
-                Câu kế tiếp
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setConfirmSubmitOpen(true)}
-                className="h-11 px-4 rounded-xl bg-support-600 hover:bg-support-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm shrink-0 whitespace-nowrap"
-              >
-                <Send className="w-4 h-4" />
-                Nộp bài thi
-              </button>
-            )}
-          </div>
         </div>
       </main>
 
