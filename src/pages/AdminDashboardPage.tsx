@@ -318,6 +318,15 @@ export const AdminDashboardPage: React.FC = () => {
     return false;
   };
 
+  const saveExamSetting = (nextExam: typeof exams[number]) => {
+    if (!requireOfficialOrPrompt()) return;
+    void upsertExam(nextExam).then((res) => {
+      if (!res.ok) {
+        showToast(res.error || 'Không thể lưu thay đổi lên máy chủ.');
+      }
+    });
+  };
+
   if (!isAdminAuthenticated) {
     const handleEmailAuth = async (e: React.FormEvent) => {
       e.preventDefault();
@@ -1305,7 +1314,7 @@ export const AdminDashboardPage: React.FC = () => {
                         const toggleShuffleOption = (opt: ShuffleModeOption) => {
                           const next = new Set<ShuffleModeOption>(selectedSet);
                           if (opt === 'NONE') {
-                            upsertExam({
+                            saveExamSetting({
                               ...selectedExam,
                               shuffleMode: 'NONE',
                               shuffleQuestions: false,
@@ -1321,7 +1330,7 @@ export const AdminDashboardPage: React.FC = () => {
                             next.add(opt);
                           }
                           if (next.size === 0) {
-                            upsertExam({
+                            saveExamSetting({
                               ...selectedExam,
                               shuffleMode: 'NONE',
                               shuffleQuestions: false,
@@ -1331,7 +1340,7 @@ export const AdminDashboardPage: React.FC = () => {
                           const orderedOpts = (['FULL_RANDOM', 'BY_CHAPTER', 'ESSAY_LAST'] as ShuffleModeOption[]).filter(
                             (k) => next.has(k),
                           );
-                          upsertExam({
+                          saveExamSetting({
                             ...selectedExam,
                             shuffleMode: orderedOpts.join('+'),
                             shuffleQuestions: true,
