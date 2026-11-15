@@ -1,5 +1,5 @@
-import React from 'react';
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import React, { useEffect } from 'react';
+import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { ExamProvider } from './context/ExamContext';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { ExamLobbyPage } from './pages/ExamLobbyPage';
@@ -9,11 +9,23 @@ import { GameHostPage } from './pages/GameHostPage';
 import { GameJoinPage } from './pages/GameJoinPage';
 import { GamePlayPage } from './pages/GamePlayPage';
 import { HomePortalPage } from './pages/HomePortalPage';
+import { trackPageView } from './utils/analytics';
+
+const PageViewTracker: React.FC = () => {
+  const { pathname, search } = useLocation();
+
+  useEffect(() => {
+    trackPageView(`${pathname}${search}`);
+  }, [pathname, search]);
+
+  return null;
+};
 
 export const App: React.FC = () => {
   return (
     <ExamProvider>
       <BrowserRouter>
+        <PageViewTracker />
         <Routes>
           <Route path="/" element={<HomePortalPage />} />
           <Route path="/exam/:examId/lobby" element={<ExamLobbyPage />} />
