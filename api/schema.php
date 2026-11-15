@@ -434,6 +434,8 @@ function ensureExamSchema(PDO $pdo, string $driver): void
             "ALTER TABLE exam_attempts ADD COLUMN location_lng DOUBLE NULL",
             "ALTER TABLE exam_attempts ADD COLUMN location_accuracy DOUBLE NULL",
             "ALTER TABLE exam_attempts ADD COLUMN login_devices_json LONGTEXT NULL",
+            "ALTER TABLE questions ADD COLUMN blank_slots_json LONGTEXT NULL",
+            "ALTER TABLE questions ADD COLUMN blank_all_or_nothing TINYINT(1) NOT NULL DEFAULT 0",
         ]
         : [
             "ALTER TABLE courses ADD COLUMN owner_id TEXT NOT NULL DEFAULT 'SYSTEM_DEMO'",
@@ -445,6 +447,8 @@ function ensureExamSchema(PDO $pdo, string $driver): void
             "ALTER TABLE exam_attempts ADD COLUMN location_lng REAL NULL",
             "ALTER TABLE exam_attempts ADD COLUMN location_accuracy REAL NULL",
             "ALTER TABLE exam_attempts ADD COLUMN login_devices_json TEXT NULL",
+            "ALTER TABLE questions ADD COLUMN blank_slots_json TEXT NULL",
+            "ALTER TABLE questions ADD COLUMN blank_all_or_nothing INTEGER NOT NULL DEFAULT 0",
         ];
     foreach ($ownerMigrations as $alterSql) {
         try {

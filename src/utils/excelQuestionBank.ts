@@ -72,6 +72,8 @@ export function serializeQuestionTypeToExcel(type: QuestionType): string {
       return 'DUNG_SAI';
     case 'NUMERICAL':
       return 'TINH_TOAN_DONG';
+    case 'FILL_IN_BLANK':
+      return 'DIEN_TU';
     case 'ESSAY':
       return 'TU_LUAN_NGAN';
   }
@@ -107,6 +109,14 @@ export function parseQuestionTypeFromCell(raw: string): QuestionType | null {
     norm === 'NUMERIC'
   ) {
     return 'NUMERICAL';
+  }
+  if (
+    norm === 'FILL_IN_BLANK' ||
+    norm === 'DIEN_TU' ||
+    norm === 'DIEN_CHU' ||
+    norm === 'CLOZE'
+  ) {
+    return 'FILL_IN_BLANK';
   }
   if (
     norm === 'ESSAY' ||
@@ -452,6 +462,7 @@ export const ALL_QUESTION_TYPES: QuestionType[] = [
   'MULTI_CHOICE',
   'TRUE_FALSE',
   'NUMERICAL',
+  'FILL_IN_BLANK',
   'ESSAY',
 ];
 
@@ -625,6 +636,10 @@ function questionToRecordMap(q: Question): Record<SemanticColumnKey, string | nu
     rec.answer = items.map((it) => (it.answer ? 'D' : 'S')).join(', ');
   } else if (q.type === 'NUMERICAL') {
     rec.answer = q.numericalFormula ?? '';
+  } else if (q.type === 'FILL_IN_BLANK') {
+    rec.answer = (q.blankSlots ?? [])
+      .map((b) => (b.acceptedAnswers ?? []).join(' | '))
+      .join(' ; ');
   } else if (q.type === 'ESSAY') {
     rec.answer = q.sampleAnswer ?? '';
   }
@@ -1440,6 +1455,30 @@ function parseMatrixRowToQuestion(
     baseQuestion.numericalUnit = dynParsed.numericalUnit ?? '';
     baseQuestion.tolerance = dynParsed.tolerance ?? 0.01;
     answerSummary = `CT: ${answerCell}${baseQuestion.numericalUnit ? ` (${baseQuestion.numericalUnit})` : ''}`;
+  } else if (qType === 'FILL_IN_BLANK') {
+    const blankCount = Math.max(0, content.split(/_{3,}/g).length - 1);
+    if (blankCount === 0) {
+      errors.push('Câu Điền từ cần chứa ít nhất 1 cụm _____ (từ 3 dấu gạch dưới trở lên).');
+    }
+    const rawParts = answerCell
+      .split(';')
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
+    if (blankCount > 0 && rawParts.length !== blankCount) {
+      errors.push(
+        `Số đáp án (${rawParts.length}, ngăn cách bằng dấu ;) chưa khớp số ô trống (${blankCount}) trong câu hỏi.`,
+      );
+    }
+    baseQuestion.blankSlots = Array.from({ length: blankCount }, (_, bi) => ({
+      id: `blank_${bi + 1}`,
+      index: bi + 1,
+      acceptedAnswers: (rawParts[bi] ?? '')
+        .split('|')
+        .map((a) => a.trim())
+        .filter((a) => a.length > 0),
+      caseSensitive: false,
+    }));
+    answerSummary = `${blankCount} ô trống (${rawParts.join(' ; ')})`;
   } else if (qType === 'ESSAY') {
     if (!answerCell && !rubricCell) {
       errors.push('Câu Tự luận ngắn cần có Câu trả lời mẫu hoặc Rubric chấm.');

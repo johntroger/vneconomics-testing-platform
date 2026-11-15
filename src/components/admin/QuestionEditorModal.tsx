@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { FlaskConical, Plus, Trash2, X } from 'lucide-react';
+import React, { useRef, useState } from 'react';
+import { FlaskConical, Plus, Sparkles, Trash2, X } from 'lucide-react';
 import { InfoHint } from '../common/InfoHint';
 import type {
+  BlankSlot,
   DifficultyLevel,
   DynamicVarSpec,
   Question,
@@ -11,6 +12,7 @@ import type {
 import {
   gradeMicroEssayRubric,
   shouldAutoPinLastOption,
+  splitFillInBlankSegments,
 } from '../../utils/dynamicQuestionEngine';
 
 interface QuestionEditorModalProps {
@@ -115,11 +117,75 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
     initialQuestion?.aiHoneypotKeyword ?? '',
   );
 
+  const [blankInputs, setBlankInputs] = useState<string[]>(
+    () =>
+      initialQuestion?.blankSlots?.map((s) => (s.acceptedAnswers ?? []).join(' | ')) ?? [],
+  );
+  const [blankCaseFlags, setBlankCaseFlags] = useState<boolean[]>(
+    () => initialQuestion?.blankSlots?.map((s) => Boolean(s.caseSensitive)) ?? [],
+  );
+  const [blankAllOrNothing, setBlankAllOrNothing] = useState(
+    Boolean(initialQuestion?.blankAllOrNothing),
+  );
+  const [formError, setFormError] = useState<string | null>(null);
+  const contentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
   // Live Rubric Tester state
   const [testEssaySample, setTestEssaySample] = useState('');
   const [testResultText, setTestResultText] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  const blankSegments = splitFillInBlankSegments(content);
+  const detectedBlankCount = Math.max(0, blankSegments.length - 1);
+
+  const buildBlankSlots = (): BlankSlot[] =>
+    Array.from({ length: detectedBlankCount }, (_, idx) => {
+      const raw = blankInputs[idx] ?? '';
+      const acceptedAnswers = raw
+        .split('|')
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0);
+      return {
+        id: `blank_${idx + 1}`,
+        index: idx + 1,
+        acceptedAnswers,
+        caseSensitive: Boolean(blankCaseFlags[idx]),
+      };
+    });
+
+  const insertBlankAtCursor = () => {
+    const el = contentTextareaRef.current;
+    if (!el) {
+      setContent((prev) => `${prev}${prev.endsWith(' ') || prev === '' ? '' : ' '}_____ `);
+      return;
+    }
+    const start = el.selectionStart ?? content.length;
+    const end = el.selectionEnd ?? content.length;
+    const before = content.slice(0, start);
+    const after = content.slice(end);
+    const needLeftSpace = before.length > 0 && !/\s$/.test(before);
+    const needRightSpace = after.length > 0 && !/^\s/.test(after);
+    const snippet = `${needLeftSpace ? ' ' : ''}_____${needRightSpace ? ' ' : ''}`;
+    const nextContent = `${before}${snippet}${after}`;
+    setContent(nextContent);
+    setFormError(null);
+    requestAnimationFrame(() => {
+      el.focus();
+      const caret = start + snippet.length;
+      el.setSelectionRange(caret, caret);
+    });
+  };
+
+  const applyFillBlankExample = () => {
+    setContent(
+      'Diversifying suppliers can lower risks, but it also requires effective _____ to maintain _____.',
+    );
+    setBlankInputs(['management | coordination', 'quality | consistency']);
+    setBlankCaseFlags([false, false]);
+    setBlankAllOrNothing(false);
+    setFormError(null);
+  };
 
   const buildCandidateQuestion = (): Question => ({
     id: initialQuestion?.id ?? `q_${Date.now().toString(36)}`,
@@ -141,6 +207,8 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
         ? correctOptionIds
         : undefined,
     trueFalseItems: type === 'TRUE_FALSE' ? trueFalseItems : undefined,
+    blankSlots: type === 'FILL_IN_BLANK' ? buildBlankSlots() : undefined,
+    blankAllOrNothing: type === 'FILL_IN_BLANK' ? blankAllOrNothing : undefined,
     dynamicVars: dynamicVars.length > 0 ? dynamicVars : undefined,
     numericalFormula: type === 'NUMERICAL' ? numericalFormula : undefined,
     numericalUnit: type === 'NUMERICAL' ? numericalUnit : undefined,
@@ -171,6 +239,21 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim()) return;
+    if (type === 'FILL_IN_BLANK') {
+      if (detectedBlankCount === 0) {
+        setFormError(
+          'Câu hỏi điền từ cần có ít nhất 1 ô trống (gõ _____ hoặc bấm nút "+ Chèn ô trống").',
+        );
+        return;
+      }
+      const slots = buildBlankSlots();
+      const emptyIdx = slots.findIndex((s) => s.acceptedAnswers.length === 0);
+      if (emptyIdx !== -1) {
+        setFormError(`Vui lòng nhập đáp án đúng cho Ô trống #${emptyIdx + 1}.`);
+        return;
+      }
+    }
+    setFormError(null);
     onSave(buildCandidateQuestion());
     onClose();
   };
@@ -200,19 +283,23 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
                 <InfoHint
                   title="Chọn loại câu hỏi phù hợp"
                   text={
-                    '• Trắc nghiệm 1 đáp án: Sinh viên chọn duy nhất 1 phương án đúng (A/B/C/D).\n• Chọn nhiều đáp án: Có từ 2 đáp án đúng trở lên.\n• Đúng / Sai 4 mệnh đề: Mỗi câu gồm 4 ý nhỏ (a, b, c, d), sinh viên chọn Đúng hoặc Sai cho từng ý.\n• Điền số: Sinh viên tự gõ kết quả tính toán bằng số, máy tự chấm theo công thức và dung sai.\n• Tự luận cực ngắn: Sinh viên viết 1–2 câu, hệ thống tự chấm theo bảng từ khóa Rubric.'
+                    '• Trắc nghiệm 1 đáp án: Sinh viên chọn duy nhất 1 phương án đúng (A/B/C/D).\n• Chọn nhiều đáp án: Có từ 2 đáp án đúng trở lên.\n• Đúng / Sai 4 mệnh đề: Mỗi câu gồm 4 ý nhỏ (a, b, c, d), sinh viên chọn Đúng hoặc Sai cho từng ý.\n• Điền số: Sinh viên tự gõ kết quả tính toán bằng số, máy tự chấm theo công thức và dung sai.\n• Điền từ vào chỗ trống: Sinh viên gõ trực tiếp từ/cụm từ vào các ô trống _____ ngay trong câu văn, máy tự chấm.\n• Tự luận cực ngắn: Sinh viên viết 1–2 câu, hệ thống tự chấm theo bảng từ khóa Rubric.'
                   }
                 />
               </label>
               <select
                 value={type}
-                onChange={(e) => setType(e.target.value as QuestionType)}
+                onChange={(e) => {
+                  setType(e.target.value as QuestionType);
+                  setFormError(null);
+                }}
                 className="w-full h-10 px-2.5 rounded-xl border border-slate-300 font-semibold"
               >
                 <option value="SINGLE_CHOICE">1. Trắc nghiệm 1 đáp án</option>
                 <option value="MULTI_CHOICE">2a. Chọn nhiều đáp án</option>
                 <option value="TRUE_FALSE">2b. Đúng / Sai 4 mệnh đề</option>
                 <option value="NUMERICAL">3. Điền số (Biến số động)</option>
+                <option value="FILL_IN_BLANK">3b. Điền từ vào chỗ trống (_____)</option>
                 <option value="ESSAY">4. Tự luận cực ngắn (Rubric)</option>
               </select>
             </div>
@@ -308,16 +395,75 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
 
           {/* Prompt */}
           <div>
-            <label className="block font-bold text-ink-700 mb-1">
-              Nội dung câu hỏi (dùng {'{a}'}, {'{b}'} nếu gắn biến số động)
-            </label>
+            {type === 'FILL_IN_BLANK' && (
+              <div className="mb-3 rounded-xl border border-brand-200 bg-brand-50/70 p-3 space-y-2 text-xs">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-extrabold text-brand-900 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-brand-600" />
+                    <span>Hướng dẫn soạn câu Điền từ vào chỗ trống</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={applyFillBlankExample}
+                    className="px-2.5 py-1 rounded-lg bg-white border border-brand-300 text-brand-700 font-bold hover:bg-brand-100 transition-colors"
+                  >
+                    Dùng thử câu mẫu
+                  </button>
+                </div>
+                <ol className="list-decimal list-inside space-y-1 text-ink-700 leading-relaxed">
+                  <li>
+                    Gõ hoặc dán câu hỏi từ Word vào ô bên dưới. Tại vị trí muốn chừa trống cho sinh viên gõ, dùng{' '}
+                    <code className="px-1.5 py-0.5 rounded bg-white border border-brand-200 font-mono font-bold text-brand-800">
+                      _____
+                    </code>{' '}
+                    (ít nhất 3 dấu gạch dưới) hoặc bấm nút <strong>+ Chèn ô trống</strong>.
+                  </li>
+                  <li>
+                    Hệ thống tự động tách thành <strong>Ô #1, Ô #2...</strong> bên dưới để thầy/cô nhập đáp án đúng.
+                  </li>
+                </ol>
+                <div className="rounded-lg bg-white border border-brand-200/80 px-2.5 py-2 text-[11px] text-ink-700">
+                  <span className="font-bold text-ink-900">Ví dụ:</span>{' '}
+                  <span className="font-mono">
+                    Diversifying suppliers requires effective <strong className="text-brand-700">_____</strong> to maintain{' '}
+                    <strong className="text-brand-700">_____</strong>.
+                  </span>
+                  <div className="text-ink-500 mt-0.5">
+                    → Ô #1: <code>management | coordination</code> &nbsp;·&nbsp; Ô #2: <code>quality</code>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <label className="block font-bold text-ink-700">
+                Nội dung câu hỏi (dùng {'{a}'}, {'{b}'} nếu gắn biến số động)
+              </label>
+              {type === 'FILL_IN_BLANK' && (
+                <button
+                  type="button"
+                  onClick={insertBlankAtCursor}
+                  className="px-2.5 py-1 rounded-lg bg-brand-50 border border-brand-300 text-brand-700 font-bold flex items-center gap-1 hover:bg-brand-100 shrink-0"
+                >
+                  <Plus className="w-3 h-3" /> Chèn ô trống (_____)
+                </button>
+              )}
+            </div>
             <textarea
+              ref={contentTextareaRef}
               required
               rows={3}
               value={content}
-              onChange={(e) => setContent(e.target.value)}
+              onChange={(e) => {
+                setContent(e.target.value);
+                if (formError) setFormError(null);
+              }}
               className="w-full rounded-xl border border-slate-300 p-3 text-sm"
-              placeholder="Nhập nội dung câu hỏi..."
+              placeholder={
+                type === 'FILL_IN_BLANK'
+                  ? 'Ví dụ: Some suppliers struggle with logistics issues, and others face _____ _____ on their ends.'
+                  : 'Nhập nội dung câu hỏi...'
+              }
             />
           </div>
 
@@ -483,6 +629,110 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {/* FILL_IN_BLANK */}
+          {type === 'FILL_IN_BLANK' && (
+            <div className="space-y-3 bg-slate-50 border border-slate-200 rounded-xl p-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="font-bold text-ink-800 flex items-center gap-1.5">
+                  <span>Đáp án các Ô trống ({detectedBlankCount} ô đã nhận diện)</span>
+                  <InfoHint
+                    title="Cách nhập đáp án & chấm điểm ô trống"
+                    text={
+                      '• Nếu 1 ô trống chấp nhận nhiều từ/cách viết đúng, ngăn cách bằng dấu | (VD: labor | labour).\n• Hệ thống tự động bỏ qua khoảng trắng thừa đầu/cuối và không phân biệt HOA/thường (trừ khi thầy/cô tích "Phân biệt HOA/thường").\n• Mặc định: đúng ô nào tính điểm ô đó (VD câu 1đ có 2 ô → mỗi ô 0.5đ).'
+                    }
+                  />
+                </span>
+                {detectedBlankCount > 0 && (
+                  <span className="text-[11px] font-mono font-bold text-brand-700 bg-brand-50 border border-brand-200 px-2 py-0.5 rounded">
+                    {((Number(points) || 1) / detectedBlankCount).toFixed(2)}đ / ô
+                  </span>
+                )}
+              </div>
+
+              {detectedBlankCount === 0 ? (
+                <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-amber-900 text-xs">
+                  Chưa thấy ô trống nào trong nội dung câu hỏi. Thầy/cô hãy gõ{' '}
+                  <code className="font-mono font-bold bg-white px-1 rounded">_____</code> (ít nhất 3 dấu gạch dưới) hoặc bấm nút{' '}
+                  <strong>+ Chèn ô trống (_____)</strong> ở trên.
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    {Array.from({ length: detectedBlankCount }, (_, idx) => (
+                      <div
+                        key={idx}
+                        className="bg-white border border-slate-200 rounded-lg p-2.5 space-y-1.5"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-extrabold text-brand-800 text-xs">
+                            Ô trống #{idx + 1}
+                          </span>
+                          <label className="flex items-center gap-1.5 text-[11px] font-semibold text-ink-600 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(blankCaseFlags[idx])}
+                              onChange={(e) =>
+                                setBlankCaseFlags((prev) => {
+                                  const next = [...prev];
+                                  next[idx] = e.target.checked;
+                                  return next;
+                                })
+                              }
+                            />
+                            <span>Phân biệt HOA/thường</span>
+                          </label>
+                        </div>
+                        <input
+                          type="text"
+                          value={blankInputs[idx] ?? ''}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            setBlankInputs((prev) => {
+                              const next = [...prev];
+                              next[idx] = val;
+                              return next;
+                            });
+                            if (formError) setFormError(null);
+                          }}
+                          placeholder={`Nhập đáp án Ô #${idx + 1} (dùng | nếu có nhiều đáp án đúng, VD: labor | labour)`}
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-slate-300 font-semibold text-xs"
+                        />
+                      </div>
+                    ))}
+                  </div>
+
+                  <label className="flex items-center gap-2 text-xs font-semibold text-ink-700 cursor-pointer pt-1">
+                    <input
+                      type="checkbox"
+                      checked={blankAllOrNothing}
+                      onChange={(e) => setBlankAllOrNothing(e.target.checked)}
+                    />
+                    <span>Chỉ tính điểm khi sinh viên điền đúng TẤT CẢ các ô trống (tắt = đúng ô nào tính điểm ô đó)</span>
+                  </label>
+
+                  {/* Live Student Preview */}
+                  <div className="bg-white border border-slate-200 rounded-lg p-3 space-y-1.5">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-ink-500">
+                      Xem trước giao diện sinh viên làm bài
+                    </div>
+                    <div className="text-sm leading-loose text-ink-900 flex flex-wrap items-center gap-1.5">
+                      {blankSegments.map((seg, idx) => (
+                        <React.Fragment key={idx}>
+                          {seg && <span className="whitespace-pre-wrap">{seg}</span>}
+                          {idx < detectedBlankCount && (
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-md border-2 border-dashed border-brand-400 bg-brand-50 text-brand-700 font-mono text-xs font-bold">
+                              Ô #{idx + 1}
+                            </span>
+                          )}
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -792,6 +1042,12 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
               ) : null}
             </div>
           </div>
+
+          {formError && (
+            <div className="rounded-xl border border-danger-200 bg-danger-50 px-3 py-2 text-xs font-bold text-danger-700">
+              {formError}
+            </div>
+          )}
 
           </div>
 

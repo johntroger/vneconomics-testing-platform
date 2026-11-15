@@ -69,6 +69,7 @@ const BANK_TEMPLATE_TYPE_OPTIONS: { type: QuestionType; label: string }[] = [
   { type: 'MULTI_CHOICE', label: 'Trắc nghiệm nhiều đáp án' },
   { type: 'TRUE_FALSE', label: 'Đúng / Sai (các mệnh đề Đ/S)' },
   { type: 'NUMERICAL', label: 'Tính toán số (biến động)' },
+  { type: 'FILL_IN_BLANK', label: 'Điền từ vào chỗ trống (_____)' },
   { type: 'ESSAY', label: 'Tự luận ngắn (Rubric)' },
 ];
 
@@ -1949,6 +1950,7 @@ export const AdminDashboardPage: React.FC = () => {
                         ['MULTI_CHOICE', 'Nhiều ĐA'],
                         ['TRUE_FALSE', 'Đúng / Sai'],
                         ['NUMERICAL', 'Tính toán động'],
+                        ['FILL_IN_BLANK', 'Điền từ'],
                         ['ESSAY', 'Tự luận Rubric'],
                       ] as const
                     ).map(([typeVal, label]) => (
@@ -2017,6 +2019,14 @@ export const AdminDashboardPage: React.FC = () => {
                                 {q.numericalFormula && (
                                   <p className="text-[11px] font-mono text-support-700">
                                     CT: {q.numericalFormula} {q.numericalUnit ? `(${q.numericalUnit})` : ''}
+                                  </p>
+                                )}
+                                {q.type === 'FILL_IN_BLANK' && q.blankSlots && q.blankSlots.length > 0 && (
+                                  <p className="text-[11px] font-mono text-brand-700">
+                                    Đáp án ô trống:{' '}
+                                    {q.blankSlots
+                                      .map((b, bi) => `#${bi + 1}: ${b.acceptedAnswers.join(' | ')}`)
+                                      .join(' ; ')}
                                   </p>
                                 )}
                                 {q.type === 'ESSAY' && q.sampleAnswer && (

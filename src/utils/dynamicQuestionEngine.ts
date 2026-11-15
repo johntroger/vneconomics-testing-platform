@@ -342,6 +342,15 @@ export function buildAssignedQuestions(
   });
 }
 
+export function splitFillInBlankSegments(content: string): string[] {
+  return content.split(/_{3,}/g);
+}
+
+export function normalizeBlankAnswerText(raw: string, caseSensitive = false): string {
+  const collapsed = raw.trim().replace(/\s+/g, ' ');
+  return caseSensitive ? collapsed : collapsed.toLowerCase();
+}
+
 export function normalizeDecimalInput(raw: string): number | null {
   const cleaned = raw
     .trim()
@@ -714,6 +723,43 @@ export function gradeAnswer(
       maxPoints,
       earnedPoints: isCorrect ? maxPoints : 0,
       gradingFeedback: `Đáp án chuẩn theo biến số: ${expected}${question.numericalUnit ? ` ${question.numericalUnit}` : ''}`,
+      gradingStatus: 'AUTO',
+    };
+  }
+
+  if (question.type === 'FILL_IN_BLANK') {
+    const slots = question.blankSlots ?? [];
+    const submitted = Array.isArray(payload) ? payload.map((v) => String(v ?? '')) : [];
+    let correctCount = 0;
+    for (let i = 0; i < slots.length; i++) {
+      const slot = slots[i];
+      const cs = Boolean(slot.caseSensitive);
+      const studentVal = normalizeBlankAnswerText(submitted[i] ?? '', cs);
+      const accepted = (slot.acceptedAnswers ?? [])
+        .map((a) => normalizeBlankAnswerText(a, cs))
+        .filter((a) => a.length > 0);
+      if (studentVal !== '' && accepted.includes(studentVal)) {
+        correctCount += 1;
+      }
+    }
+    const allMatched = slots.length > 0 && correctCount === slots.length;
+    const earned =
+      slots.length === 0
+        ? 0
+        : question.blankAllOrNothing
+          ? allMatched
+            ? maxPoints
+            : 0
+          : Math.round(maxPoints * (correctCount / slots.length) * 100) / 100;
+    return {
+      questionId: question.id,
+      chapterCategory: question.chapterCategory,
+      renderedSeedVars: seedVars,
+      answerPayload: submitted,
+      isCorrect: allMatched,
+      maxPoints,
+      earnedPoints: earned,
+      gradingFeedback: `Đúng ${correctCount}/${slots.length} ô trống`,
       gradingStatus: 'AUTO',
     };
   }

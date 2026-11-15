@@ -3,6 +3,7 @@ export type QuestionType =
   | 'MULTI_CHOICE'
   | 'TRUE_FALSE'
   | 'NUMERICAL'
+  | 'FILL_IN_BLANK'
   | 'ESSAY';
 
 export type DifficultyLevel = 'EASY' | 'MEDIUM' | 'HARD';
@@ -70,6 +71,13 @@ export interface RubricSlot {
   oppositeTerms?: string[];
 }
 
+export interface BlankSlot {
+  id: string;
+  index: number;
+  acceptedAnswers: string[];
+  caseSensitive?: boolean;
+}
+
 export interface Question {
   id: string;
   courseId: string;
@@ -81,6 +89,8 @@ export interface Question {
   options?: QuestionOption[];
   correctOptionIds?: string[];
   trueFalseItems?: TrueFalseStatement[];
+  blankSlots?: BlankSlot[];
+  blankAllOrNothing?: boolean;
   dynamicVars?: DynamicVarSpec[];
   numericalFormula?: string;
   numericalUnit?: string;

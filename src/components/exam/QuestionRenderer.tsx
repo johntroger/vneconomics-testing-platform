@@ -6,6 +6,7 @@ import type {
   Question,
 } from '../../types/exam';
 import { CanvasQuestionView } from './CanvasQuestionView';
+import { splitFillInBlankSegments } from '../../utils/dynamicQuestionEngine';
 
 interface QuestionRendererProps {
   question: Question;
@@ -85,7 +86,63 @@ export const QuestionRenderer: React.FC<QuestionRendererProps> = ({
       </div>
 
       {/* Question Prompt (Text or Canvas Anti-OCR) */}
-      {canvasAntiOcr ? (
+      {question.type === 'FILL_IN_BLANK' ? (
+        <div
+          onCopy={(e) => e.preventDefault()}
+          style={{ fontSize: `${fontSizePx}px` }}
+          className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 font-semibold text-ink-900 leading-loose select-none"
+        >
+          {(() => {
+            const segments = splitFillInBlankSegments(snapshot.renderedContent);
+            const totalBlanks = Math.max(0, segments.length - 1);
+            const blankValues = Array.isArray(value)
+              ? value.map((v) => String(v ?? ''))
+              : [];
+            const updateBlank = (blankIdx: number, nextVal: string) => {
+              const next = Array.from(
+                { length: totalBlanks },
+                (_, i) => blankValues[i] ?? '',
+              );
+              next[blankIdx] = nextVal;
+              onChange(next);
+            };
+            return (
+              <div className="flex flex-wrap items-baseline gap-x-1.5 gap-y-2">
+                {segments.map((seg, idx) => (
+                  <React.Fragment key={idx}>
+                    {seg && <span className="whitespace-pre-wrap">{seg}</span>}
+                    {idx < totalBlanks && (
+                      <input
+                        type="text"
+                        value={blankValues[idx] ?? ''}
+                        onChange={(e) => updateBlank(idx, e.target.value)}
+                        onPaste={handleBlockPaste}
+                        onDrop={handleBlockPaste}
+                        autoComplete="off"
+                        autoCorrect="off"
+                        autoCapitalize="off"
+                        spellCheck={false}
+                        placeholder={`Ô #${idx + 1}`}
+                        aria-label={`Ô trống ${idx + 1}`}
+                        style={{
+                          width: `${Math.min(24, Math.max(10, (blankValues[idx]?.length ?? 0) + 4))}ch`,
+                        }}
+                        className="inline-block align-baseline px-2.5 py-0.5 mx-0.5 rounded-lg border-2 border-brand-300 bg-white font-mono text-sm font-bold text-brand-900 placeholder:text-slate-400 placeholder:font-sans placeholder:font-medium focus:outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100 transition-colors"
+                      />
+                    )}
+                  </React.Fragment>
+                ))}
+              </div>
+            );
+          })()}
+          {pasteNotice && (
+            <div className="mt-2.5 flex items-center gap-1.5 text-xs font-semibold text-danger-600">
+              <AlertCircle className="w-3.5 h-3.5" />
+              Không cho phép dán (Paste) vào ô điền từ. Vui lòng tự gõ trực tiếp.
+            </div>
+          )}
+        </div>
+      ) : canvasAntiOcr ? (
         <CanvasQuestionView
           text={snapshot.renderedContent}
           watermark={watermarkLabel}

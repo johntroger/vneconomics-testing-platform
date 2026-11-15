@@ -448,6 +448,12 @@ function normalizeDecimalPhp(string $raw): ?float
     return (float) $cleaned;
 }
 
+function normalizeBlankTextPhp(string $raw, bool $caseSensitive = false): string
+{
+    $collapsed = preg_replace('/\s+/u', ' ', trim($raw)) ?? trim($raw);
+    return $caseSensitive ? $collapsed : mb_strtolower($collapsed, 'UTF-8');
+}
+
 function gradeAnyQuestionPhp(array $question, mixed $payload, array $seedVars = [], ?float $overrideMaxPoints = null): array
 {
     $maxPoints = $overrideMaxPoints ?? (float) ($question['points'] ?? 1.0);
@@ -537,6 +543,54 @@ function gradeAnyQuestionPhp(array $question, mixed $payload, array $seedVars = 
             'gradingFeedback' => $ok
                 ? 'Đúng (Đáp số: ' . round($expected, 3) . ')'
                 : 'Chưa khớp đáp số chuẩn (' . round($expected, 3) . ' ± ' . $tol . ')',
+            'honeypotTriggered' => false,
+        ];
+    }
+
+    if ($type === 'FILL_IN_BLANK') {
+        $slots = is_array($question['blankSlots'] ?? null) ? $question['blankSlots'] : [];
+        $submitted = is_array($payload) ? array_values(array_map('strval', $payload)) : [];
+        $total = count($slots);
+        if ($total === 0) {
+            return [
+                'isCorrect' => false,
+                'maxPoints' => $maxPoints,
+                'earnedPoints' => 0.0,
+                'gradingStatus' => 'AUTO',
+                'gradingFeedback' => 'Chưa cấu hình ô trống.',
+                'honeypotTriggered' => false,
+            ];
+        }
+
+        $correctCount = 0;
+        foreach ($slots as $idx => $slot) {
+            $cs = !empty($slot['caseSensitive']);
+            $studentVal = normalizeBlankTextPhp((string) ($submitted[$idx] ?? ''), $cs);
+            $acceptedRaw = is_array($slot['acceptedAnswers'] ?? null) ? $slot['acceptedAnswers'] : [];
+            $accepted = [];
+            foreach ($acceptedRaw as $ansItem) {
+                $norm = normalizeBlankTextPhp((string) $ansItem, $cs);
+                if ($norm !== '') {
+                    $accepted[] = $norm;
+                }
+            }
+            if ($studentVal !== '' && in_array($studentVal, $accepted, true)) {
+                $correctCount++;
+            }
+        }
+
+        $allMatched = ($correctCount === $total);
+        $allOrNothing = !empty($question['blankAllOrNothing']);
+        $earned = $allOrNothing
+            ? ($allMatched ? $maxPoints : 0.0)
+            : round($maxPoints * ($correctCount / $total), 2);
+
+        return [
+            'isCorrect' => $allMatched,
+            'maxPoints' => $maxPoints,
+            'earnedPoints' => $earned,
+            'gradingStatus' => 'AUTO',
+            'gradingFeedback' => sprintf('Đúng %d/%d ô trống', $correctCount, $total),
             'honeypotTriggered' => false,
         ];
     }

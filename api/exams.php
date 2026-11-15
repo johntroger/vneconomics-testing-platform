@@ -44,6 +44,16 @@ function formatQuestionRow(array $r, bool $stripSecrets = false): array
         ], $tfItems);
     }
 
+    $blankSlots = decodeJsonSafe($r['blank_slots_json'] ?? null, null);
+    if ($stripSecrets && is_array($blankSlots)) {
+        $blankSlots = array_map(static fn (array $b): array => [
+            'id' => (string) ($b['id'] ?? ''),
+            'index' => (int) ($b['index'] ?? 1),
+            'acceptedAnswers' => [],
+            'caseSensitive' => (bool) ($b['caseSensitive'] ?? false),
+        ], $blankSlots);
+    }
+
     $q = [
         'id' => (string) $r['id'],
         'courseId' => (string) $r['course_id'],
@@ -54,6 +64,8 @@ function formatQuestionRow(array $r, bool $stripSecrets = false): array
         'content' => (string) $r['content'],
         'options' => $options,
         'trueFalseItems' => $tfItems,
+        'blankSlots' => $blankSlots,
+        'blankAllOrNothing' => (bool) ($r['blank_all_or_nothing'] ?? false),
         'dynamicVars' => decodeJsonSafe($r['dynamic_vars_json'] ?? null, null),
         'numericalUnit' => $r['numerical_unit'] !== null ? (string) $r['numerical_unit'] : null,
         'tolerance' => (float) ($r['tolerance'] ?? 0.01),
@@ -134,6 +146,8 @@ function upsertQuestionRow(PDO $pdo, array $body, string $actorId = 'SYSTEM_DEMO
         ':options_json' => isset($body['options']) ? json_encode($body['options'], JSON_UNESCAPED_UNICODE) : null,
         ':correct_option_ids_json' => isset($body['correctOptionIds']) ? json_encode($body['correctOptionIds'], JSON_UNESCAPED_UNICODE) : null,
         ':true_false_items_json' => isset($body['trueFalseItems']) ? json_encode($body['trueFalseItems'], JSON_UNESCAPED_UNICODE) : null,
+        ':blank_slots_json' => isset($body['blankSlots']) ? json_encode($body['blankSlots'], JSON_UNESCAPED_UNICODE) : null,
+        ':blank_all_or_nothing' => !empty($body['blankAllOrNothing']) ? 1 : 0,
         ':dynamic_vars_json' => isset($body['dynamicVars']) ? json_encode($body['dynamicVars'], JSON_UNESCAPED_UNICODE) : null,
         ':numerical_formula' => $body['numericalFormula'] ?? null,
         ':numerical_unit' => $body['numericalUnit'] ?? null,
@@ -155,11 +169,11 @@ function upsertQuestionRow(PDO $pdo, array $body, string $actorId = 'SYSTEM_DEMO
         if (!$isMaster && (string) $existingOwner !== $actorId) {
             throw new InvalidArgumentException('Bạn chỉ được chỉnh sửa câu hỏi do tài khoản của mình tạo.');
         }
-        $sql = 'UPDATE questions SET course_id=:course_id, chapter_category=:chapter_category, difficulty=:difficulty, type=:type, content=:content, options_json=:options_json, correct_option_ids_json=:correct_option_ids_json, true_false_items_json=:true_false_items_json, dynamic_vars_json=:dynamic_vars_json, numerical_formula=:numerical_formula, numerical_unit=:numerical_unit, tolerance=:tolerance, sample_answer=:sample_answer, grading_rubric_json=:grading_rubric_json, max_chars=:max_chars, ai_honeypot_text=:ai_honeypot_text, ai_honeypot_option_id=:ai_honeypot_option_id, ai_honeypot_keyword=:ai_honeypot_keyword, points=:points WHERE id=:id';
+        $sql = 'UPDATE questions SET course_id=:course_id, chapter_category=:chapter_category, difficulty=:difficulty, type=:type, content=:content, options_json=:options_json, correct_option_ids_json=:correct_option_ids_json, true_false_items_json=:true_false_items_json, blank_slots_json=:blank_slots_json, blank_all_or_nothing=:blank_all_or_nothing, dynamic_vars_json=:dynamic_vars_json, numerical_formula=:numerical_formula, numerical_unit=:numerical_unit, tolerance=:tolerance, sample_answer=:sample_answer, grading_rubric_json=:grading_rubric_json, max_chars=:max_chars, ai_honeypot_text=:ai_honeypot_text, ai_honeypot_option_id=:ai_honeypot_option_id, ai_honeypot_keyword=:ai_honeypot_keyword, points=:points WHERE id=:id';
     } else {
         $params[':owner_id'] = $actorId;
-        $sql = 'INSERT INTO questions (id, course_id, owner_id, chapter_category, difficulty, type, content, options_json, correct_option_ids_json, true_false_items_json, dynamic_vars_json, numerical_formula, numerical_unit, tolerance, sample_answer, grading_rubric_json, max_chars, ai_honeypot_text, ai_honeypot_option_id, ai_honeypot_keyword, points)
-                VALUES (:id, :course_id, :owner_id, :chapter_category, :difficulty, :type, :content, :options_json, :correct_option_ids_json, :true_false_items_json, :dynamic_vars_json, :numerical_formula, :numerical_unit, :tolerance, :sample_answer, :grading_rubric_json, :max_chars, :ai_honeypot_text, :ai_honeypot_option_id, :ai_honeypot_keyword, :points)';
+        $sql = 'INSERT INTO questions (id, course_id, owner_id, chapter_category, difficulty, type, content, options_json, correct_option_ids_json, true_false_items_json, blank_slots_json, blank_all_or_nothing, dynamic_vars_json, numerical_formula, numerical_unit, tolerance, sample_answer, grading_rubric_json, max_chars, ai_honeypot_text, ai_honeypot_option_id, ai_honeypot_keyword, points)
+                VALUES (:id, :course_id, :owner_id, :chapter_category, :difficulty, :type, :content, :options_json, :correct_option_ids_json, :true_false_items_json, :blank_slots_json, :blank_all_or_nothing, :dynamic_vars_json, :numerical_formula, :numerical_unit, :tolerance, :sample_answer, :grading_rubric_json, :max_chars, :ai_honeypot_text, :ai_honeypot_option_id, :ai_honeypot_keyword, :points)';
     }
     $pdo->prepare($sql)->execute($params);
 
