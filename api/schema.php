@@ -22,6 +22,25 @@ function ensureExamSchema(PDO $pdo, string $driver): void
         $pdo->query('SELECT flagged_question_ids_json, email_edit_count FROM exam_attempts LIMIT 1');
         $pdo->query('SELECT grading_rubric_json, numerical_formula FROM questions LIMIT 1');
         $pdo->query('SELECT status FROM email_queue LIMIT 1');
+        if ($driver === 'mysql') {
+            $uIdx = $pdo->query("SHOW INDEX FROM exams WHERE Column_name = 'room_pin' AND Non_unique = 0")->fetch();
+            if ($uIdx) {
+                throw new RuntimeException('Drop unique room_pin');
+            }
+        } else {
+            foreach ($pdo->query("PRAGMA index_list('exams')")->fetchAll() as $idx) {
+                if ((int) ($idx['unique'] ?? 0) === 1) {
+                    $idxName = preg_replace('/[^a-zA-Z0-9_]/', '', (string) ($idx['name'] ?? ''));
+                    if ($idxName !== '') {
+                        foreach ($pdo->query("PRAGMA index_info('$idxName')")->fetchAll() as $c) {
+                            if (($c['name'] ?? '') === 'room_pin') {
+                                throw new RuntimeException('Drop unique room_pin');
+                            }
+                        }
+                    }
+                }
+            }
+        }
         $checked = true;
         return;
     } catch (Throwable) {
