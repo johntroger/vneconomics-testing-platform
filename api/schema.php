@@ -20,10 +20,13 @@ function ensureExamSchema(PDO $pdo, string $driver): void
         $pdo->query('SELECT owner_id FROM questions LIMIT 1');
         $pdo->query('SELECT id, auth_provider FROM instructors LIMIT 1');
         $pdo->query('SELECT flagged_question_ids_json, email_edit_count, device_label, location_lat, location_lng, location_accuracy, login_devices_json FROM exam_attempts LIMIT 1');
-        $pdo->query('SELECT grading_rubric_json, numerical_formula FROM questions LIMIT 1');
+        $pdo->query('SELECT grading_rubric_json, numerical_formula, blank_slots_json, blank_all_or_nothing FROM questions LIMIT 1');
         $pdo->query('SELECT status FROM email_queue LIMIT 1');
         $pdo->query('SELECT id FROM demo_mailer_quota LIMIT 1');
         $pdo->query('SELECT nonce FROM used_captcha_nonces LIMIT 1');
+        if (!$pdo->query("SELECT 1 FROM questions WHERE id = 'q_micro_c1_4' LIMIT 1")->fetchColumn()) {
+            throw new RuntimeException('Backfill demo FILL_IN_BLANK sample');
+        }
         if ($driver === 'mysql') {
             $uIdx = $pdo->query("SHOW INDEX FROM exams WHERE Column_name = 'room_pin' AND Non_unique = 0")->fetch();
             if ($uIdx) {
