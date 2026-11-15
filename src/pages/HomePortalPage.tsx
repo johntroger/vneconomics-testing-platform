@@ -337,7 +337,7 @@ export const HomePortalPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-surface-100 to-slate-100 flex flex-col">
       {/* Top Header aligned to content container */}
-      <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-3 sm:px-6 py-3 safe-top">
+      <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-6 pt-[max(0.875rem,env(safe-area-inset-top))] pb-3.5">
         <div className="max-w-5xl mx-auto w-full flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-600 to-brand-700 text-white flex items-center justify-center font-bold shadow-sm shrink-0">
@@ -362,7 +362,7 @@ export const HomePortalPage: React.FC = () => {
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col justify-center px-3 sm:px-6 py-5 sm:py-8 safe-bottom">
+      <main className="flex-1 flex flex-col justify-center px-3 sm:px-6 pt-5 sm:pt-8 pb-[max(2rem,env(safe-area-inset-bottom))]">
         <div className="max-w-5xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
           {/* Public Demo Sandbox Quick-Access Banner (Right column on desktop, top on mobile) */}
           <div className="lg:col-span-5 lg:order-2 bg-gradient-to-br from-brand-50 via-white to-support-50 rounded-2xl border border-brand-200/90 shadow-sm p-4 sm:p-5 space-y-3.5">
