@@ -294,6 +294,36 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
     $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
     $body = $method === 'GET' ? [] : readJsonBody();
 
+    if ($action === 'list') {
+        $admin = requireAdminAuth();
+        $ownerId = (string) ($admin['instructorId'] ?? 'DEMO_INSTRUCTOR');
+        $stmt = $pdo->prepare(
+            'SELECT gs.id, gs.title, gs.game_pin, gs.game_mode, gs.state, gs.questions_snapshot_json, gs.created_at,
+                    (SELECT COUNT(*) FROM game_players gp WHERE gp.session_id = gs.id AND gp.is_kicked = 0) AS player_count
+             FROM game_sessions gs
+             WHERE gs.owner_id = :owner
+             ORDER BY gs.created_at DESC
+             LIMIT 25'
+        );
+        $stmt->execute([':owner' => $ownerId]);
+        $rows = $stmt->fetchAll();
+        $items = [];
+        foreach ($rows as $r) {
+            $qs = json_decode((string) $r['questions_snapshot_json'], true);
+            $items[] = [
+                'id' => (string) $r['id'],
+                'title' => (string) $r['title'],
+                'gamePin' => (string) $r['game_pin'],
+                'gameMode' => (string) ($r['game_mode'] ?? 'CLASSIC'),
+                'state' => (string) $r['state'],
+                'totalQuestions' => is_array($qs) ? count($qs) : 0,
+                'playerCount' => (int) ($r['player_count'] ?? 0),
+                'createdAt' => (string) $r['created_at'],
+            ];
+        }
+        jsonResponse(['ok' => true, 'games' => $items]);
+    }
+
     if ($action === 'lookup_pin') {
         $pin = trim((string) ($_GET['pin'] ?? ''));
         if ($pin === '') {

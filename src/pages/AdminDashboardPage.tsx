@@ -26,6 +26,7 @@ import {
 import { CoursesTabPanel } from '../components/admin/CoursesTabPanel';
 import { CreateGameModal } from '../components/admin/CreateGameModal';
 import { EssayGradingModal } from '../components/admin/EssayGradingModal';
+import { fetchInstructorGames, type GameListItem } from '../services/gameApi';
 import { ExamAnalyticsCharts } from '../components/admin/ExamAnalyticsCharts';
 import { ExcelQuestionBankModal } from '../components/admin/ExcelQuestionBankModal';
 import { GoogleSignInButton } from '../components/admin/GoogleSignInButton';
@@ -160,6 +161,21 @@ export const AdminDashboardPage: React.FC = () => {
     courseId?: string;
     questions: Question[];
   } | null>(null);
+  const [instructorGames, setInstructorGames] = useState<GameListItem[]>([]);
+  const [loadingGames, setLoadingGames] = useState(false);
+
+  const loadInstructorGames = async () => {
+    setLoadingGames(true);
+    const list = await fetchInstructorGames();
+    setInstructorGames(list);
+    setLoadingGames(false);
+  };
+
+  useEffect(() => {
+    if (activeTab === 'LIVE_GAME') {
+      void loadInstructorGames();
+    }
+  }, [activeTab]);
   const [previewStudentCode, setPreviewStudentCode] = useState('3122102099');
   const [excelModalOpen, setExcelModalOpen] = useState(false);
   const [bankSearch, setBankSearch] = useState('');
@@ -2540,6 +2556,79 @@ export const AdminDashboardPage: React.FC = () => {
                 </div>
               </div>
             )}
+
+            {/* Recent / Active Game Sessions */}
+            <div className="pt-3 border-t border-slate-100 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-extrabold text-ink-900">
+                  Danh sách phòng Game đã tạo ({instructorGames.length})
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => void loadInstructorGames()}
+                  disabled={loadingGames}
+                  className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-xs font-bold text-ink-700 hover:bg-slate-50 flex items-center gap-1.5"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${loadingGames ? 'animate-spin' : ''}`} />
+                  Làm mới
+                </button>
+              </div>
+
+              {instructorGames.length === 0 ? (
+                <div className="p-5 rounded-2xl bg-slate-50 border border-dashed border-slate-200 text-center text-xs text-ink-500">
+                  Chưa có phòng Game nào được tạo. Hãy bấm nút phía trên để mở phòng đầu tiên.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {instructorGames.map((g) => (
+                    <div
+                      key={g.id}
+                      className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50/50 flex flex-wrap items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-extrabold text-sm text-ink-900 truncate">
+                            {g.title}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-md bg-amber-100 text-amber-800 font-mono font-bold text-[11px]">
+                            PIN: {g.gamePin}
+                          </span>
+                          <span className="px-2 py-0.5 rounded-md bg-indigo-100 text-indigo-700 font-bold text-[11px]">
+                            {g.gameMode === 'TEAM' ? 'Theo Nhóm' : 'Cá nhân'}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded-md font-bold text-[11px] ${
+                              g.state === 'ENDED'
+                                ? 'bg-slate-200 text-slate-700'
+                                : g.state === 'LOBBY'
+                                  ? 'bg-emerald-100 text-emerald-700'
+                                  : 'bg-violet-100 text-violet-700'
+                            }`}
+                          >
+                            {g.state === 'ENDED'
+                              ? 'Đã kết thúc'
+                              : g.state === 'LOBBY'
+                                ? 'Đang chờ (Lobby)'
+                                : 'Đang diễn ra'}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-ink-500 mt-1">
+                          {g.totalQuestions} câu hỏi • {g.playerCount} người chơi •{' '}
+                          {new Date(g.createdAt).toLocaleString('vi-VN')}
+                        </div>
+                      </div>
+
+                      <Link
+                        to={`/game/host/${g.id}`}
+                        className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shrink-0"
+                      >
+                        {g.state === 'ENDED' ? 'Xem Podium & Xuất Excel' : 'Vào lại màn hình Host'}
+                      </Link>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </main>

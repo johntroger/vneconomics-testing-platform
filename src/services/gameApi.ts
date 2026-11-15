@@ -250,6 +250,43 @@ function sanitizeLocalQuestion(
   };
 }
 
+export interface GameListItem {
+  id: string;
+  title: string;
+  gamePin: string;
+  gameMode: GameMode;
+  state: GameState;
+  totalQuestions: number;
+  playerCount: number;
+  createdAt: string;
+}
+
+export async function fetchInstructorGames(): Promise<GameListItem[]> {
+  if (await isPhpGameAvailable()) {
+    const res = await apiRequestDetailed<{ ok: boolean; games: GameListItem[] }>(
+      '/api/game.php?action=list',
+      { method: 'GET' },
+    );
+    if (res.reachedJson && res.ok && res.data?.games) {
+      return res.data.games;
+    }
+  }
+
+  const games = readLocalGames();
+  return Object.values(games)
+    .map((g) => ({
+      id: g.id,
+      title: g.title,
+      gamePin: g.gamePin,
+      gameMode: g.gameMode ?? ('CLASSIC' as GameMode),
+      state: g.state,
+      totalQuestions: g.questionsSnapshot.length,
+      playerCount: g.players.filter((p) => !p.isKicked).length,
+      createdAt: new Date().toISOString(),
+    }))
+    .reverse();
+}
+
 export async function createLiveGame(
   payload: CreateGamePayload,
 ): Promise<{ ok: boolean; sessionId?: string; gamePin?: string; error?: string }> {
