@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { BookOpen, Edit3, Layers, Plus, Trash2, ArrowRight, Check, X } from 'lucide-react';
 import { Course, Exam, Question } from '../../types/exam';
+import { InfoHint } from '../common/InfoHint';
 
 interface CoursesTabPanelProps {
   courses: Course[];
@@ -113,11 +114,19 @@ export const CoursesTabPanel: React.FC<CoursesTabPanelProps> = ({
       {/* Left: Create Course Form */}
       <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200 shadow-2xs p-4 sm:p-5 h-fit space-y-4">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center">
+          <div className="w-8 h-8 rounded-xl bg-brand-50 text-brand-700 flex items-center justify-center shrink-0">
             <Plus className="w-4 h-4" />
           </div>
           <div>
-            <h2 className="text-sm font-extrabold text-ink-900">Thêm Học phần mới</h2>
+            <h2 className="text-sm font-extrabold text-ink-900 flex items-center gap-1.5">
+              <span>Thêm Học phần mới</span>
+              <InfoHint
+                title="Học phần dùng để làm gì?"
+                text={
+                  '• "Học phần" giống như một thư mục gốc cho cả môn học của thầy/cô.\n• Bên trong mỗi Học phần sẽ chứa Ngân hàng câu hỏi riêng và danh sách các Đề thi / Ca thi của môn đó.'
+                }
+              />
+            </h2>
             <p className="text-[11px] text-ink-500">Bước 1 để xây dựng ngân hàng câu hỏi &amp; đề thi</p>
           </div>
         </div>
@@ -125,7 +134,15 @@ export const CoursesTabPanel: React.FC<CoursesTabPanelProps> = ({
         <form onSubmit={handleCreate} className="space-y-3 text-xs">
           <div className="grid grid-cols-2 gap-2.5">
             <div>
-              <label className="block font-bold text-ink-700 mb-1">Mã học phần *</label>
+              <label className="flex items-center gap-1.5 font-bold text-ink-700 mb-1">
+                <span>Mã học phần *</span>
+                <InfoHint
+                  title="Cách đặt Mã học phần"
+                  text={
+                    '• Đặt viết tắt ngắn gọn bằng chữ hoa và số, không dấu (ví dụ: ECO101, FIN202).\n• Mã này giúp thầy/cô phân biệt nhanh các môn và được dùng để đặt tên tự động cho file Excel câu hỏi khi tải về.'
+                  }
+                />
+              </label>
               <input
                 type="text"
                 value={code}
@@ -182,9 +199,15 @@ export const CoursesTabPanel: React.FC<CoursesTabPanelProps> = ({
       <div className="lg:col-span-8 bg-white rounded-2xl border border-slate-200 shadow-2xs p-4 sm:p-5 space-y-4">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <h2 className="text-sm font-extrabold text-ink-900 flex items-center gap-1.5">
-              <BookOpen className="w-4 h-4 text-brand-600" />
-              Danh sách Học phần của bạn ({courses.length})
+            <h2 className="text-sm font-extrabold text-ink-900 flex items-center gap-1.5 flex-wrap">
+              <BookOpen className="w-4 h-4 text-brand-600 shrink-0" />
+              <span>Danh sách Học phần của bạn ({courses.length})</span>
+              <InfoHint
+                title="Quy trình làm việc từng bước"
+                text={
+                  '• Bước 1: Bấm nút "Ngân hàng câu hỏi" màu xanh nhạt ở bên phải học phần để nhập câu hỏi (gõ tay hoặc nhập từ Excel).\n• Bước 2: Sau khi đã có câu hỏi, bấm nút "Đề thi" màu đen để tạo phòng thi, chọn số câu mỗi chương và lấy mã PIN 6 số phát cho sinh viên.'
+                }
+              />
             </h2>
             <p className="text-[11px] text-ink-500 mt-0.5">
               Chọn học phần để chuyển sang nhập Ngân hàng câu hỏi hoặc Tạo đề thi.

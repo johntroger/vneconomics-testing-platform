@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { CheckCircle2, Sparkles, X } from 'lucide-react';
 import type { ExamAttempt, Question } from '../../types/exam';
+import { InfoHint } from '../common/InfoHint';
 
 interface EssayGradingModalProps {
   isOpen: boolean;
@@ -104,8 +105,14 @@ export const EssayGradingModal: React.FC<EssayGradingModalProps> = ({
       <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden">
         <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-slate-200 flex items-center justify-between gap-2 bg-slate-50 shrink-0">
           <div className="min-w-0">
-            <h2 className="text-sm sm:text-base font-extrabold text-ink-900 truncate">
-              Rà soát Tự luận Rubric — {attempt.studentName} ({attempt.studentCode})
+            <h2 className="text-sm sm:text-base font-extrabold text-ink-900 flex items-center gap-1.5 flex-wrap">
+              <span className="truncate">Rà soát Tự luận Rubric — {attempt.studentName} ({attempt.studentCode})</span>
+              <InfoHint
+                title="Cách đọc màn hình Rà soát Tự luận"
+                text={
+                  '• Chữ tô màu XANH LÁ: Các cụm từ khóa đúng sinh viên đã viết khớp với đáp án Rubric.\n• Chữ tô màu ĐỎ: Từ đối lập/phủ định sai bản chất hoặc dính từ khóa bẫy AI.\n• Keystroke Telemetry: Thống kê tốc độ gõ phím và "Bước nhảy đột ngột" (dán cả đoạn văn bản dài cùng lúc) để thầy/cô nhận biết nếu sinh viên copy-paste từ ngoài vào.'
+                }
+              />
             </h2>
             <p className="text-xs text-ink-500">
               Bôi xanh từ khóa khớp Rubric • Bôi đỏ từ phủ định / đối lập hoặc bẫy AI
@@ -188,7 +195,15 @@ export const EssayGradingModal: React.FC<EssayGradingModalProps> = ({
 
                   {/* Quick Override Score */}
                   <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100">
-                    <span className="font-bold text-ink-700">Ghi đè điểm 1 chạm:</span>
+                    <span className="font-bold text-ink-700 inline-flex items-center gap-1">
+                      <span>Ghi đè điểm 1 chạm:</span>
+                      <InfoHint
+                        title="Chấm sửa điểm riêng cho bài này"
+                        text={
+                          '• Dùng khi sinh viên viết đúng ý nhưng dùng từ quá lạ, hoặc mắc lỗi trình bày mà thầy/cô muốn cộng/trừ điểm linh hoạt.\n• Chỉ cần gõ số điểm mới vào ô rồi bấm "Lưu điểm Override", tổng điểm hệ 10 của sinh viên sẽ tự tính lại ngay.'
+                        }
+                      />
+                    </span>
                     <input
                       type="number"
                       step="0.25"
@@ -218,9 +233,15 @@ export const EssayGradingModal: React.FC<EssayGradingModalProps> = ({
                   {/* Enrich Rubric & Regrade All Attempts */}
                   {(q.gradingRubric?.length ?? 0) > 0 && (
                     <div className="bg-brand-50/70 border border-brand-200 rounded-lg p-2.5 space-y-2">
-                      <span className="font-bold text-brand-900 flex items-center gap-1">
-                        <Sparkles className="w-3.5 h-3.5" />
-                        Bổ sung cách diễn đạt đúng mới vào Rubric &amp; Chấm lại cả lớp (&lt; 0.5s):
+                      <span className="font-bold text-brand-900 flex items-center gap-1.5 flex-wrap">
+                        <Sparkles className="w-3.5 h-3.5 shrink-0" />
+                        <span>Bổ sung cách diễn đạt đúng mới vào Rubric &amp; Chấm lại cả lớp (&lt; 0.5s):</span>
+                        <InfoHint
+                          title="Dạy máy chấm thêm từ đồng nghĩa cho cả lớp"
+                          text={
+                            '• Ví dụ: Trong đáp án chỉ có "cung tiền giảm", nhưng phát hiện sinh viên viết "tiền tệ thu hẹp" cũng đúng.\n• Thầy/cô chọn đúng Ý chấm bên dưới, gõ "tiền tệ thu hẹp" rồi bấm "+ Thêm & Chấm lại". Hệ thống sẽ cập nhật Rubric và tự động chấm lại TẤT CẢ bài nộp của cả lớp chưa đầy 1 giây!'
+                          }
+                        />
                       </span>
                       <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
                         <select

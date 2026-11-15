@@ -11,9 +11,10 @@ interface InfoHintProps {
 export const InfoHint: React.FC<InfoHintProps> = ({ title, text, className = '' }) => {
   const btnRef = useRef<HTMLButtonElement | null>(null);
   const [open, setOpen] = useState(false);
-  const [coords, setCoords] = useState<{ top: number; left: number; above: boolean }>({
+  const [coords, setCoords] = useState<{ top: number; left: number; width: number; above: boolean }>({
     top: 0,
     left: 0,
+    width: 315,
     above: false,
   });
 
@@ -21,16 +22,16 @@ export const InfoHint: React.FC<InfoHintProps> = ({ title, text, className = '' 
     const el = btnRef.current;
     if (!el) return;
     const rect = el.getBoundingClientRect();
-    const popupWidth = 280;
     const margin = 12;
+    const popupWidth = Math.min(315, window.innerWidth - margin * 2);
     const spaceBelow = window.innerHeight - rect.bottom;
-    const above = spaceBelow < 150 && rect.top > 150;
+    const above = spaceBelow < 180 && rect.top > 180;
 
     const rawLeft = rect.left + rect.width / 2 - popupWidth / 2;
     const left = Math.max(margin, Math.min(rawLeft, window.innerWidth - popupWidth - margin));
     const top = above ? rect.top - 8 : rect.bottom + 8;
 
-    setCoords({ top, left, above });
+    setCoords({ top, left, width: popupWidth, above });
   }, []);
 
   const handleOpen = () => {
@@ -93,7 +94,7 @@ export const InfoHint: React.FC<InfoHintProps> = ({ title, text, className = '' 
               position: 'fixed',
               top: coords.top,
               left: coords.left,
-              width: 280,
+              width: coords.width,
               transform: coords.above ? 'translateY(-100%)' : 'none',
               zIndex: 9999,
             }}
@@ -104,7 +105,7 @@ export const InfoHint: React.FC<InfoHintProps> = ({ title, text, className = '' 
                 {title}
               </div>
             )}
-            <p className="text-[11px] text-slate-100 leading-relaxed font-normal whitespace-normal">
+            <p className="text-[11px] text-slate-100 leading-relaxed font-normal whitespace-pre-line">
               {text}
             </p>
           </div>,

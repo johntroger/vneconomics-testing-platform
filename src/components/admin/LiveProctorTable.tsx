@@ -196,27 +196,53 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
       {/* Live Status Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-3.5 shadow-soft">
-          <div className="text-[11px] font-bold text-support-700 uppercase">Đang làm bài</div>
+          <div className="text-[11px] font-bold text-support-700 uppercase flex items-center gap-1">
+            <span>Đang làm bài</span>
+            <InfoHint
+              title="Thí sinh đang làm bài bình thường"
+              text="Số lượng sinh viên đã nhập mã PIN vào phòng thi và đang làm bài trên màn hình."
+            />
+          </div>
           <div className="text-2xl font-mono font-extrabold text-ink-900 mt-1">
             {countInProgress}
           </div>
         </div>
         <div className="bg-white rounded-xl border border-rose-200 p-3.5 shadow-soft">
-          <div className="text-[11px] font-bold text-rose-700 uppercase">
-            Khóa chờ duyệt (LOCKED)
+          <div className="text-[11px] font-bold text-rose-700 uppercase flex items-center gap-1">
+            <span>Khóa chờ duyệt (LOCKED)</span>
+            <InfoHint
+              title="Sinh viên bị tạm khóa do rời màn hình"
+              text={
+                '• Khi sinh viên thoát khỏi màn hình thi vượt quá số lần hoặc số giây cho phép, bài thi sẽ tự khóa lại.\n• Sinh viên sẽ xuất hiện ngay ở bảng đỏ bên dưới để thầy/cô xem giải trình và quyết định cho thi tiếp hay thu bài.'
+              }
+            />
           </div>
           <div className="text-2xl font-mono font-extrabold text-rose-700 mt-1">
             {countLocked}
           </div>
         </div>
         <div className="bg-white rounded-xl border border-amber-200 p-3.5 shadow-soft">
-          <div className="text-[11px] font-bold text-amber-700 uppercase">Cờ nghi vấn AI / Máy 2</div>
+          <div className="text-[11px] font-bold text-amber-700 uppercase flex items-center gap-1">
+            <span>Cờ nghi vấn AI / Máy 2</span>
+            <InfoHint
+              title="Cảnh báo dấu hiệu gian lận"
+              text={
+                '• Đếm số bài bị hệ thống gắn cờ nghi ngờ (dính bẫy ChatGPT/AI Honeypot hoặc có dấu hiệu đăng nhập từ máy/trình duyệt thứ hai).\n• Thầy/cô bấm vào nút "Cảnh báo" ở bảng dưới để lọc nhanh các em này.'
+              }
+            />
+          </div>
           <div className="text-2xl font-mono font-extrabold text-amber-700 mt-1">
             {countAiFlagged}
           </div>
         </div>
         <div className="bg-white rounded-xl border border-brand-200 p-3.5 shadow-soft">
-          <div className="text-[11px] font-bold text-brand-700 uppercase">Đã nộp / Thu bài</div>
+          <div className="text-[11px] font-bold text-brand-700 uppercase flex items-center gap-1">
+            <span>Đã nộp / Thu bài</span>
+            <InfoHint
+              title="Bài thi đã hoàn tất"
+              text="Bao gồm các sinh viên đã bấm Nộp bài, hết giờ tự thu hoặc bị giảng viên bấm Reject (Thu bài)."
+            />
+          </div>
           <div className="text-2xl font-mono font-extrabold text-brand-700 mt-1">
             {countSubmitted}
           </div>
@@ -232,13 +258,17 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
             <strong className="font-mono text-brand-700">{exam.roomPin}</strong>
             <InfoHint
               title="PIN phòng thi (6 số)"
-              text="Mã để phát cho sinh viên nhập khi vào phòng thi."
+              text={
+                '• Mã gồm 6 chữ số để thầy/cô đọc hoặc chiếu lên bảng.\n• Sinh viên mở trang web thi, nhập mã này kèm Họ tên, MSSV, Ngày sinh để vào đúng ca thi.'
+              }
             />
             <span>• PIN cứu hộ:</span>
             <strong className="font-mono">{exam.unlockPin}</strong>
             <InfoHint
               title="PIN cứu hộ (Mở khóa tại chỗ)"
-              text="Mã bí mật chỉ giảng viên giữ. Khi sinh viên bị khóa màn hình do rời tab quá số lần, giảng viên có thể đọc/nhập mã này ngay trên máy sinh viên để mở khóa thi tiếp."
+              text={
+                '• Mã bí mật chỉ giảng viên giữ (không công khai).\n• Nếu máy giám sát mất mạng hoặc sinh viên ngồi ngay bàn đầu bị khóa màn hình (VD: lỡ chạm nhầm thông báo), thầy/cô chỉ cần nhập mã này ngay trên điện thoại/máy của em đó để mở khóa thi tiếp tức thì.'
+              }
             />
           </span>
         </div>
@@ -279,7 +309,9 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
             </span>
             <InfoHint
               title="Kết thúc Ca thi & Thu bài hàng loạt"
-              text="Đóng phòng thi, tự động thu toàn bộ bài sinh viên đang làm dở/bị khóa và gửi bảng điểm tổng hợp về Email giảng viên."
+              text={
+                '• Đóng phòng thi không cho ai vào thêm.\n• Tự động gom toàn bộ bài sinh viên đang làm dở hoặc đang bị khóa (không mất dữ liệu đã chọn).\n• Tính điểm tổng hợp cả lớp và gửi tự động về Email giảng viên.'
+              }
             />
           </button>
         </div>
@@ -293,8 +325,10 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
               <Users className="w-4 h-4 text-brand-600" />
               <span>Danh sách Sinh viên Ca thi (Xác thực thông tin khi vào phòng)</span>
               <InfoHint
-                title="Danh sách sinh viên riêng của ca thi"
-                text="Tải lên file Excel danh sách lớp để hệ thống kiểm tra đúng MSSV, Họ tên, Giới tính, Ngày sinh khi sinh viên đăng nhập vào phòng thi."
+                title="Khóa phòng theo Danh sách lớp Excel"
+                text={
+                  '• Bấm "Tải mẫu Excel" -> điền danh sách lớp -> bấm "Import Danh sách SV".\n• Khi đã import, sinh viên phải nhập đúng Mã SV, Họ đệm, Tên, Giới tính, Ngày sinh thì hệ thống mới cho vào thi (ngăn hoàn toàn người lạ hoặc thi hộ).\n• Có sẵn mục lọc "Chưa vào thi" để thầy/cô điểm danh vắng thi tức thì.'
+                }
               />
               {rosterEntries.length > 0 ? (
                 <span className="px-2 py-0.5 rounded-full bg-support-50 text-support-700 border border-support-200 text-[11px] font-bold">
@@ -404,9 +438,15 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
       {/* Prominent LOCKED Instructor Approval Queue */}
       {lockedQueue.length > 0 && (
         <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-4 space-y-3">
-          <div className="flex items-center gap-2 text-rose-900 font-bold text-sm">
+          <div className="flex items-center gap-2 text-rose-900 font-bold text-sm flex-wrap">
             <AlertOctagon className="w-5 h-5 text-rose-600 shrink-0" />
-            Hàng đợi Phê duyệt Sinh viên Vượt ngưỡng ({lockedQueue.length} thí sinh đang chờ quyết định)
+            <span>Hàng đợi Phê duyệt Sinh viên Vượt ngưỡng ({lockedQueue.length} thí sinh đang chờ quyết định)</span>
+            <InfoHint
+              title="Hướng dẫn xử lý 3 nút Phê duyệt"
+              text={
+                '• Accept (Giữ giờ): Mở khóa cho sinh viên làm bài tiếp nhưng đồng hồ vẫn trừ thời gian đã chờ.\n• Accept + Bù giờ: Mở khóa và cộng trả lại đúng số giây sinh viên vừa ngồi chờ (nên dùng nếu lỗi mạng/lỗi khách quan).\n• Reject (Thu bài): Chấm dứt bài làm ngay lập tức, thu điểm hiện có và gửi Email kết quả.'
+              }
+            />
           </div>
 
           <div className="space-y-3">
@@ -472,7 +512,13 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
         <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 space-y-2.5">
           <div className="flex flex-wrap items-center gap-2 text-amber-900 font-extrabold text-sm">
             <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0" />
-            Cảnh báo Bất thường Vị trí &amp; Đa thiết bị / Đa trình duyệt
+            <span>Cảnh báo Bất thường Vị trí &amp; Đa thiết bị / Đa trình duyệt</span>
+            <InfoHint
+              title="Cách hệ thống phát hiện ngồi ngoài phòng thi & thi hộ"
+              text={
+                '• Bất thường Vị trí (GPS): Hệ thống lấy tọa độ trung tâm của cả lớp trong giảng đường. Sinh viên nào có vị trí xa hơn 200m so với lớp sẽ hiện thẻ đỏ (bấm vào tên để xem thẳng trên Google Maps).\n• Đa thiết bị / Đa trình duyệt: Phát hiện MSSV của 1 sinh viên được mở cùng lúc trên 2 điện thoại/máy tính hoặc 2 trình duyệt khác nhau.'
+              }
+            />
           </div>
           {farLocationAttempts.length > 0 && (
             <div className="bg-white rounded-xl border border-amber-200 p-3 space-y-1.5 text-xs">
@@ -650,7 +696,9 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
                     <span>Vị trí &amp; Thiết bị</span>
                     <InfoHint
                       title="Giám sát Vị trí (GPS) & Thiết bị"
-                      text="Hiển thị tọa độ GPS lúc vào phòng và tên thiết bị/trình duyệt. Hệ thống tự cảnh báo màu đỏ nếu vị trí ở xa lớp học hoặc có dấu hiệu đăng nhập nhiều máy/trình duyệt."
+                      text={
+                        '• Tọa độ GPS: Ghi nhận lúc sinh viên vào phòng thi. Nếu xa lớp > 200m sẽ hiện màu đỏ (bấm vào để mở Google Maps).\n• Thiết bị: Hiển thị loại máy/trình duyệt đang thi và báo vàng nếu phát hiện đăng nhập trên nhiều máy.'
+                      }
                     />
                   </span>
                 </th>
@@ -660,7 +708,9 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
                     <span>Vi phạm / Tin cậy</span>
                     <InfoHint
                       title="Số lần rời màn hình & Điểm tin cậy"
-                      text="Đếm số lần sinh viên thoát trình duyệt/chuyển tab và tổng số giây rời khỏi bài thi. Điểm tin cậy càng cao thì bài thi càng ít bất thường."
+                      text={
+                        '• Đếm tổng số lần và tổng số giây sinh viên chuyển sang tab khác hoặc thu nhỏ trình duyệt.\n• Điểm tin cậy (%): Mức 100% là làm bài nghiêm túc liên tục; càng rời màn hình nhiều điểm tin cậy càng giảm.'
+                      }
                     />
                   </span>
                 </th>
@@ -670,8 +720,10 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
                   <span className="inline-flex items-center justify-end gap-1">
                     <span>Điều khiển</span>
                     <InfoHint
-                      title="Các nút thao tác nhanh"
-                      text="Từ trái sang phải: 1) Chấm/Rà soát Tự luận; 2) Reset thiết bị (cho phép SV đổi máy); 3) Cộng thêm +60 giây; 4) Sửa Email & gửi lại bảng điểm."
+                      title="Ý nghĩa 4 nút thao tác từng thí sinh"
+                      text={
+                        '• Nút Tờ giấy: Mở bài Tự luận của sinh viên đó để xem & sửa điểm.\n• Nút Xoay tròn: Reset Thiết bị (bấm nút này nếu máy sinh viên hết pin/sập nguồn cần sang máy khác đăng nhập thi tiếp).\n• Nút Dấu (+): Cộng thêm +60 giây làm bài cho riêng em đó.\n• Nút Phong bì: Sửa lại địa chỉ Email nếu sinh viên gõ sai và gửi lại phiếu điểm.'
+                      }
                     />
                   </span>
                 </th>

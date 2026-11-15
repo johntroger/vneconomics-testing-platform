@@ -9,6 +9,7 @@ import {
   X,
 } from 'lucide-react';
 import type { Course, Question, QuestionType } from '../../types/exam';
+import { InfoHint } from '../common/InfoHint';
 import {
   ALL_QUESTION_TYPES,
   downloadQuestionBankTemplateXlsx,
@@ -201,8 +202,14 @@ export const ExcelQuestionBankModal: React.FC<ExcelQuestionBankModalProps> = ({
             <div className="p-4 rounded-xl border border-brand-200 bg-brand-50/50 space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-extrabold text-brand-900">
-                    Bước 1A: Chọn Loại Câu Hỏi & Tải File Mẫu Excel
+                  <p className="text-xs font-extrabold text-brand-900 flex items-center gap-1.5 flex-wrap">
+                    <span>Bước 1A: Chọn Loại Câu Hỏi & Tải File Mẫu Excel</span>
+                    <InfoHint
+                      title="Cách chọn file mẫu Excel đơn giản nhất"
+                      text={
+                        '• Nếu đề của thầy/cô chỉ có Trắc nghiệm 4 phương án (A, B, C, D), thầy/cô KHÔNG cần tick gì bên dưới — cứ bấm nút "Tải Mẫu 4 Đáp Án" để nhận bảng 10 cột cực gọn.\n• Chỉ tick thêm các ô ở dưới nếu đề có Tự luận ngắn, Điền số hay Đúng/Sai.'
+                      }
+                    />
                   </p>
                   <p className="text-[11px] text-ink-600 mt-0.5 leading-relaxed">
                     {isDefaultFourOptionOnly ? (
@@ -312,8 +319,14 @@ export const ExcelQuestionBankModal: React.FC<ExcelQuestionBankModalProps> = ({
 
             <div className="p-4 rounded-xl border border-support-200 bg-support-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
-                <p className="text-xs font-extrabold text-support-900">
-                  Bước 1B: Xuất Kho Câu Hỏi Hiện Tại Để Sửa Hàng Loạt
+                <p className="text-xs font-extrabold text-support-900 flex items-center gap-1.5 flex-wrap">
+                  <span>Bước 1B: Xuất Kho Câu Hỏi Hiện Tại Để Sửa Hàng Loạt</span>
+                  <InfoHint
+                    title="Tải về sửa hàng loạt trên Excel"
+                    text={
+                      '• Bấm nút này để tải toàn bộ câu hỏi đã lưu của học phần về máy dưới dạng Excel.\n• Thầy/cô có thể sửa chính tả, thay đáp án hoặc thêm câu mới trực tiếp trên Excel rồi nạp lại ở Bước 2 (giữ nguyên Mã câu ở cột đầu để máy tự cập nhật đè câu cũ).'
+                    }
+                  />
                 </p>
                 <p className="text-[11px] text-ink-600 mt-0.5 leading-relaxed">
                   Xuất toàn bộ {courseQuestions.length} câu kèm sẵn ô xổ xuống & Mã câu để sửa trên Excel rồi import cập nhật đè (Upsert).
@@ -341,8 +354,14 @@ export const ExcelQuestionBankModal: React.FC<ExcelQuestionBankModalProps> = ({
           {/* Step 2: Upload Excel or Paste Rows */}
           <div className="space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
-              <p className="text-xs font-extrabold text-ink-800 uppercase tracking-wider">
-                Bước 2: Nạp File Excel Đã Điền Hoặc Dán Trực Tiếp
+              <p className="text-xs font-extrabold text-ink-800 uppercase tracking-wider flex items-center gap-1.5 flex-wrap">
+                <span>Bước 2: Nạp File Excel Đã Điền Hoặc Dán Trực Tiếp</span>
+                <InfoHint
+                  title="2 cách đưa câu hỏi từ Excel vào web"
+                  text={
+                    '• Cách 1 (Chọn Tệp .xlsx / .csv): Lưu file Excel trên máy rồi kéo thả hoặc bấm chọn file để tải lên.\n• Cách 2 (Dán Từ Excel Ctrl+V): Mở Excel/Google Sheets, bôi đen các dòng câu hỏi -> bấm Ctrl+C -> bấm sang nút "Dán Từ Excel" bên cạnh rồi nhấn Ctrl+V. Không cần lưu file trung gian!'
+                  }
+                />
               </p>
               <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl text-xs">
                 <button
@@ -450,8 +469,14 @@ export const ExcelQuestionBankModal: React.FC<ExcelQuestionBankModalProps> = ({
 
           {/* Step 3: Import Behavior Options */}
           <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 space-y-3 text-xs">
-            <p className="font-extrabold text-ink-800 uppercase tracking-wider">
-              Bước 3: Chế độ Nạp vào Kho & Đồng bộ Ma trận
+            <p className="font-extrabold text-ink-800 uppercase tracking-wider flex items-center gap-1.5 flex-wrap">
+              <span>Bước 3: Chế độ Nạp vào Kho & Đồng bộ Ma trận</span>
+              <InfoHint
+                title="Chọn cách xử lý câu hỏi cũ khi nạp"
+                text={
+                  '• Cập nhật & Thêm mới (Khuyên dùng): Giữ nguyên kho hiện có; câu nào trùng Mã sẽ được sửa theo file mới, câu chưa có Mã sẽ được thêm vào.\n• Chỉ Thêm Mới (Append): Không bao giờ ghi đè câu cũ, toàn bộ file được thêm nối tiếp thành câu mới tinh.\n• Thay Thế Toàn Bộ Kho HP: Cẩn thận! Xóa sạch hết câu hỏi đang có của môn này rồi thay hoàn toàn bằng file mới.'
+                }
+              />
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
               <label

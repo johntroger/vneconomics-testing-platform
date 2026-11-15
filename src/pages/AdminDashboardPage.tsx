@@ -556,7 +556,7 @@ export const AdminDashboardPage: React.FC = () => {
             percent: patch.percent ?? 25,
           },
         ];
-    upsertExam({ ...selectedExam, chapterMatrix: nextMatrix });
+    saveExamSetting({ ...selectedExam, chapterMatrix: nextMatrix });
   };
 
   const totalMatrixQuestions = (selectedExam?.chapterMatrix ?? []).reduce(
@@ -808,7 +808,9 @@ export const AdminDashboardPage: React.FC = () => {
                     <span>Chọn Ca thi để Giám sát &amp; Nhập danh sách Sinh viên riêng</span>
                     <InfoHint
                       title="Quản lý nhiều Ca thi riêng biệt"
-                      text="Mỗi ca thi có mã PIN 6 số, danh sách sinh viên và bảng điểm riêng. Bấm 'Tạo Ca thi mới' để mở thêm ca khác (ví dụ Ca 2, Ca 3) dùng chung ma trận đề."
+                      text={
+                        '• Mỗi ca thi có một Mã phòng PIN 6 số, Danh sách sinh viên và Bảng điểm riêng.\n• Nếu dạy nhiều nhóm/lớp cùng một học phần, bấm "+ Tạo Ca thi mới" để tạo thêm Ca 2, Ca 3... dùng lại toàn bộ Ma trận đề mà không bị trộn lẫn danh sách điểm giữa các lớp.'
+                      }
                     />
                   </h2>
                   <p className="text-[11px] text-ink-500">
@@ -970,7 +972,9 @@ export const AdminDashboardPage: React.FC = () => {
                   <Plus className="w-3.5 h-3.5" /> Tạo Đề thi mới
                   <InfoHint
                     title="Tạo Đề thi mới"
-                    text="Tạo một phòng thi/đề thi mới gắn với học phần đang chọn, hệ thống sẽ tự cấp mã PIN 6 số riêng."
+                    text={
+                      '• Tạo một phòng thi hoàn toàn mới cho Học phần đang chọn.\n• Hệ thống tự cấp Mã PIN 6 số ngẫu nhiên; thầy/cô có thể tự đổi lại số dễ nhớ (ví dụ: 202601) ở bảng cài đặt bên dưới.'
+                    }
                   />
                 </button>
                 <button
@@ -990,8 +994,10 @@ export const AdminDashboardPage: React.FC = () => {
                 >
                   <Copy className="w-3.5 h-3.5" /> Nhân bản đề
                   <InfoHint
-                    title="Nhân bản đề / Tạo ca thi mới"
-                    text="Sao chép toàn bộ ma trận câu hỏi và cài đặt của đề hiện tại sang một ca thi mới với mã PIN mới và danh sách sinh viên trống."
+                    title="Nhân bản đề cho lớp / ca thi khác"
+                    text={
+                      '• Sao chép y hệt cấu trúc Ma trận Chương và toàn bộ cài đặt bảo mật sang một Ca thi mới.\n• Ca thi mới sẽ tự động có Mã PIN 6 số mới và danh sách sinh viên trống để không bị lẫn bài làm của lớp trước.'
+                    }
                   />
                 </button>
                 <button
@@ -1002,8 +1008,10 @@ export const AdminDashboardPage: React.FC = () => {
                 >
                   <Eye className="w-3.5 h-3.5" /> Preview Mobile
                   <InfoHint
-                    title="Xem trước giao diện điện thoại"
-                    text="Mô phỏng giao diện làm bài thi trên màn hình điện thoại để giảng viên kiểm tra đề hiển thị có rõ ràng không trước khi mở phòng."
+                    title="Xem thử đề thi trên màn hình Điện thoại"
+                    text={
+                      '• Mở màn hình mô phỏng để thầy/cô xem trước đề thi thực tế trông như thế nào trên điện thoại sinh viên.\n• Có thể gõ thử các MSSV khác nhau để kiểm tra biến số động {a}, {b} có nhảy số đúng chưa.'
+                    }
                   />
                 </button>
                 {selectedExam && (
@@ -1045,8 +1053,10 @@ export const AdminDashboardPage: React.FC = () => {
                         <Layers className="w-4 h-4 text-brand-600" />
                         <span>Ma trận Phân bổ Câu hỏi theo Chương</span>
                         <InfoHint
-                          title="Ma trận rút câu hỏi tự động"
-                          text="Quy định mỗi chương sẽ rút ngẫu nhiên bao nhiêu câu (tự cân bằng Dễ/Trung bình/Khó) và mỗi câu tính bao nhiêu điểm. Nếu đặt 0 câu thì chương đó sẽ không ra trong đề."
+                          title="Ma trận rút đề tự động cho từng sinh viên"
+                          text={
+                            '• Giúp đề thi phủ đều kiến thức các chương và hạn chế quay cóp.\n• Mỗi sinh viên khi vào thi sẽ được bốc ngẫu nhiên đúng số câu đã cài ở mỗi chương (tự động cân bằng tỷ lệ câu Dễ - Trung bình - Khó).\n• Nếu đặt "Số câu bốc" = 0, chương đó sẽ không xuất hiện trong đề thi này.'
+                          }
                         />
                       </h2>
                       <span className="font-mono font-bold text-support-700 bg-support-50 px-2.5 py-1 rounded-full">
@@ -1098,100 +1108,18 @@ export const AdminDashboardPage: React.FC = () => {
                             Kho: {qs.length} câu ({pct}%)
                           </span>
                         </div>
-                        <div className="grid grid-cols-2 gap-2.5">
-                    <div>
-                      <label className="flex items-center gap-1.5 font-semibold mb-1">
-                        <span>PIN cứu hộ (4–6 số)</span>
-                        <InfoHint
-                          title="PIN cứu hộ mở khóa tại chỗ"
-                          text="Mã bí mật chỉ giảng viên giữ. Khi sinh viên bị khóa do rời tab, giảng viên nhập mã này trực tiếp trên máy sinh viên để mở khóa thi tiếp."
-                        />
-                      </label>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={6}
-                        value={selectedExam.unlockPin}
-                        onChange={(e) =>
-                          upsertExam({
-                            ...selectedExam,
-                            unlockPin: e.target.value.replace(/\D/g, '').slice(0, 6),
-                          })
-                        }
-                        placeholder="8888"
-                        className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-mono font-bold tracking-wider"
-                      />
-                    </div>
-                    <div>
-                      <label className="flex items-center gap-1.5 font-semibold mb-1">
-                        <span>Email nhận báo cáo ca thi</span>
-                        <InfoHint
-                          title="Email nhận bảng điểm tổng hợp"
-                          text="Khi giảng viên bấm Kết thúc ca thi, hệ thống sẽ tự động gửi bảng điểm tổng hợp (kèm CSV) về địa chỉ Email này."
-                        />
-                      </label>
-                      <input
-                        type="email"
-                        value={selectedExam.instructorEmail}
-                        onChange={(e) =>
-                          upsertExam({
-                            ...selectedExam,
-                            instructorEmail: e.target.value,
-                          })
-                        }
-                        placeholder="giangvien@ueh.edu.vn"
-                        className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-semibold"
-                      />
-                    </div>
-                    <div>
-                      <label className="flex items-center gap-1.5 font-semibold mb-1">
-                        <span>Số lần rời màn hình tối đa</span>
-                        <InfoHint
-                          title="Ngưỡng khóa theo số lần thoát tab"
-                          text="Nếu sinh viên rời khỏi màn hình thi vượt quá số lần này, bài thi sẽ tự động tạm khóa để chờ giảng viên phê duyệt."
-                        />
-                      </label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={20}
-                        value={selectedExam.maxLeaveCount}
-                        onChange={(e) =>
-                          upsertExam({
-                            ...selectedExam,
-                            maxLeaveCount: Math.max(1, Number(e.target.value) || 1),
-                          })
-                        }
-                        className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-mono font-bold"
-                      />
-                    </div>
-                    <div>
-                      <label className="flex items-center gap-1.5 font-semibold mb-1">
-                        <span>Tổng giây vắng mặt tối đa</span>
-                        <InfoHint
-                          title="Ngưỡng khóa theo tổng thời gian rời tab"
-                          text="Nếu tổng thời gian sinh viên thoát ra ngoài vượt quá số giây này, bài thi cũng sẽ tạm khóa chờ giảng viên kiểm tra."
-                        />
-                      </label>
-                      <input
-                        type="number"
-                        min={5}
-                        max={600}
-                        value={selectedExam.maxAwaySeconds}
-                        onChange={(e) =>
-                          upsertExam({
-                            ...selectedExam,
-                            maxAwaySeconds: Math.max(5, Number(e.target.value) || 5),
-                          })
-                        }
-                        className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-mono font-bold"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                          <label className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-lg border">
-                            <span>Số câu bốc:</span>
+                        <div className="grid grid-cols-2 gap-2">
+                          <label className="flex items-center justify-between gap-1 bg-white px-2.5 py-1.5 rounded-lg border">
+                            <span className="inline-flex items-center gap-1">
+                              <span>Số câu bốc</span>
+                              <InfoHint
+                                title="Số câu lấy ra từ chương này"
+                                text={
+                                  '• Số lượng câu hỏi của chương này sẽ bốc cho MỖI sinh viên (không được vượt quá tổng số câu đang có trong kho).\n• Đặt 0 nếu không muốn thi chương này.'
+                                }
+                              />
+                              <span>:</span>
+                            </span>
                             <input
                               type="number"
                               min={0}
@@ -1205,8 +1133,17 @@ export const AdminDashboardPage: React.FC = () => {
                               className="w-12 text-right font-mono font-bold outline-none"
                             />
                           </label>
-                          <label className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-lg border">
-                            <span>Điểm/câu:</span>
+                          <label className="flex items-center justify-between gap-1 bg-white px-2.5 py-1.5 rounded-lg border">
+                            <span className="inline-flex items-center gap-1">
+                              <span>Điểm/câu</span>
+                              <InfoHint
+                                title="Thang điểm mỗi câu trong chương"
+                                text={
+                                  '• Điểm tính cho mỗi câu thuộc chương này (hệ thống tự quy đổi tổng điểm các chương sang thang 10 ở bảng điểm).\n• Riêng câu Tự luận ngắn vẫn giữ điểm chi tiết theo Rubric đã soạn.'
+                                }
+                              />
+                              <span>:</span>
+                            </span>
                             <input
                               type="number"
                               step="0.25"
@@ -1241,9 +1178,15 @@ export const AdminDashboardPage: React.FC = () => {
             <div className="lg:col-span-7">
               <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-4 text-xs">
                 {/* Shuffle & Exam Policy */}
-                <div className="border-t border-slate-200 pt-3 space-y-3">
-                  <h3 className="font-bold text-ink-900">
-                    Chính sách Trộn Đề Đa tầng & Ca thi
+                <div className="space-y-3">
+                  <h3 className="text-sm font-extrabold text-ink-900 flex items-center gap-1.5">
+                    <span>Chính sách Trộn Đề Đa tầng &amp; Ca thi</span>
+                    <InfoHint
+                      title="Cài đặt chung cho phòng thi này"
+                      text={
+                        '• Quy định mã PIN vào phòng, thời gian làm bài, cách trộn câu hỏi/đáp án và chế độ giám sát chống rời màn hình.\n• Mọi thay đổi ở bảng này được lưu tự động ngay lập tức.'
+                      }
+                    />
                   </h3>
                   <div className="grid grid-cols-2 gap-2.5">
                     <div>
@@ -1251,7 +1194,9 @@ export const AdminDashboardPage: React.FC = () => {
                         <span>Mã phòng thi (6 số)</span>
                         <InfoHint
                           title="Mã phòng thi (PIN 6 số)"
-                          text="Mã gồm 6 chữ số để giảng viên đọc hoặc chiếu lên bảng cho sinh viên nhập vào màn hình chính để vào đúng ca thi này."
+                          text={
+                            '• Mã gồm 6 chữ số để thầy/cô đọc hoặc chiếu lên bảng.\n• Sinh viên mở trang chủ làm bài và nhập đúng 6 số này để vào phòng thi.'
+                          }
                         />
                       </label>
                       <input
@@ -1260,7 +1205,7 @@ export const AdminDashboardPage: React.FC = () => {
                         maxLength={6}
                         value={selectedExam.roomPin}
                         onChange={(e) =>
-                          upsertExam({
+                          saveExamSetting({
                             ...selectedExam,
                             roomPin: e.target.value.replace(/\D/g, '').slice(0, 6),
                           })
@@ -1273,8 +1218,10 @@ export const AdminDashboardPage: React.FC = () => {
                       <label className="flex items-center gap-1.5 font-semibold mb-1">
                         <span>Thời lượng làm bài (phút)</span>
                         <InfoHint
-                          title="Thời gian làm bài"
-                          text="Tổng số phút sinh viên được phép làm bài kể từ lúc bấm bắt đầu. Hết giờ hệ thống sẽ tự động lưu và thu bài."
+                          title="Tổng thời gian làm bài"
+                          text={
+                            '• Tổng số phút đồng hồ đếm ngược trên màn hình sinh viên.\n• Khi hết giờ, hệ thống sẽ tự động lưu hết đáp án đang chọn và thu bài ngay lập tức.'
+                          }
                         />
                       </label>
                       <input
@@ -1283,7 +1230,7 @@ export const AdminDashboardPage: React.FC = () => {
                         max={240}
                         value={selectedExam.durationMinutes}
                         onChange={(e) =>
-                          upsertExam({
+                          saveExamSetting({
                             ...selectedExam,
                             durationMinutes: Math.max(5, Number(e.target.value) || 5),
                           })
@@ -1298,7 +1245,9 @@ export const AdminDashboardPage: React.FC = () => {
                         <span>Kiểu trộn thứ tự câu (có thể chọn 1 hoặc nhiều)</span>
                         <InfoHint
                           title="Quy tắc chọn Kiểu trộn thứ tự câu"
-                          text="• Không trộn đề: giữ nguyên thứ tự gốc (sẽ tắt các ô khác). • Trộn toàn bộ đề hoặc Trộn trong từng Chương: chỉ chọn 1 trong 2 kiểu này. • Đưa Tự luận xuống cuối: có thể tick kết hợp thêm với 1 trong 2 kiểu trộn trên (hoặc chọn riêng)."
+                          text={
+                            '• Không trộn đề: Giữ nguyên thứ tự câu hỏi gốc từ ngân hàng đề (sẽ tự tắt các ô trộn khác).\n• Trộn toàn bộ đề / Trộn trong từng Chương: Chọn 1 trong 2 kiểu này để mỗi sinh viên có thứ tự câu hỏi khác nhau.\n• Đưa Tự luận xuống cuối: Có thể tick kết hợp cùng 1 trong 2 kiểu trộn trên (hoặc chọn riêng) để dồn hết câu Tự luận về cuối bài thi.'
+                          }
                         />
                       </label>
                       {(() => {
@@ -1385,14 +1334,16 @@ export const AdminDashboardPage: React.FC = () => {
                       <label className="flex items-center gap-1.5 font-semibold mb-1">
                         <span>Chế độ gửi Email SV</span>
                         <InfoHint
-                          title="Cách trả kết quả qua Email"
-                          text="• Gửi điểm ngay: sinh viên nộp xong sẽ nhận điểm chi tiết qua Email. • Biên nhận trước, điểm khi đóng ca: chỉ gửi biên nhận đã nộp, đợi giảng viên đóng ca thi mới gửi điểm."
+                          title="Cách trả kết quả thi qua Email cho sinh viên"
+                          text={
+                            '• Gửi điểm ngay: Sinh viên bấm Nộp bài xong là nhận được điểm chi tiết qua Email luôn.\n• Biên nhận trước, điểm khi đóng ca: Lúc nộp chỉ gửi giấy xác nhận "Đã nộp bài" (tránh lộ đáp án/điểm cho các bạn thi sau). Khi thầy/cô bấm "Kết thúc Ca thi" ở tab Giám sát, cả lớp mới đồng loạt nhận điểm.'
+                          }
                         />
                       </label>
                       <select
                         value={selectedExam.emailDeliveryMode}
                         onChange={(e) =>
-                          upsertExam({
+                          saveExamSetting({
                             ...selectedExam,
                             emailDeliveryMode: e.target.value as EmailDeliveryMode,
                           })
@@ -1411,7 +1362,9 @@ export const AdminDashboardPage: React.FC = () => {
                         <span>PIN cứu hộ (4–6 số)</span>
                         <InfoHint
                           title="PIN cứu hộ mở khóa tại chỗ"
-                          text="Mã bí mật chỉ giảng viên giữ. Khi sinh viên bị khóa do rời tab, giảng viên nhập mã này trực tiếp trên máy sinh viên để mở khóa thi tiếp."
+                          text={
+                            '• Mã bí mật chỉ riêng giảng viên biết (tuyệt đối không đọc to cho cả lớp).\n• Khi sinh viên bị khóa màn hình vì rời tab, thầy/cô tới tận bàn nhập mã này lên máy sinh viên để mở khóa thi tiếp ngay lập tức.'
+                          }
                         />
                       </label>
                       <input
@@ -1420,7 +1373,7 @@ export const AdminDashboardPage: React.FC = () => {
                         maxLength={6}
                         value={selectedExam.unlockPin}
                         onChange={(e) =>
-                          upsertExam({
+                          saveExamSetting({
                             ...selectedExam,
                             unlockPin: e.target.value.replace(/\D/g, '').slice(0, 6),
                           })
@@ -1433,15 +1386,17 @@ export const AdminDashboardPage: React.FC = () => {
                       <label className="flex items-center gap-1.5 font-semibold mb-1">
                         <span>Email nhận báo cáo ca thi</span>
                         <InfoHint
-                          title="Email nhận bảng điểm tổng hợp"
-                          text="Khi giảng viên bấm Kết thúc ca thi, hệ thống sẽ tự động gửi bảng điểm tổng hợp (kèm CSV) về địa chỉ Email này."
+                          title="Email nhận Bảng điểm Tổng hợp của giảng viên"
+                          text={
+                            '• Nhập Email cá nhân/cơ quan của thầy/cô.\n• Khi kết thúc ca thi, hệ thống sẽ gửi thư tổng kết ca thi kèm danh sách điểm toàn lớp về địa chỉ Email này.'
+                          }
                         />
                       </label>
                       <input
                         type="email"
                         value={selectedExam.instructorEmail}
                         onChange={(e) =>
-                          upsertExam({
+                          saveExamSetting({
                             ...selectedExam,
                             instructorEmail: e.target.value,
                           })
@@ -1454,8 +1409,10 @@ export const AdminDashboardPage: React.FC = () => {
                       <label className="flex items-center gap-1.5 font-semibold mb-1">
                         <span>Số lần rời màn hình tối đa</span>
                         <InfoHint
-                          title="Ngưỡng khóa theo số lần thoát tab"
-                          text="Nếu sinh viên rời khỏi màn hình thi vượt quá số lần này, bài thi sẽ tự động tạm khóa để chờ giảng viên phê duyệt."
+                          title="Ngưỡng khóa theo Số lần chuyển tab / thoát trình duyệt"
+                          text={
+                            '• Ví dụ đặt = 3: Sinh viên bấm sang app khác (Zalo, Chrome, Messenger...) tới lần thứ 4 sẽ bị hệ thống khóa màn hình thi lại.\n• Bài khóa sẽ báo đỏ lên Tab Giám sát để thầy/cô duyệt cho thi tiếp hoặc thu bài.'
+                          }
                         />
                       </label>
                       <input
@@ -1464,7 +1421,7 @@ export const AdminDashboardPage: React.FC = () => {
                         max={20}
                         value={selectedExam.maxLeaveCount}
                         onChange={(e) =>
-                          upsertExam({
+                          saveExamSetting({
                             ...selectedExam,
                             maxLeaveCount: Math.max(1, Number(e.target.value) || 1),
                           })
@@ -1476,8 +1433,10 @@ export const AdminDashboardPage: React.FC = () => {
                       <label className="flex items-center gap-1.5 font-semibold mb-1">
                         <span>Tổng giây vắng mặt tối đa</span>
                         <InfoHint
-                          title="Ngưỡng khóa theo tổng thời gian rời tab"
-                          text="Nếu tổng thời gian sinh viên thoát ra ngoài vượt quá số giây này, bài thi cũng sẽ tạm khóa chờ giảng viên kiểm tra."
+                          title="Ngưỡng khóa theo Tổng thời gian ở ngoài màn hình thi"
+                          text={
+                            '• Ví dụ đặt = 45 giây: Dù sinh viên chỉ rời màn hình 1–2 lần nhưng mỗi lần thoát ra lâu cộng dồn vượt quá 45 giây, bài thi vẫn tự động khóa lại chờ thầy/cô duyệt.'
+                          }
                         />
                       </label>
                       <input
@@ -1486,7 +1445,7 @@ export const AdminDashboardPage: React.FC = () => {
                         max={600}
                         value={selectedExam.maxAwaySeconds}
                         onChange={(e) =>
-                          upsertExam({
+                          saveExamSetting({
                             ...selectedExam,
                             maxAwaySeconds: Math.max(5, Number(e.target.value) || 5),
                           })
@@ -1502,7 +1461,7 @@ export const AdminDashboardPage: React.FC = () => {
                         type="checkbox"
                         checked={selectedExam.shuffleOptions}
                         onChange={(e) =>
-                          upsertExam({
+                          saveExamSetting({
                             ...selectedExam,
                             shuffleOptions: e.target.checked,
                           })
@@ -1510,8 +1469,10 @@ export const AdminDashboardPage: React.FC = () => {
                       />
                       <span>Trộn A/B/C/D (ghim cuối)</span>
                       <InfoHint
-                        title="Trộn đáp án A/B/C/D"
-                        text="Xáo trộn thứ tự các phương án A, B, C, D của mỗi sinh viên. Các đáp án có đánh dấu 'Ghim cuối' (như 'Tất cả đều đúng') vẫn được giữ ở cuối."
+                        title="Trộn vị trí đáp án A, B, C, D"
+                        text={
+                          '• Xáo trộn ngẫu nhiên thứ tự 4 đáp án A, B, C, D cho từng sinh viên để tránh nhìn bài hoặc nhắc nhau kiểu "Câu 1 chọn C".\n• Các phương án đánh dấu "Ghim cuối" (như "Tất cả đều đúng") luôn tự động giữ nằm ở dưới cùng.'
+                        }
                       />
                     </label>
                     <label className="flex items-center gap-2 font-semibold">
@@ -1519,7 +1480,7 @@ export const AdminDashboardPage: React.FC = () => {
                         type="checkbox"
                         checked={selectedExam.canvasAntiOcr}
                         onChange={(e) =>
-                          upsertExam({
+                          saveExamSetting({
                             ...selectedExam,
                             canvasAntiOcr: e.target.checked,
                           })
@@ -1527,8 +1488,10 @@ export const AdminDashboardPage: React.FC = () => {
                       />
                       <span>Canvas Chống OCR</span>
                       <InfoHint
-                        title="Chống sao chép & quét chữ (Anti-OCR)"
-                        text="Hiển thị nội dung câu hỏi dạng hình ảnh bảo vệ để hạn chế sinh viên bôi đen copy hoặc dùng công cụ quét chữ tự động (OCR) để giải đề."
+                        title="Chống bôi đen copy & Chống phần mềm quét chữ (Anti-OCR)"
+                        text={
+                          '• Biến nội dung câu hỏi thành khung ảnh vẽ có vân bảo vệ.\n• Giúp sinh viên không thể bôi đen copy chữ sang Google/ChatGPT và làm nhiễu phần mềm quét chữ tự động (OCR).'
+                        }
                       />
                     </label>
                     <label className="flex items-center gap-2 font-semibold">
@@ -1536,7 +1499,7 @@ export const AdminDashboardPage: React.FC = () => {
                         type="checkbox"
                         checked={selectedExam.oneWayMode}
                         onChange={(e) =>
-                          upsertExam({
+                          saveExamSetting({
                             ...selectedExam,
                             oneWayMode: e.target.checked,
                           })
@@ -1544,15 +1507,17 @@ export const AdminDashboardPage: React.FC = () => {
                       />
                       <span>Điều hướng 1 chiều</span>
                       <InfoHint
-                        title="Thi 1 chiều (Không quay lại câu trước)"
-                        text="Nếu bật, sinh viên chỉ được làm tiếp sang câu sau và không thể quay lại sửa các câu đã đi qua. Chỉ nên bật cho đề kiểm tra đặc thù."
+                        title="Thi 1 chiều (Không cho quay lại sửa câu cũ)"
+                        text={
+                          '• Khi tick bật: Sinh viên làm xong câu nào và bấm Qua câu tiếp sẽ KHÔNG thể quay ngược lại để xem hay sửa câu trước đó.\n• Mặc định nên để tắt cho các bài thi thông thường để sinh viên rà soát lại bài.'
+                        }
                       />
                     </label>
                     <div className="flex items-center gap-1.5">
                       <select
                         value={selectedExam.status}
                         onChange={(e) =>
-                          upsertExam({
+                          saveExamSetting({
                             ...selectedExam,
                             status: e.target.value as 'DRAFT' | 'OPEN' | 'CLOSED',
                           })
@@ -1564,8 +1529,10 @@ export const AdminDashboardPage: React.FC = () => {
                         <option value="CLOSED">Trạng thái: ĐÃ ĐÓNG</option>
                       </select>
                       <InfoHint
-                        title="Trạng thái phòng thi"
-                        text="• NHÁP: sinh viên chưa vào được. • ĐANG MỞ: sinh viên nhập PIN vào thi bình thường. • ĐÃ ĐÓNG: khóa phòng, không cho thí sinh mới vào."
+                        title="Điều khiển đóng / mở phòng thi"
+                        text={
+                          '• NHÁP: Đang soạn đề, sinh viên chưa thể vào phòng.\n• ĐANG MỞ: Phòng thi hoạt động, sinh viên nhập mã PIN 6 số để làm bài ngay.\n• ĐÃ ĐÓNG: Đã kết thúc ca thi, không cho thí sinh mới vào thêm.'
+                        }
                       />
                     </div>
                   </div>
@@ -1574,15 +1541,17 @@ export const AdminDashboardPage: React.FC = () => {
                     <label className="flex items-center gap-1.5 font-semibold mb-1">
                       <span>Whitelist MSSV (tùy chọn, phân tách dấu phẩy/dòng; để trống = cho phép tự do)</span>
                       <InfoHint
-                        title="Giới hạn danh sách MSSV được phép thi"
-                        text="Nếu nhập danh sách MSSV vào đây (hoặc import file Excel ở tab Giám sát thi), chỉ những sinh viên có mã trong danh sách mới được phép vào phòng thi."
+                        title="Giới hạn đúng Mã sinh viên được phép thi"
+                        text={
+                          '• Cách 1 (Nhanh): Dán danh sách MSSV cần cho thi vào ô này.\n• Cách 2 (Đầy đủ thông tin nhất): Sang Tab 4 "Giám sát Live" để import file Excel danh sách lớp — hệ thống sẽ kiểm tra khớp cả MSSV, Họ tên, Giới tính, Ngày sinh.\n• Nếu để trống: Bất kỳ ai biết mã PIN 6 số đều vào thi được.'
+                        }
                       />
                     </label>
                     <textarea
                       rows={2}
                       value={selectedExam.rosterWhitelist.join(', ')}
                       onChange={(e) =>
-                        upsertExam({
+                        saveExamSetting({
                           ...selectedExam,
                           rosterWhitelist: e.target.value
                             .split(/[\s,;]+/)
@@ -1645,7 +1614,9 @@ export const AdminDashboardPage: React.FC = () => {
                       <Plus className="w-3.5 h-3.5" /> Thêm Chương
                       <InfoHint
                         title="Thêm Chương mới"
-                        text="Tạo nhanh một Chương/Chuyên đề mới để phân loại câu hỏi. Chương tạo xong sẽ xuất hiện ngay trong Ma trận đề thi."
+                        text={
+                          '• Tạo nhanh một Chương hoặc Chuyên đề mới để phân loại câu hỏi (ví dụ: "Chương 2: Cung - Cầu").\n• Chương mới tạo xong sẽ hiện ngay bên Tab "Tạo Đề thi" để thầy/cô chia số lượng câu cần lấy.'
+                        }
                       />
                     </button>
                     <button
@@ -1655,8 +1626,10 @@ export const AdminDashboardPage: React.FC = () => {
                     >
                       <Download className="w-3.5 h-3.5" /> Chọn &amp; Tải Mẫu Excel
                       <InfoHint
-                        title="Tải file Excel mẫu"
-                        text="Chọn dạng câu hỏi muốn soạn (Trắc nghiệm 1 đáp án, Nhiều đáp án, Điền khuyết, Tự luận...) rồi tải file Excel mẫu chuẩn để nhập liệu."
+                        title="Tải file Excel mẫu chuẩn"
+                        text={
+                          '• Bấm vào đây để tải bảng Excel mẫu về máy soạn câu hỏi trước.\n• Nếu chỉ làm trắc nghiệm 4 đáp án A/B/C/D, thầy/cô không cần tick chọn gì thêm, bấm "Tải File Mẫu (4 ĐA)" luôn cho gọn.'
+                        }
                       />
                     </button>
                     <button
@@ -1670,9 +1643,9 @@ export const AdminDashboardPage: React.FC = () => {
                           Array.from(
                             new Set([
                               ...chapterGroups.map(([name]) => name),
-                              ...selectedExam.chapterMatrix.map(
+                              ...(selectedExam?.chapterMatrix.map(
                                 (r) => r.chapterCategory,
-                              ),
+                              ) ?? []),
                             ]),
                           ),
                         )
@@ -1681,8 +1654,10 @@ export const AdminDashboardPage: React.FC = () => {
                     >
                       <FileSpreadsheet className="w-3.5 h-3.5" /> Xuất Excel
                       <InfoHint
-                        title="Xuất Ngân hàng ra Excel"
-                        text="Tải toàn bộ câu hỏi của học phần này về máy dưới dạng file .xlsx để lưu trữ, chỉnh sửa hàng loạt hoặc chia sẻ với đồng nghiệp."
+                        title="Xuất Ngân hàng câu hỏi ra Excel"
+                        text={
+                          '• Tải toàn bộ câu hỏi của môn học này về máy dưới dạng file Excel (.xlsx).\n• Thầy/cô có thể dùng file này để lưu trữ dự phòng, in ra kiểm tra hoặc sửa lỗi chính tả hàng loạt rồi nạp ngược lại hệ thống.'
+                        }
                       />
                     </button>
                     <button
@@ -1692,8 +1667,10 @@ export const AdminDashboardPage: React.FC = () => {
                     >
                       <Upload className="w-3.5 h-3.5" /> Import Excel
                       <InfoHint
-                        title="Nhập câu hỏi từ file Excel"
-                        text="Tải lên file Excel đã soạn theo mẫu để thêm nhanh hàng chục/hàng trăm câu hỏi vào ngân hàng cùng một lúc."
+                        title="Nạp hàng loạt câu hỏi từ Excel"
+                        text={
+                          '• Đưa nhanh hàng chục đến hàng trăm câu hỏi từ file Excel vào ngân hàng chỉ trong vài giây.\n• Hỗ trợ cả kéo thả file .xlsx lẫn copy-paste (Ctrl+C -> Ctrl+V) trực tiếp từ Excel/Google Sheets.'
+                        }
                       />
                     </button>
                     <button
@@ -1710,7 +1687,9 @@ export const AdminDashboardPage: React.FC = () => {
                       <FileJson className="w-3.5 h-3.5" /> .JSON
                       <InfoHint
                         title="Sao lưu dữ liệu kỹ thuật (.JSON)"
-                        text="Xuất bản sao lưu nguyên vẹn dữ liệu câu hỏi dưới dạng file JSON."
+                        text={
+                          '• Xuất bản sao lưu thô dưới dạng tệp .json (dành cho mục đích lưu trữ kỹ thuật nguyên bản).\n• Nếu thầy/cô muốn mở xem hoặc sửa bằng Microsoft Excel, hãy dùng nút "Xuất Excel" màu xanh lá ở bên cạnh.'
+                        }
                       />
                     </button>
                     <button
@@ -1725,8 +1704,10 @@ export const AdminDashboardPage: React.FC = () => {
                     >
                       <Plus className="w-3.5 h-3.5" /> Thêm câu lẻ
                       <InfoHint
-                        title="Soạn từng câu hỏi trực tiếp"
-                        text="Mở hộp thoại để tự gõ từng câu hỏi, chọn đáp án đúng và gán biến số động theo MSSV (nếu cần)."
+                        title="Soạn từng câu hỏi trực tiếp trên web"
+                        text={
+                          '• Mở cửa sổ soạn từng câu hỏi (phù hợp khi cần thêm nhanh 1–2 câu mới hoặc cài câu hỏi Tính toán biến số động {a}, {b} và câu Tự luận ngắn Rubric).'
+                        }
                       />
                     </button>
                   </div>
@@ -2073,11 +2054,13 @@ export const AdminDashboardPage: React.FC = () => {
             <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-sm font-extrabold text-ink-900 flex items-center gap-1.5">
+                  <h2 className="text-sm font-extrabold text-ink-900 flex items-center gap-1.5 flex-wrap">
                     <span>Thống kê Năng lực Sinh viên theo Chương (Chapter Mastery Analytics)</span>
                     <InfoHint
-                      title="Đánh giá mức độ nắm vững từng Chương"
-                      text="Tính tỷ lệ điểm trung bình sinh viên đạt được ở mỗi chương để giảng viên biết phần kiến thức nào lớp còn yếu."
+                      title="Đánh giá mức độ hiểu bài theo từng Chương"
+                      text={
+                        '• Tính % số điểm trung bình mà cả lớp đạt được ở riêng từng Chương.\n• Màu Xanh (≥ 70%): Lớp nắm vững. Màu Vàng (50–69%): Mức trung bình. Màu Đỏ (< 50%): Phần kiến thức này lớp làm sai nhiều, thầy/cô nên ôn tập lại trên giảng đường.'
+                      }
                     />
                   </h2>
                   <p className="text-xs text-ink-500">
@@ -2096,7 +2079,14 @@ export const AdminDashboardPage: React.FC = () => {
                     }
                     className="px-3.5 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5"
                   >
-                    <FileSpreadsheet className="w-4 h-4" /> Xuất Excel (.xlsx)
+                    <FileSpreadsheet className="w-4 h-4" />
+                    <span>Xuất Excel (.xlsx)</span>
+                    <InfoHint
+                      title="Tải Sổ điểm Excel 3 trang (Khuyên dùng)"
+                      text={
+                        '• Xuất file Excel (.xlsx) đẹp chuẩn văn phòng gồm 3 sheet riêng:\n  1) Tổng hợp chung ca thi\n  2) Bảng điểm chi tiết từng sinh viên\n  3) Thống kê theo từng Chương để lưu hồ sơ khoa/bộ môn.'
+                      }
+                    />
                   </button>
                   <button
                     type="button"
@@ -2114,7 +2104,14 @@ export const AdminDashboardPage: React.FC = () => {
                     }}
                     className="px-3.5 py-2 rounded-xl bg-support-600 hover:bg-support-700 text-white text-xs font-bold flex items-center gap-1.5"
                   >
-                    <Download className="w-4 h-4" /> Xuất CSV (.csv)
+                    <Download className="w-4 h-4" />
+                    <span>Xuất CSV (.csv)</span>
+                    <InfoHint
+                      title="Tải file bảng dữ liệu nhẹ (.csv)"
+                      text={
+                        '• File văn bản dạng bảng (phân tách dấu phẩy, có sẵn mã UTF-8 để không lỗi font tiếng Việt).\n• Phù hợp khi thầy/cô cần nạp điểm nhanh vào cổng đào tạo hoặc hệ thống LMS của trường.'
+                      }
+                    />
                   </button>
                 </div>
               </div>
@@ -2154,11 +2151,13 @@ export const AdminDashboardPage: React.FC = () => {
             {/* Item Analysis Card */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-3">
               <div>
-                <h3 className="text-sm font-extrabold text-ink-900 flex items-center gap-1.5">
+                <h3 className="text-sm font-extrabold text-ink-900 flex items-center gap-1.5 flex-wrap">
                   <span>Phân tích Chất lượng Câu hỏi (Item Analysis)</span>
                   <InfoHint
-                    title="Độ khó & Độ phân cách chuẩn khảo thí"
-                    text="• Tỷ lệ đúng < 25% ('Cần rà soát'): cả lớp sai nhiều, nên kiểm tra lại đáp án hoặc độ rõ đề. • Độ phân cách (D): chênh lệch tỷ lệ đúng giữa nhóm 27% điểm cao và 27% điểm thấp (D >= 0.2 là phân loại tốt)."
+                    title="Cách đọc Độ khó (p) & Độ phân cách (D) chuẩn khảo thí"
+                    text={
+                      '• Tỷ lệ đúng (p): % sinh viên trả lời đúng câu đó. Nếu p < 25% ("Cần rà soát"), có thể câu hỏi bị lỗi đề, đáp án nhầm hoặc kiến thức quá khó.\n• Độ phân cách (D): Đo xem câu hỏi có tách được sinh viên giỏi (nhóm 27% điểm cao) với nhóm yếu (27% điểm thấp) hay không. D >= 0.20 là câu phân loại tốt; D < 0.20 ("Phân hóa kém") nghĩa là sinh viên giỏi và yếu làm đúng ngang nhau.'
+                    }
                   />
                 </h3>
                 <p className="text-xs text-ink-500">
@@ -2274,8 +2273,14 @@ export const AdminDashboardPage: React.FC = () => {
         {activeTab === 'EMAILS' && (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-sm font-extrabold text-ink-900">
-                Nhật ký Email Tự động (api/mailer.php Dual-Transport Queue)
+              <h2 className="text-sm font-extrabold text-ink-900 flex items-center gap-1.5 flex-wrap">
+                <span>Nhật ký Email Tự động (api/mailer.php Dual-Transport Queue)</span>
+                <InfoHint
+                  title="Sổ theo dõi các Email hệ thống đã gửi"
+                  text={
+                    '• Ghi lại lịch sử toàn bộ Email trả điểm gửi cho sinh viên và Email Bảng điểm tổng hợp gửi cho giảng viên.\n• Nếu thấy trạng thái báo lỗi hoặc sinh viên bảo chưa nhận được thư (do gõ sai địa chỉ Email), thầy/cô sang Tab 4 "Giám sát Live" bấm nút Phong bì ở dòng của em đó để sửa Email và gửi lại.'
+                  }
+                />
               </h2>
               <button
                 type="button"
@@ -2289,7 +2294,14 @@ export const AdminDashboardPage: React.FC = () => {
                 }}
                 className="h-9 px-3 rounded-xl border border-brand-200 bg-brand-50 text-brand-800 text-xs font-bold flex items-center gap-1.5 hover:bg-brand-100"
               >
-                <Mail className="w-3.5 h-3.5" /> Test Mailer
+                <Mail className="w-3.5 h-3.5" />
+                <span>Test Mailer</span>
+                <InfoHint
+                  title="Kiểm tra hệ thống gửi Email trước giờ thi"
+                  text={
+                    '• Bấm nút này để gửi thử 1 Email kiểm tra tới địa chỉ Email giảng viên của ca thi đang chọn.\n• Khuyên dùng trước khi tổ chức thi để chắc chắn hộp thư nhận được bình thường (nhớ kiểm tra thêm mục Thư rác/Spam nếu cần).'
+                  }
+                />
               </button>
             </div>
             <div className="divide-y divide-slate-100">

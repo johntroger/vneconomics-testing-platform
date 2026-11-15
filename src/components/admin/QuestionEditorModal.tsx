@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { FlaskConical, Plus, Trash2, X } from 'lucide-react';
+import { InfoHint } from '../common/InfoHint';
 import type {
   DifficultyLevel,
   DynamicVarSpec,
@@ -194,7 +195,15 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
           <div className="flex-1 p-4 sm:p-5 overflow-y-auto space-y-4 text-xs">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
-              <label className="block font-bold text-ink-700 mb-1">Dạng câu hỏi</label>
+              <label className="flex items-center gap-1.5 font-bold text-ink-700 mb-1">
+                <span>Dạng câu hỏi</span>
+                <InfoHint
+                  title="Chọn loại câu hỏi phù hợp"
+                  text={
+                    '• Trắc nghiệm 1 đáp án: Sinh viên chọn duy nhất 1 phương án đúng (A/B/C/D).\n• Chọn nhiều đáp án: Có từ 2 đáp án đúng trở lên.\n• Đúng / Sai 4 mệnh đề: Mỗi câu gồm 4 ý nhỏ (a, b, c, d), sinh viên chọn Đúng hoặc Sai cho từng ý.\n• Điền số: Sinh viên tự gõ kết quả tính toán bằng số, máy tự chấm theo công thức và dung sai.\n• Tự luận cực ngắn: Sinh viên viết 1–2 câu, hệ thống tự chấm theo bảng từ khóa Rubric.'
+                  }
+                />
+              </label>
               <select
                 value={type}
                 onChange={(e) => setType(e.target.value as QuestionType)}
@@ -209,7 +218,15 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
             </div>
 
             <div>
-              <label className="block font-bold text-ink-700 mb-1">Mức độ</label>
+              <label className="flex items-center gap-1.5 font-bold text-ink-700 mb-1">
+                <span>Mức độ</span>
+                <InfoHint
+                  title="Phân tầng độ khó (Dễ / TB / Khó)"
+                  text={
+                    '• Khi sinh viên vào thi, hệ thống sẽ tự động bốc đề cân bằng tỷ lệ câu Dễ – Trung bình – Khó trong mỗi chương.\n• Nhờ đó mọi sinh viên đều làm đề có độ khó tương đương nhau dù bộ câu hỏi được tráo khác nhau.'
+                  }
+                />
+              </label>
               <select
                 value={difficulty}
                 onChange={(e) => setDifficulty(e.target.value as DifficultyLevel)}
@@ -222,7 +239,15 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
             </div>
 
             <div>
-              <label className="block font-bold text-ink-700 mb-1">Điểm gốc</label>
+              <label className="flex items-center gap-1.5 font-bold text-ink-700 mb-1">
+                <span>Điểm gốc</span>
+                <InfoHint
+                  title="Điểm mặc định của câu hỏi"
+                  text={
+                    '• Là điểm chuẩn của riêng câu hỏi này (ví dụ: 1 điểm).\n• Lưu ý: Khi đưa vào Ma trận Đề thi, nếu thầy/cô đặt mức "Điểm/câu" riêng cho từng Chương thì mức điểm trong Ma trận sẽ được ưu tiên áp dụng (trừ câu Tự luận luôn giữ thang điểm chi tiết theo Rubric).'
+                  }
+                />
+              </label>
               <input
                 type="number"
                 step="0.25"
@@ -298,9 +323,15 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
 
           {/* Dynamic Variables Block */}
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
-            <div className="flex items-center justify-between">
-              <span className="font-bold text-ink-800">
-                Biến số động cá nhân hóa theo MSSV ({'{a}'}, {'{b}'})
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-bold text-ink-800 flex items-center gap-1.5 flex-wrap">
+                <span>Biến số động cá nhân hóa theo MSSV ({'{a}'}, {'{b}'})</span>
+                <InfoHint
+                  title="Cách tạo số liệu riêng cho từng sinh viên"
+                  text={
+                    '• Tính năng chống nhìn bài: mỗi sinh viên nhận một bộ số liệu khác nhau tính theo Mã số sinh viên.\n• Ví dụ: Bấm "+ Thêm biến" đặt tên a từ 10 đến 50 (Bước nhảy 5). Trong đề viết: "Cho mức giá P = {a}...". Khi thi, hệ thống tự thay {a} thành số riêng cho từng em (bỏ trống nếu câu hỏi không cần biến số).'
+                  }
+                />
               </span>
               <button
                 type="button"
@@ -390,9 +421,20 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
           {/* SINGLE / MULTI CHOICE */}
           {(type === 'SINGLE_CHOICE' || type === 'MULTI_CHOICE') && (
             <div className="space-y-2 bg-slate-50 border border-slate-200 rounded-xl p-3">
-              <p className="font-bold text-ink-800">
-                Các phương án lựa chọn (tích chọn đáp án đúng):
-              </p>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <p className="font-bold text-ink-800">
+                  Các phương án lựa chọn (tích chọn đáp án đúng):
+                </p>
+                <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-ink-600">
+                  <span>Ghim cuối</span>
+                  <InfoHint
+                    title="Chức năng Ghim cuối"
+                    text={
+                      '• Dùng cho các phương án như "Tất cả đều đúng", "Tất cả đều sai", "Cả A và B đều đúng".\n• Khi đề thi bật chế độ trộn đáp án A/B/C/D, các phương án tích "Ghim cuối" sẽ luôn được giữ cố định ở vị trí D (cuối cùng), không bị tráo lên trên.'
+                    }
+                  />
+                </span>
+              </div>
               {options.map((opt, idx) => {
                 const isCorrect = correctOptionIds.includes(opt.id);
                 return (
@@ -484,7 +526,15 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
           {type === 'NUMERICAL' && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 border border-slate-200 rounded-xl p-3">
               <div>
-                <label className="block font-bold mb-1">Biểu thức đáp án</label>
+                <label className="flex items-center gap-1.5 font-bold mb-1">
+                  <span>Biểu thức đáp án</span>
+                  <InfoHint
+                    title="Cách nhập công thức đáp án số"
+                    text={
+                      '• Có thể gõ 1 con số cố định (ví dụ: 42.5) hoặc công thức toán theo biến số động đã khai báo ở trên.\n• Ví dụ: "2 * a + b / 10" hoặc "round((a - b) * 0.5, 2)". Máy sẽ tự tính đáp án đúng riêng cho từng sinh viên.'
+                    }
+                  />
+                </label>
                 <input
                   value={numericalFormula}
                   onChange={(e) => setNumericalFormula(e.target.value)}
@@ -492,7 +542,13 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
                 />
               </div>
               <div>
-                <label className="block font-bold mb-1">Đơn vị tính</label>
+                <label className="flex items-center gap-1.5 font-bold mb-1">
+                  <span>Đơn vị tính</span>
+                  <InfoHint
+                    title="Đơn vị hiển thị cạnh ô điền số"
+                    text="Ví dụ: %, triệu đồng, sản phẩm. Sinh viên chỉ cần nhập con số, không phải tự gõ lại chữ đơn vị."
+                  />
+                </label>
                 <input
                   value={numericalUnit}
                   onChange={(e) => setNumericalUnit(e.target.value)}
@@ -500,7 +556,15 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
                 />
               </div>
               <div>
-                <label className="block font-bold mb-1">Dung sai (±)</label>
+                <label className="flex items-center gap-1.5 font-bold mb-1">
+                  <span>Dung sai (±)</span>
+                  <InfoHint
+                    title="Khoảng sai số làm tròn được chấp nhận"
+                    text={
+                      '• Ví dụ: Nếu đáp án đúng là 10.33 và Dung sai là 0.05, thì sinh viên gõ từ 10.28 đến 10.38 đều được tính trọn điểm.\n• Rất hữu ích để tránh chấm sai oan do sinh viên làm tròn số thập phân.'
+                    }
+                  />
+                </label>
                 <input
                   type="number"
                   step="0.01"
@@ -543,8 +607,14 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-bold text-ink-800">
-                    Bảng Ý chấm Rubric Từ khóa – Từ đồng nghĩa
+                  <span className="font-bold text-ink-800 flex items-center gap-1.5 flex-wrap">
+                    <span>Bảng Ý chấm Rubric Từ khóa – Từ đồng nghĩa</span>
+                    <InfoHint
+                      title="Cách hệ thống chấm Tự luận Tự động"
+                      text={
+                        '• Chia đáp án thành nhiều Ý chấm điểm nhỏ (mỗi dòng là 1 ý kèm số điểm).\n• Cụm từ chấp nhận: Liệt kê các cách diễn đạt đúng cách nhau bằng dấu phẩy (ví dụ: "cầu giảm, lượng cầu giảm"). Sinh viên viết trúng 1 cụm bất kỳ sẽ ăn điểm ý đó.\n• Từ đối lập bị chặn: Nếu sinh viên viết nhầm từ trái nghĩa (ví dụ: "cầu tăng"), máy sẽ chặn không cho điểm ý này.'
+                      }
+                    />
                   </span>
                   <button
                     type="button"
@@ -683,8 +753,14 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
 
           {/* AI Honeypot Config */}
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 space-y-2">
-            <span className="font-bold text-ink-700 block">
-              Cấu hình Bẫy AI Honeypot (Tùy chọn)
+            <span className="font-bold text-ink-700 flex items-center gap-1.5 flex-wrap">
+              <span>Cấu hình Bẫy AI Honeypot (Tùy chọn)</span>
+              <InfoHint
+                title="Bẫy phát hiện dùng ChatGPT / AI giải hộ"
+                text={
+                  '• Không bắt buộc điền. Nếu dùng: ô bên trái cho phép chèn 1 câu chỉ dẫn ẩn (mắt thường sinh viên không thấy nhưng khi copy-paste toàn bộ đề sang ChatGPT, AI sẽ đọc nhầm và làm theo).\n• Nếu câu trả lời của sinh viên dính đúng "Từ khóa bẫy" hoặc chọn đúng "Đáp án bẫy", hệ thống sẽ gắn cờ đỏ Nghi vấn AI trên bảng Giám sát.'
+                }
+              />
             </span>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               <input
