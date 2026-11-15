@@ -821,3 +821,122 @@ export function computeChapterMastery(
         val.max > 0 ? Math.round((val.earned / val.max) * 1000) / 10 : 0,
     }));
 }
+
+export function shouldAutoPinLastOption(text: string): boolean {
+  const norm = text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/đ/g, 'd')
+    .trim();
+  return (
+    /\btat ca\b.*\b(dung|sai|phuong an|y tren|cau tren)\b/.test(norm) ||
+    /\bca\s+[a-d]\s*(,|va|&)\s*[a-d]\b/.test(norm) ||
+    /\bkhong co phuong an nao\b/.test(norm) ||
+    /\ball of the above\b|\bnone of the above\b/.test(norm)
+  );
+}
+
+export interface ItemAnalysisRow {
+  questionId: string;
+  content: string;
+  chapterCategory: string;
+  type: Question['type'];
+  attemptCount: number;
+  correctRatePercent: number;
+  discriminationIndex: number | null;
+  statusTag: 'Cần rà soát' | 'Quá dễ' | 'Phân hóa kém' | 'Tốt';
+}
+
+export function computeItemAnalysis(
+  attempts: ExamAttempt[],
+  questions: Question[],
+): ItemAnalysisRow[] {
+  const graded = attempts.filter(
+    (a) => a.status === 'SUBMITTED' || a.status === 'AUTO_SUBMITTED',
+  );
+  if (graded.length === 0) return [];
+
+  const qMap = new Map(questions.map((q) => [q.id, q]));
+  const sortedByScore = [...graded].sort((a, b) => b.scale10Score - a.scale10Score);
+  const groupSize = Math.max(1, Math.round(sortedByScore.length * 0.27));
+  const topIds = new Set(sortedByScore.slice(0, groupSize).map((a) => a.id));
+  const bottomIds = new Set(sortedByScore.slice(-groupSize).map((a) => a.id));
+
+  const statsMap = new Map<
+    string,
+    {
+      content: string;
+      chapterCategory: string;
+      type: Question['type'];
+      totalRatio: number;
+      count: number;
+      topRatio: number;
+      topCount: number;
+      bottomRatio: number;
+      bottomCount: number;
+    }
+  >();
+
+  for (const att of graded) {
+    for (const snap of att.assignedQuestions) {
+      const q = qMap.get(snap.questionId);
+      const ans = att.answers[snap.questionId];
+      const maxPts = snap.maxPoints > 0 ? snap.maxPoints : 1;
+      const ratio = ans ? Math.max(0, Math.min(1, ans.earnedPoints / maxPts)) : 0;
+
+      const cur = statsMap.get(snap.questionId) ?? {
+        content: q?.content ?? snap.renderedContent,
+        chapterCategory: snap.chapterCategory,
+        type: q?.type ?? 'SINGLE_CHOICE',
+        totalRatio: 0,
+        count: 0,
+        topRatio: 0,
+        topCount: 0,
+        bottomRatio: 0,
+        bottomCount: 0,
+      };
+      cur.totalRatio += ratio;
+      cur.count += 1;
+      if (topIds.has(att.id)) {
+        cur.topRatio += ratio;
+        cur.topCount += 1;
+      }
+      if (bottomIds.has(att.id)) {
+        cur.bottomRatio += ratio;
+        cur.bottomCount += 1;
+      }
+      statsMap.set(snap.questionId, cur);
+    }
+  }
+
+  return Array.from(statsMap.entries())
+    .map(([questionId, st]) => {
+      const correctRatePercent = Math.round((st.totalRatio / st.count) * 1000) / 10;
+      const discriminationIndex =
+        graded.length >= 4 && st.topCount > 0 && st.bottomCount > 0
+          ? Math.round((st.topRatio / st.topCount - st.bottomRatio / st.bottomCount) * 100) / 100
+          : null;
+
+      let statusTag: ItemAnalysisRow['statusTag'] = 'Tốt';
+      if (correctRatePercent < 25) {
+        statusTag = 'Cần rà soát';
+      } else if (correctRatePercent > 90) {
+        statusTag = 'Quá dễ';
+      } else if (discriminationIndex !== null && discriminationIndex < 0.15 && st.count >= 6) {
+        statusTag = 'Phân hóa kém';
+      }
+
+      return {
+        questionId,
+        content: st.content,
+        chapterCategory: st.chapterCategory,
+        type: st.type,
+        attemptCount: st.count,
+        correctRatePercent,
+        discriminationIndex,
+        statusTag,
+      };
+    })
+    .sort((a, b) => a.correctRatePercent - b.correctRatePercent);
+}

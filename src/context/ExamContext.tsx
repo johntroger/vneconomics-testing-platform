@@ -1932,6 +1932,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
       newScore: number,
       note?: string,
     ) => {
+      mutationEpochRef.current += 1;
       updateState((prev) => ({
         ...prev,
         attempts: prev.attempts.map((a) => {
@@ -1960,8 +1961,15 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
           return recalculateAttemptScores(updated, prev.questions);
         }),
       }));
+
+      if (backendConnected) {
+        void apiRequest('/api/proctor.php?action=override_essay', {
+          method: 'POST',
+          body: JSON.stringify({ attemptId, questionId, newScore, note }),
+        });
+      }
     },
-    [updateState],
+    [backendConnected, updateState],
   );
 
   const enrichRubricAndRegradeExam = useCallback(
@@ -1974,7 +1982,11 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
       const cleanPhrase = newPhrase.trim();
       if (!cleanPhrase) return { updatedCount: 0 };
 
+      mutationEpochRef.current += 1;
       let updatedCount = 0;
+      let syncedRubric: RubricSlot[] | undefined;
+      let syncedSampleAnswer: string | undefined;
+
       updateState((prev) => {
         const nextQuestions = prev.questions.map((q) => {
           if (q.id !== questionId || !q.gradingRubric) return q;
@@ -1986,6 +1998,8 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
               acceptedPhrases: [...slot.acceptedPhrases, cleanPhrase],
             };
           });
+          syncedRubric = nextRubric;
+          syncedSampleAnswer = q.sampleAnswer;
           return { ...q, gradingRubric: nextRubric };
         });
 
@@ -2041,9 +2055,20 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         };
       });
 
+      if (backendConnected && syncedRubric) {
+        void apiRequest('/api/exams.php?action=regrade_rubric', {
+          method: 'POST',
+          body: JSON.stringify({
+            questionId,
+            gradingRubric: syncedRubric,
+            sampleAnswer: syncedSampleAnswer ?? null,
+          }),
+        });
+      }
+
       return { updatedCount };
     },
-    [updateState],
+    [backendConnected, updateState],
   );
 
   const addCourse = useCallback(
@@ -2402,6 +2427,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const resendStudentScoreEmail = useCallback(
     (attemptId: string, editedEmail?: string) => {
+      mutationEpochRef.current += 1;
       const nowIso = new Date().toISOString();
       updateState((prev) => {
         const att = prev.attempts.find((a) => a.id === attemptId);
@@ -2434,8 +2460,15 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
           ],
         };
       });
+
+      if (backendConnected) {
+        void apiRequest('/api/proctor.php?action=resend_email', {
+          method: 'POST',
+          body: JSON.stringify({ attemptId, editedEmail }),
+        });
+      }
     },
-    [updateState],
+    [backendConnected, updateState],
   );
 
   const sendTestMailer = useCallback(

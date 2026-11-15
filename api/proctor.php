@@ -307,5 +307,96 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         jsonResponse(['ok' => true, 'addedSeconds' => $extraSeconds]);
     }
 
+    if ($action === 'override_essay') {
+        $attemptId = trim((string) ($body['attemptId'] ?? ''));
+        $questionId = trim((string) ($body['questionId'] ?? ''));
+        $newScore = (float) ($body['newScore'] ?? 0);
+        $note = trim((string) ($body['note'] ?? ''));
+        if ($attemptId === '' || $questionId === '') {
+            jsonError('Thiếu attemptId hoặc questionId.', 400);
+        }
+
+        $ansStmt = $pdo->prepare('SELECT id, max_points FROM attempt_answers WHERE attempt_id = :aid AND question_id = :qid LIMIT 1');
+        $ansStmt->execute([':aid' => $attemptId, ':qid' => $questionId]);
+        $ansRow = $ansStmt->fetch();
+        if (!$ansRow) {
+            jsonError('Không tìm thấy câu trả lời cần chấm lại.', 404);
+        }
+        $maxPts = (float) ($ansRow['max_points'] ?? 1);
+        $clamped = max(0.0, min($maxPts, round($newScore, 2)));
+        $isCorr = ($maxPts > 0 && $clamped >= $maxPts * 0.5) ? 1 : 0;
+        $fb = $note !== ''
+            ? ($note . ' (Giảng viên chấm ' . $clamped . '/' . $maxPts . 'đ)')
+            : ('Giảng viên điều chỉnh trực tiếp: ' . $clamped . '/' . $maxPts . 'đ');
+
+        $pdo->prepare("UPDATE attempt_answers SET earned_points=:ep, grading_status='MANUAL_OVERRIDE', is_correct=:ic, grading_feedback=:fb WHERE id=:id")
+            ->execute([
+                ':ep' => $clamped,
+                ':ic' => $isCorr,
+                ':fb' => $fb,
+                ':id' => $ansRow['id'],
+            ]);
+
+        $sumStmt = $pdo->prepare('SELECT grading_status, max_points, earned_points FROM attempt_answers WHERE attempt_id = :aid');
+        $sumStmt->execute([':aid' => $attemptId]);
+        $autoSum = 0.0;
+        $essaySum = 0.0;
+        $maxSum = 0.0;
+        foreach ($sumStmt->fetchAll() as $s) {
+            $gs = (string) ($s['grading_status'] ?? 'AUTO');
+            $ep = (float) ($s['earned_points'] ?? 0);
+            $mp = (float) ($s['max_points'] ?? 0);
+            $maxSum += $mp;
+            if ($gs === 'AUTO') {
+                $autoSum += $ep;
+            } else {
+                $essaySum += $ep;
+            }
+        }
+        $tot = round($autoSum + $essaySum, 2);
+        $s10 = $maxSum > 0 ? round(($tot / $maxSum) * 10, 2) : 0.0;
+        $pdo->prepare('UPDATE exam_attempts SET auto_score=:as, essay_score=:es, total_score=:ts, scale10_score=:s10 WHERE id=:id')
+            ->execute([':as' => round($autoSum, 2), ':es' => round($essaySum, 2), ':ts' => $tot, ':s10' => $s10, ':id' => $attemptId]);
+
+        jsonResponse([
+            'ok' => true,
+            'earnedPoints' => $clamped,
+            'autoScore' => round($autoSum, 2),
+            'essayScore' => round($essaySum, 2),
+            'totalScore' => $tot,
+            'scale10Score' => $s10,
+        ]);
+    }
+
+    if ($action === 'resend_email') {
+        $attemptId = trim((string) ($body['attemptId'] ?? ''));
+        $editedEmail = strtolower(trim((string) ($body['editedEmail'] ?? '')));
+        if ($attemptId === '') {
+            jsonError('Thiếu attemptId.', 400);
+        }
+
+        $stmt = $pdo->prepare('SELECT * FROM exam_attempts WHERE id = :id LIMIT 1');
+        $stmt->execute([':id' => $attemptId]);
+        $att = $stmt->fetch();
+        if (!$att) {
+            jsonError('Không tìm thấy bài thi.', 404);
+        }
+
+        $targetEmail = $editedEmail !== '' ? $editedEmail : strtolower(trim((string) ($att['student_email'] ?? '')));
+        if (!filter_var($targetEmail, FILTER_VALIDATE_EMAIL)) {
+            jsonError('Địa chỉ email không hợp lệ.', 400);
+        }
+
+        $pdo->prepare("UPDATE exam_attempts SET student_email = :em, email_sent_status = 'SENT', email_sent_at = :now WHERE id = :id")
+            ->execute([':em' => $targetEmail, ':now' => nowIso(), ':id' => $attemptId]);
+
+        $res = finalizeAndGradeAttempt($pdo, $attemptId, ($att['status'] ?? '') === 'AUTO_SUBMITTED');
+        $subj = '[VNEconomics] (Giảng viên gửi lại) Kết quả bài thi: ' . ($res['exam']['title'] ?? '');
+        $html = buildStudentScoreEmailHtml($res['exam'], $res['attempt'], $res['answers']);
+        enqueueAndSendEmail($pdo, $targetEmail, $subj, $html, 'STUDENT_SCORE', 'Giảng viên cập nhật & gửi lại điểm', null, null, true);
+
+        jsonResponse(['ok' => true, 'email' => $targetEmail]);
+    }
+
     jsonError('Action proctor không hợp lệ.', 400);
 }

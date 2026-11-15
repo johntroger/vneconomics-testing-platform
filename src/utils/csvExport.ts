@@ -1,3 +1,4 @@
+import * as XLSX from 'xlsx';
 import type { ChapterMasteryStat, Exam, ExamAttempt, Question } from '../types/exam';
 
 function escapeCsvCell(value: string | number | boolean | undefined): string {
@@ -131,4 +132,71 @@ export function exportQuestionBankJson(questions: Question[], courseCode: string
     payload,
     'application/json;charset=utf-8;',
   );
+}
+
+export function exportExamGradebookXlsx(
+  exam: Exam,
+  attempts: ExamAttempt[],
+  chapterStats: ChapterMasteryStat[],
+): void {
+  const examAttempts = attempts.filter((a) => a.examId === exam.id);
+  const wb = XLSX.utils.book_new();
+
+  if (exam.rosterEntries && exam.rosterEntries.length > 0) {
+    const attemptByCode = new Map(
+      examAttempts.map((a) => [a.studentCode.trim().toUpperCase(), a]),
+    );
+    const sheetRows = exam.rosterEntries.map((entry, idx) => {
+      const m = attemptByCode.get(entry.studentCode.trim().toUpperCase());
+      return {
+        STT: idx + 1,
+        'Mã sinh viên': entry.studentCode,
+        'Họ đệm': entry.lastName,
+        Tên: entry.firstName,
+        'Giới tính': entry.gender,
+        'Ngày sinh': entry.dob,
+        'Điểm hệ 10': m ? Number(m.scale10Score.toFixed(2)) : 'Vắng',
+        'Điểm Trắc nghiệm': m ? m.autoScore : '',
+        'Điểm Tự luận': m ? m.essayScore : '',
+        'Rời màn hình (lần)': m ? m.leaveCount : '',
+        'Tin cậy (%)': m ? m.integrityScore : '',
+        'Trạng thái': m ? m.status : 'Vắng thi',
+      };
+    });
+    const ws = XLSX.utils.json_to_sheet(sheetRows);
+    XLSX.utils.book_append_sheet(wb, ws, 'BangDiem');
+  } else {
+    const sheetRows = examAttempts.map((a, idx) => ({
+      STT: idx + 1,
+      MSSV: a.studentCode,
+      'Họ tên': a.studentName,
+      Email: a.studentEmail,
+      Lớp: a.className,
+      'Điểm Trắc nghiệm': a.autoScore,
+      'Điểm Tự luận': a.essayScore,
+      'Điểm gốc': `${a.totalScore}/${a.maxTotalScore}`,
+      'Điểm hệ 10': Number(a.scale10Score.toFixed(2)),
+      'Rời màn hình (lần)': a.leaveCount,
+      'Vắng mặt (giây)': a.totalAwaySeconds,
+      'Tin cậy (%)': a.integrityScore,
+      'Nghi vấn AI': a.aiFlag ? `CÓ (${a.aiFlagReason ?? ''})` : 'KHÔNG',
+      'Trạng thái': a.status,
+    }));
+    const ws = XLSX.utils.json_to_sheet(sheetRows);
+    XLSX.utils.book_append_sheet(wb, ws, 'BangDiem');
+  }
+
+  if (chapterStats.length > 0) {
+    const chRows = chapterStats.map((st) => ({
+      'Chương / Chuyên đề': st.chapterCategory,
+      'Số lượt chấm': st.totalGradedQuestions,
+      'Điểm đạt': st.earnedPoints,
+      'Điểm tối đa': st.maxPoints,
+      'Tỷ lệ đúng (%)': st.masteryPercent,
+    }));
+    const wsCh = XLSX.utils.json_to_sheet(chRows);
+    XLSX.utils.book_append_sheet(wb, wsCh, 'ThongKeChuong');
+  }
+
+  XLSX.writeFile(wb, `VNE_BangDiem_${exam.roomPin}.xlsx`);
 }

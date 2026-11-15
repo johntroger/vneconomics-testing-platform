@@ -70,7 +70,7 @@ export const PauseWarningModal: React.FC<PauseWarningModalProps> = ({
     e.preventDefault();
     const ok = onVerifyRescuePin(pinInput);
     if (!ok) {
-      setPinError('Mã PIN cứu hộ 4 số không đúng. Vui lòng nhờ Giảng viên kiểm tra.');
+      setPinError('Mã PIN cứu hộ không đúng. Vui lòng nhờ Giảng viên kiểm tra.');
       return;
     }
     setPinError('');
@@ -195,7 +195,7 @@ export const PauseWarningModal: React.FC<PauseWarningModalProps> = ({
                   className="w-full py-2.5 px-3 rounded-xl border border-slate-300 text-ink-700 text-xs font-semibold hover:bg-slate-50 flex items-center justify-center gap-1.5"
                 >
                   <KeyRound className="w-3.5 h-3.5 shrink-0" />
-                  <span>Giảng viên đứng cạnh? Nhập PIN cứu hộ 4 số để mở khóa ngay</span>
+                  <span>Giảng viên đứng cạnh? Nhập PIN cứu hộ để mở khóa ngay</span>
                 </button>
               ) : (
                 <form onSubmit={handlePinSubmit} className="space-y-2">
@@ -203,10 +203,10 @@ export const PauseWarningModal: React.FC<PauseWarningModalProps> = ({
                     <input
                       type="password"
                       inputMode="numeric"
-                      maxLength={4}
+                      maxLength={6}
                       value={pinInput}
                       onChange={(e) => setPinInput(e.target.value)}
-                      placeholder="PIN 4 số (VD: 8888)"
+                      placeholder="PIN cứu hộ (4–6 số)"
                       className="flex-1 min-w-0 text-sm font-mono tracking-widest px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500"
                     />
                     <button

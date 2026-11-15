@@ -40,11 +40,13 @@ import type {
 import {
   buildExamCsvContent,
   downloadTextFile,
+  exportExamGradebookXlsx,
   exportQuestionBankJson,
 } from '../utils/csvExport';
 import {
   buildAssignedQuestions,
   computeChapterMastery,
+  computeItemAnalysis,
 } from '../utils/dynamicQuestionEngine';
 import {
   ALL_QUESTION_TYPES,
@@ -279,6 +281,17 @@ export const AdminDashboardPage: React.FC = () => {
     () =>
       selectedExam ? computeChapterMastery(attempts, selectedExam.id) : [],
     [attempts, selectedExam],
+  );
+
+  const itemAnalysisRows = useMemo(
+    () =>
+      selectedExam
+        ? computeItemAnalysis(
+            attempts.filter((a) => a.examId === selectedExam.id),
+            questions,
+          )
+        : [],
+    [attempts, questions, selectedExam],
   );
 
   const previewAssigned = useMemo(() => {
@@ -1075,7 +1088,98 @@ export const AdminDashboardPage: React.FC = () => {
                             Kho: {qs.length} câu ({pct}%)
                           </span>
                         </div>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="flex items-center gap-1.5 font-semibold mb-1">
+                        <span>PIN cứu hộ (4–6 số)</span>
+                        <InfoHint
+                          title="PIN cứu hộ mở khóa tại chỗ"
+                          text="Mã bí mật chỉ giảng viên giữ. Khi sinh viên bị khóa do rời tab, giảng viên nhập mã này trực tiếp trên máy sinh viên để mở khóa thi tiếp."
+                        />
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={selectedExam.unlockPin}
+                        onChange={(e) =>
+                          upsertExam({
+                            ...selectedExam,
+                            unlockPin: e.target.value.replace(/\D/g, '').slice(0, 6),
+                          })
+                        }
+                        placeholder="8888"
+                        className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-mono font-bold tracking-wider"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 font-semibold mb-1">
+                        <span>Email nhận báo cáo ca thi</span>
+                        <InfoHint
+                          title="Email nhận bảng điểm tổng hợp"
+                          text="Khi giảng viên bấm Kết thúc ca thi, hệ thống sẽ tự động gửi bảng điểm tổng hợp (kèm CSV) về địa chỉ Email này."
+                        />
+                      </label>
+                      <input
+                        type="email"
+                        value={selectedExam.instructorEmail}
+                        onChange={(e) =>
+                          upsertExam({
+                            ...selectedExam,
+                            instructorEmail: e.target.value,
+                          })
+                        }
+                        placeholder="giangvien@ueh.edu.vn"
+                        className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 font-semibold mb-1">
+                        <span>Số lần rời màn hình tối đa</span>
+                        <InfoHint
+                          title="Ngưỡng khóa theo số lần thoát tab"
+                          text="Nếu sinh viên rời khỏi màn hình thi vượt quá số lần này, bài thi sẽ tự động tạm khóa để chờ giảng viên phê duyệt."
+                        />
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={20}
+                        value={selectedExam.maxLeaveCount}
+                        onChange={(e) =>
+                          upsertExam({
+                            ...selectedExam,
+                            maxLeaveCount: Math.max(1, Number(e.target.value) || 1),
+                          })
+                        }
+                        className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 font-semibold mb-1">
+                        <span>Tổng giây vắng mặt tối đa</span>
+                        <InfoHint
+                          title="Ngưỡng khóa theo tổng thời gian rời tab"
+                          text="Nếu tổng thời gian sinh viên thoát ra ngoài vượt quá số giây này, bài thi cũng sẽ tạm khóa chờ giảng viên kiểm tra."
+                        />
+                      </label>
+                      <input
+                        type="number"
+                        min={5}
+                        max={600}
+                        value={selectedExam.maxAwaySeconds}
+                        onChange={(e) =>
+                          upsertExam({
+                            ...selectedExam,
+                            maxAwaySeconds: Math.max(5, Number(e.target.value) || 5),
+                          })
+                        }
+                        className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
                           <label className="flex items-center justify-between bg-white px-2.5 py-1.5 rounded-lg border">
                             <span>Số câu bốc:</span>
                             <input
@@ -1223,6 +1327,97 @@ export const AdminDashboardPage: React.FC = () => {
                         <option value="IMMEDIATE">Gửi điểm ngay</option>
                         <option value="DELAYED_BATCH">Biên nhận trước, điểm khi đóng ca</option>
                       </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="flex items-center gap-1.5 font-semibold mb-1">
+                        <span>PIN cứu hộ (4–6 số)</span>
+                        <InfoHint
+                          title="PIN cứu hộ mở khóa tại chỗ"
+                          text="Mã bí mật chỉ giảng viên giữ. Khi sinh viên bị khóa do rời tab, giảng viên nhập mã này trực tiếp trên máy sinh viên để mở khóa thi tiếp."
+                        />
+                      </label>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        maxLength={6}
+                        value={selectedExam.unlockPin}
+                        onChange={(e) =>
+                          upsertExam({
+                            ...selectedExam,
+                            unlockPin: e.target.value.replace(/\D/g, '').slice(0, 6),
+                          })
+                        }
+                        placeholder="8888"
+                        className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-mono font-bold tracking-wider"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 font-semibold mb-1">
+                        <span>Email nhận báo cáo ca thi</span>
+                        <InfoHint
+                          title="Email nhận bảng điểm tổng hợp"
+                          text="Khi giảng viên bấm Kết thúc ca thi, hệ thống sẽ tự động gửi bảng điểm tổng hợp (kèm CSV) về địa chỉ Email này."
+                        />
+                      </label>
+                      <input
+                        type="email"
+                        value={selectedExam.instructorEmail}
+                        onChange={(e) =>
+                          upsertExam({
+                            ...selectedExam,
+                            instructorEmail: e.target.value,
+                          })
+                        }
+                        placeholder="giangvien@ueh.edu.vn"
+                        className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-semibold"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 font-semibold mb-1">
+                        <span>Số lần rời màn hình tối đa</span>
+                        <InfoHint
+                          title="Ngưỡng khóa theo số lần thoát tab"
+                          text="Nếu sinh viên rời khỏi màn hình thi vượt quá số lần này, bài thi sẽ tự động tạm khóa để chờ giảng viên phê duyệt."
+                        />
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={20}
+                        value={selectedExam.maxLeaveCount}
+                        onChange={(e) =>
+                          upsertExam({
+                            ...selectedExam,
+                            maxLeaveCount: Math.max(1, Number(e.target.value) || 1),
+                          })
+                        }
+                        className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 font-semibold mb-1">
+                        <span>Tổng giây vắng mặt tối đa</span>
+                        <InfoHint
+                          title="Ngưỡng khóa theo tổng thời gian rời tab"
+                          text="Nếu tổng thời gian sinh viên thoát ra ngoài vượt quá số giây này, bài thi cũng sẽ tạm khóa chờ giảng viên kiểm tra."
+                        />
+                      </label>
+                      <input
+                        type="number"
+                        min={5}
+                        max={600}
+                        value={selectedExam.maxAwaySeconds}
+                        onChange={(e) =>
+                          upsertExam({
+                            ...selectedExam,
+                            maxAwaySeconds: Math.max(5, Number(e.target.value) || 5),
+                          })
+                        }
+                        className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-mono font-bold"
+                      />
                     </div>
                   </div>
 
@@ -1769,34 +1964,78 @@ export const AdminDashboardPage: React.FC = () => {
         {/* TAB 5: CHAPTER MASTERY ANALYTICS & CSV EXPORT */}
         {selectedExam && activeTab === 'ANALYTICS_ESSAY' && (
           <div className="space-y-5">
+            {/* Shift Switcher Bar */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-3.5 flex flex-wrap items-center justify-between gap-2">
+              <span className="text-xs font-extrabold text-ink-800">
+                Chọn Ca thi cần xem thống kê &amp; xuất điểm:
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {exams
+                  .filter((ex) => ex.courseId === selectedExam.courseId)
+                  .map((ex) => (
+                    <button
+                      key={ex.id}
+                      type="button"
+                      onClick={() => setSelectedExamId(ex.id)}
+                      className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition ${
+                        ex.id === selectedExam.id
+                          ? 'bg-brand-600 text-white border-brand-600 shadow-xs'
+                          : 'bg-slate-50 text-ink-700 border-slate-200 hover:border-brand-300'
+                      }`}
+                    >
+                      {ex.title} (PIN {ex.roomPin})
+                    </button>
+                  ))}
+              </div>
+            </div>
+
             <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-sm font-extrabold text-ink-900">
-                    Thống kê Năng lực Sinh viên theo Chương (Chapter Mastery Analytics)
+                  <h2 className="text-sm font-extrabold text-ink-900 flex items-center gap-1.5">
+                    <span>Thống kê Năng lực Sinh viên theo Chương (Chapter Mastery Analytics)</span>
+                    <InfoHint
+                      title="Đánh giá mức độ nắm vững từng Chương"
+                      text="Tính tỷ lệ điểm trung bình sinh viên đạt được ở mỗi chương để giảng viên biết phần kiến thức nào lớp còn yếu."
+                    />
                   </h2>
                   <p className="text-xs text-ink-500">
                     Tổng hợp tỷ lệ điểm trung bình ở từng Chương của các bài đã hoàn thành để kịp thời củng cố kiến thức.
                   </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    const csv = buildExamCsvContent(
-                      selectedExam,
-                      attempts,
-                      chapterMasteryStats,
-                    );
-                    downloadTextFile(
-                      `VNE_BangDiem_${selectedExam.roomPin}.csv`,
-                      csv,
-                      'text/csv;charset=utf-8;',
-                    );
-                  }}
-                  className="px-4 py-2 rounded-xl bg-support-600 hover:bg-support-700 text-white text-xs font-bold flex items-center gap-1.5"
-                >
-                  <Download className="w-4 h-4" /> Xuất Bảng điểm + Chương (.CSV BOM)
-                </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      exportExamGradebookXlsx(
+                        selectedExam,
+                        attempts,
+                        chapterMasteryStats,
+                      )
+                    }
+                    className="px-3.5 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" /> Xuất Excel (.xlsx)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const csv = buildExamCsvContent(
+                        selectedExam,
+                        attempts,
+                        chapterMasteryStats,
+                      );
+                      downloadTextFile(
+                        `VNE_BangDiem_${selectedExam.roomPin}.csv`,
+                        csv,
+                        'text/csv;charset=utf-8;',
+                      );
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-support-600 hover:bg-support-700 text-white text-xs font-bold flex items-center gap-1.5"
+                  >
+                    <Download className="w-4 h-4" /> Xuất CSV (.csv)
+                  </button>
+                </div>
               </div>
 
               {chapterMasteryStats.length === 0 ? (
@@ -1831,14 +2070,98 @@ export const AdminDashboardPage: React.FC = () => {
               )}
             </div>
 
+            {/* Item Analysis Card */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-3">
+              <div>
+                <h3 className="text-sm font-extrabold text-ink-900 flex items-center gap-1.5">
+                  <span>Phân tích Chất lượng Câu hỏi (Item Analysis)</span>
+                  <InfoHint
+                    title="Độ khó & Độ phân cách chuẩn khảo thí"
+                    text="• Tỷ lệ đúng < 25% ('Cần rà soát'): cả lớp sai nhiều, nên kiểm tra lại đáp án hoặc độ rõ đề. • Độ phân cách (D): chênh lệch tỷ lệ đúng giữa nhóm 27% điểm cao và 27% điểm thấp (D >= 0.2 là phân loại tốt)."
+                  />
+                </h3>
+                <p className="text-xs text-ink-500">
+                  Sắp xếp từ câu có tỷ lệ làm đúng thấp nhất lên cao nhất để giảng viên nhanh chóng phát hiện câu hỏi cần rà soát.
+                </p>
+              </div>
+              {itemAnalysisRows.length === 0 ? (
+                <p className="text-xs text-ink-500 py-3">
+                  Chưa có bài thi đã nộp để tính độ khó và độ phân cách từng câu.
+                </p>
+              ) : (
+                <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                  <table className="w-full text-left border-collapse text-xs">
+                    <thead>
+                      <tr className="bg-slate-50 border-b border-slate-200 text-ink-600 font-bold">
+                        <th className="py-2.5 px-3">Câu hỏi</th>
+                        <th className="py-2.5 px-3">Chương</th>
+                        <th className="py-2.5 px-3 text-center">Lượt thi</th>
+                        <th className="py-2.5 px-3 text-center">Tỷ lệ đúng (p)</th>
+                        <th className="py-2.5 px-3 text-center">Phân cách (D)</th>
+                        <th className="py-2.5 px-3 text-right">Đánh giá</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {itemAnalysisRows.map((row) => (
+                        <tr key={row.questionId} className="hover:bg-slate-50/70">
+                          <td className="py-2.5 px-3 max-w-[320px]">
+                            <p className="font-semibold text-ink-900 line-clamp-2">{row.content}</p>
+                          </td>
+                          <td className="py-2.5 px-3 text-[11px] text-ink-600 whitespace-nowrap">
+                            {row.chapterCategory}
+                          </td>
+                          <td className="py-2.5 px-3 text-center font-mono">{row.attemptCount}</td>
+                          <td className="py-2.5 px-3 text-center font-mono font-bold text-ink-900">
+                            {row.correctRatePercent}%
+                          </td>
+                          <td className="py-2.5 px-3 text-center font-mono text-ink-700">
+                            {row.discriminationIndex !== null ? row.discriminationIndex.toFixed(2) : '—'}
+                          </td>
+                          <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                row.statusTag === 'Cần rà soát'
+                                  ? 'bg-rose-100 text-rose-800'
+                                  : row.statusTag === 'Phân hóa kém'
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : row.statusTag === 'Quá dễ'
+                                      ? 'bg-sky-100 text-sky-800'
+                                      : 'bg-support-100 text-support-800'
+                              }`}
+                            >
+                              {row.statusTag}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+
             <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-3">
               <h3 className="text-sm font-extrabold text-ink-900">
-                Danh sách Bài thi có Câu Tự luận Ngắn (Rà soát Highlight & Làm giàu Rubric)
+                Danh sách Bài thi có Câu Tự luận Ngắn (Rà soát Highlight &amp; Làm giàu Rubric)
               </h3>
               <div className="divide-y divide-slate-100">
-                {attempts
-                  .filter((a) => a.examId === selectedExam.id)
-                  .map((a) => (
+                {(() => {
+                  const qTypeMap = new Map(questions.map((q) => [q.id, q.type]));
+                  const essayAttempts = attempts
+                    .filter((a) => a.examId === selectedExam.id)
+                    .filter((a) =>
+                      a.assignedQuestions.some(
+                        (s) => qTypeMap.get(s.questionId) === 'ESSAY',
+                      ),
+                    );
+                  if (essayAttempts.length === 0) {
+                    return (
+                      <p className="text-xs text-ink-500 py-3">
+                        Ca thi này không có bài thi nào chứa câu hỏi Tự luận ngắn (ESSAY).
+                      </p>
+                    );
+                  }
+                  return essayAttempts.map((a) => (
                     <div
                       key={a.id}
                       className="py-3 flex flex-wrap items-center justify-between gap-2 text-xs"
@@ -1856,10 +2179,11 @@ export const AdminDashboardPage: React.FC = () => {
                         onClick={() => setEssayModalAttemptId(a.id)}
                         className="px-3 py-1.5 rounded-lg bg-brand-600 text-white font-bold"
                       >
-                        Mở Highlight & Chấm lại
+                        Mở Highlight &amp; Chấm lại
                       </button>
                     </div>
-                  ))}
+                  ));
+                })()}
               </div>
             </div>
           </div>
@@ -2061,7 +2385,7 @@ export const AdminDashboardPage: React.FC = () => {
                   ownerId: instructorUser?.id,
                   title: newExamTitle.trim(),
                   roomPin: newExamPin.trim(),
-                  unlockPin: selectedExam?.unlockPin ?? String(Math.floor(100000 + Math.random() * 900000)),
+                  unlockPin: selectedExam?.unlockPin ?? String(Math.floor(1000 + Math.random() * 9000)),
                   instructorEmail:
                     instructorUser?.email && instructorUser.email !== 'demo@vneconomics.com'
                       ? instructorUser.email

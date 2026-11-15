@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   Clock,
   Download,
+  FileSpreadsheet,
   FileText,
   Mail,
   MapPin,
@@ -20,6 +21,8 @@ import {
   XCircle,
 } from 'lucide-react';
 import type { Exam, ExamAttempt, StudentRosterEntry } from '../../types/exam';
+import { exportExamGradebookXlsx } from '../../utils/csvExport';
+import { computeChapterMastery } from '../../utils/dynamicQuestionEngine';
 import { InfoHint } from '../common/InfoHint';
 import {
   downloadStudentRosterTemplateXlsx,
@@ -239,31 +242,47 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
             />
           </span>
         </div>
-        <button
-          type="button"
-          disabled={exam.status === 'CLOSED'}
-          onClick={() => {
-            const activeCount = countInProgress + countLocked;
-            const msg =
-              activeCount > 0
-                ? `Hiện còn ${activeCount} thí sinh đang làm bài/chờ duyệt. Xác nhận KẾT THÚC ca thi, thu toàn bộ bài đang làm và gửi Email tổng hợp?`
-                : 'Xác nhận KẾT THÚC ca thi này và gửi bảng điểm tổng hợp về Email giảng viên?';
-            if (!window.confirm(msg)) return;
-            onCloseExamAndSweep(exam.id);
-          }}
-          className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
-        >
-          <StopCircle className="w-4 h-4" />
-          <span>
-            {exam.status === 'CLOSED'
-              ? 'Ca thi đã đóng & Gửi Email tổng hợp'
-              : 'Kết thúc Ca thi (Sweeper thu bài treo + Gửi Email Tổng hợp)'}
-          </span>
-          <InfoHint
-            title="Kết thúc Ca thi & Thu bài hàng loạt"
-            text="Đóng phòng thi, tự động thu toàn bộ bài sinh viên đang làm dở/bị khóa và gửi bảng điểm tổng hợp về Email giảng viên."
-          />
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              exportExamGradebookXlsx(
+                exam,
+                attempts,
+                computeChapterMastery(attempts, exam.id),
+              )
+            }
+            className="px-3.5 py-2 rounded-xl border border-support-300 bg-support-50 hover:bg-support-100 text-support-800 text-xs font-bold flex items-center gap-1.5 transition"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Xuất Bảng điểm (.xlsx)</span>
+          </button>
+          <button
+            type="button"
+            disabled={exam.status === 'CLOSED'}
+            onClick={() => {
+              const activeCount = countInProgress + countLocked;
+              const msg =
+                activeCount > 0
+                  ? `Hiện còn ${activeCount} thí sinh đang làm bài/chờ duyệt. Xác nhận KẾT THÚC ca thi, thu toàn bộ bài đang làm và gửi Email tổng hợp?`
+                  : 'Xác nhận KẾT THÚC ca thi này và gửi bảng điểm tổng hợp về Email giảng viên?';
+              if (!window.confirm(msg)) return;
+              onCloseExamAndSweep(exam.id);
+            }}
+            className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
+          >
+            <StopCircle className="w-4 h-4" />
+            <span>
+              {exam.status === 'CLOSED'
+                ? 'Ca thi đã đóng & Gửi Email tổng hợp'
+                : 'Kết thúc Ca thi (Sweeper thu bài treo + Gửi Email Tổng hợp)'}
+            </span>
+            <InfoHint
+              title="Kết thúc Ca thi & Thu bài hàng loạt"
+              text="Đóng phòng thi, tự động thu toàn bộ bài sinh viên đang làm dở/bị khóa và gửi bảng điểm tổng hợp về Email giảng viên."
+            />
+          </button>
+        </div>
       </div>
 
       {/* Student Roster Import & Verification Card */}

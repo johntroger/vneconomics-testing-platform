@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { shouldAutoPinLastOption } from './dynamicQuestionEngine';
 import type {
   DifficultyLevel,
   DynamicVarSpec,
@@ -1370,10 +1371,12 @@ function parseMatrixRowToQuestion(
     const options: QuestionOption[] = [];
     optCells.forEach((rawOpt, idx) => {
       if (!rawOpt) return;
-      const pinLast = /\[(CO_DINH_CUOI|CỐ ĐỊNH CUỐI|PIN_LAST)\]/i.test(rawOpt);
       const cleanText = rawOpt
         .replace(/\[(CO_DINH_CUOI|CỐ ĐỊNH CUỐI|PIN_LAST)\]/gi, '')
         .trim();
+      const pinLast =
+        /\[(CO_DINH_CUOI|CỐ ĐỊNH CUỐI|PIN_LAST)\]/i.test(rawOpt) ||
+        shouldAutoPinLastOption(cleanText);
       if (cleanText) {
         options.push({
           id: `opt${idx + 1}`,

@@ -300,7 +300,32 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
 
     if ($action === 'bootstrap') {
         $scoped = fetchScopedData($pdo, $auth);
-        $emails = $pdo->query('SELECT id, recipient, subject, kind, status, summary, csv_filename AS csvAttachmentName, sent_at AS sentAt, created_at FROM email_queue ORDER BY created_at DESC LIMIT 200')->fetchAll();
+        $role = (string) ($auth['role'] ?? 'DEMO');
+        $actorId = (string) ($auth['instructorId'] ?? 'DEMO_INSTRUCTOR');
+        $actorEmail = strtolower(trim((string) ($auth['email'] ?? '')));
+
+        if ($role === 'OFFICIAL' && $actorId === 'MASTER_ADMIN') {
+            $emails = $pdo->query('SELECT id, recipient, subject, kind, status, summary, csv_filename AS csvAttachmentName, sent_at AS sentAt, created_at FROM email_queue ORDER BY created_at DESC LIMIT 200')->fetchAll();
+        } elseif ($role === 'OFFICIAL') {
+            $eStmt = $pdo->prepare(
+                "SELECT id, recipient, subject, kind, status, summary, csv_filename AS csvAttachmentName, sent_at AS sentAt, created_at
+                 FROM email_queue
+                 WHERE LOWER(recipient) = :em
+                    OR LOWER(recipient) IN (SELECT DISTINCT LOWER(instructor_email) FROM exams WHERE owner_id = :uid1)
+                    OR LOWER(recipient) IN (SELECT DISTINCT LOWER(a.student_email) FROM exam_attempts a JOIN exams e ON e.id = a.exam_id WHERE e.owner_id = :uid2)
+                 ORDER BY created_at DESC LIMIT 200"
+            );
+            $eStmt->execute([':em' => $actorEmail, ':uid1' => $actorId, ':uid2' => $actorId]);
+            $emails = $eStmt->fetchAll();
+        } else {
+            $emails = $pdo->query(
+                "SELECT id, recipient, subject, kind, status, summary, csv_filename AS csvAttachmentName, sent_at AS sentAt, created_at
+                 FROM email_queue
+                 WHERE LOWER(recipient) = 'giangvien@vneconomics.com'
+                    OR LOWER(recipient) IN (SELECT DISTINCT LOWER(a.student_email) FROM exam_attempts a JOIN exams e ON e.id = a.exam_id WHERE e.owner_id = 'SYSTEM_DEMO')
+                 ORDER BY created_at DESC LIMIT 200"
+            )->fetchAll();
+        }
 
         jsonResponse([
             'ok' => true,

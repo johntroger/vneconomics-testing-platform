@@ -7,7 +7,10 @@ import type {
   QuestionType,
   RubricSlot,
 } from '../../types/exam';
-import { gradeMicroEssayRubric } from '../../utils/dynamicQuestionEngine';
+import {
+  gradeMicroEssayRubric,
+  shouldAutoPinLastOption,
+} from '../../utils/dynamicQuestionEngine';
 
 interface QuestionEditorModalProps {
   isOpen: boolean;
@@ -126,7 +129,12 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
     content: content.trim(),
     points: Number(points) || 1,
     options:
-      type === 'SINGLE_CHOICE' || type === 'MULTI_CHOICE' ? options : undefined,
+      type === 'SINGLE_CHOICE' || type === 'MULTI_CHOICE'
+        ? options.map((o) => ({
+            ...o,
+            pinLast: o.pinLast || shouldAutoPinLastOption(o.text),
+          }))
+        : undefined,
     correctOptionIds:
       type === 'SINGLE_CHOICE' || type === 'MULTI_CHOICE'
         ? correctOptionIds
