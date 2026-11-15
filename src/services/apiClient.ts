@@ -72,7 +72,13 @@ export async function apiRequestDetailed<T>(
     });
     const ct = res.headers.get('content-type') ?? '';
     if (!ct.includes('application/json')) {
-      return { reachedJson: false, ok: false, status: res.status, data: null };
+      return {
+        reachedJson: false,
+        ok: false,
+        status: res.status,
+        data: null,
+        error: `Máy chủ phản hồi lỗi HTTP ${res.status} (không phải JSON).`,
+      };
     }
     const json = (await res.json()) as T & { error?: string };
     return {

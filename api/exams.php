@@ -536,11 +536,29 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             $sql = 'INSERT INTO exams (id, course_id, owner_id, title, room_pin, unlock_pin, instructor_email, duration_minutes, chapter_matrix_json, pinned_question_ids_json, shuffle_questions, shuffle_mode, shuffle_options, max_leave_count, max_away_seconds, grace_period_ms, one_way_mode, per_question_seconds, canvas_anti_ocr, email_delivery_mode, roster_whitelist_json, roster_entries_json, status, report_sent_status, created_at)
                     VALUES (:id, :course_id, :owner_id, :title, :room_pin, :unlock_pin, :instructor_email, :duration_minutes, :chapter_matrix_json, :pinned_question_ids_json, :shuffle_questions, :shuffle_mode, :shuffle_options, :max_leave_count, :max_away_seconds, :grace_period_ms, :one_way_mode, :per_question_seconds, :canvas_anti_ocr, :email_delivery_mode, :roster_whitelist_json, :roster_entries_json, :status, :report_sent_status, :created_at)';
         }
-        $pdo->prepare($sql)->execute($params);
+        try {
+            $pdo->prepare($sql)->execute($params);
+        } catch (Throwable $e) {
+            if (stripos($e->getMessage(), 'roster_entries_json') !== false) {
+                try {
+                    $colType = getDbDriver() === 'mysql' ? 'LONGTEXT NULL' : 'TEXT NULL';
+                    $pdo->exec("ALTER TABLE exams ADD COLUMN roster_entries_json $colType");
+                    $pdo->prepare($sql)->execute($params);
+                } catch (Throwable $e2) {
+                    jsonError('Lỗi lưu đề thi (DB): ' . $e2->getMessage(), 500);
+                }
+            } else {
+                jsonError('Lỗi lưu đề thi (DB): ' . $e->getMessage(), 500);
+            }
+        }
 
         $row = $pdo->prepare('SELECT * FROM exams WHERE id = :id');
         $row->execute([':id' => $id]);
-        jsonResponse(['ok' => true, 'exam' => formatExamRow($row->fetch(), false)]);
+        $savedRow = $row->fetch();
+        if (!$savedRow) {
+            jsonError('Không tìm thấy đề thi sau khi lưu.', 500);
+        }
+        jsonResponse(['ok' => true, 'exam' => formatExamRow($savedRow, false)]);
     }
 
     if ($action === 'clone_exam') {
