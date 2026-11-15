@@ -150,7 +150,7 @@ interface ExamContextValue extends ExamPlatformState {
   ) => { addedCount: number; updatedCount: number; syncedChapters: number };
   upsertExam: (exam: Exam) => Promise<{ ok: boolean; error?: string }>;
   deleteExam: (examId: string) => Promise<{ ok: boolean; error?: string }>;
-  cloneExam: (examId: string, customTitle?: string) => Exam | null;
+  cloneExam: (examId: string, customTitle?: string) => Promise<{ exam: Exam | null; error?: string }>;
   resendStudentScoreEmail: (attemptId: string, editedEmail?: string) => void;
   sendTestMailer: (recipient: string) => EmailLogEntry;
   resetDemoData: () => void;
@@ -402,6 +402,8 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, []);
 
+  const mutationEpochRef = useRef(0);
+
   useEffect(() => {
     if (!backendConnected || !isAdminAuthenticated) return;
 
@@ -411,6 +413,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
     const pullAdminState = async (withBootstrap: boolean) => {
       if (cancelled || inFlight) return;
       inFlight = true;
+      const startEpoch = mutationEpochRef.current;
       try {
         let nextCourses: Course[] | undefined;
         let nextQuestions: Question[] | undefined;
@@ -461,6 +464,9 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
             ? liveRes.data.attempts.map(normalizeServerAttempt)
             : undefined;
 
+        if (mutationEpochRef.current !== startEpoch) {
+          return;
+        }
         if (nextCourses || nextQuestions || nextExams || nextEmailLogs || nextAttempts) {
           updateState((prev) => ({
             courses: nextCourses ?? prev.courses,
@@ -2254,6 +2260,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const upsertExam = useCallback(
     async (exam: Exam): Promise<{ ok: boolean; error?: string }> => {
+      mutationEpochRef.current += 1;
       const prevExam = stateRef.current.exams.find((e) => e.id === exam.id);
       updateState((prev) => {
         const exists = prev.exams.some((e) => e.id === exam.id);
@@ -2300,6 +2307,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
 
   const deleteExam = useCallback(
     async (examId: string): Promise<{ ok: boolean; error?: string }> => {
+      mutationEpochRef.current += 1;
       const prevExams = stateRef.current.exams;
       updateState((prev) => ({
         ...prev,
@@ -2331,9 +2339,12 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const cloneExam = useCallback(
-    (examId: string, customTitle?: string): Exam | null => {
-      const source = state.exams.find((e) => e.id === examId);
-      if (!source) return null;
+    async (
+      examId: string,
+      customTitle?: string,
+    ): Promise<{ exam: Exam | null; error?: string }> => {
+      const source = stateRef.current.exams.find((e) => e.id === examId);
+      if (!source) return { exam: null, error: 'Không tìm thấy ca thi nguồn.' };
       const randomPin = String(Math.floor(100000 + Math.random() * 900000));
       const cloned: Exam = {
         ...source,
@@ -2348,21 +2359,13 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         reportSentAt: undefined,
         createdAt: new Date().toISOString(),
       };
-      updateState((prev) => ({
-        ...prev,
-        exams: [cloned, ...prev.exams],
-      }));
-
-      if (backendConnected) {
-        void apiRequest('/api/exams.php?action=save_exam', {
-          method: 'POST',
-          body: JSON.stringify(cloned),
-        });
+      const res = await upsertExam(cloned);
+      if (!res.ok) {
+        return { exam: null, error: res.error || 'Không thể lưu ca thi mới lên máy chủ.' };
       }
-
-      return cloned;
+      return { exam: stateRef.current.exams.find((e) => e.id === cloned.id) ?? cloned };
     },
-    [backendConnected, state.exams, updateState],
+    [upsertExam],
   );
 
   const resendStudentScoreEmail = useCallback(

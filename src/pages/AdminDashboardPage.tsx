@@ -803,17 +803,19 @@ export const AdminDashboardPage: React.FC = () => {
                   )}
                   <button
                     type="button"
-                    onClick={() => {
+                    onClick={async () => {
                       if (!requireOfficialOrPrompt()) return;
                       const sameCourseCount = exams.filter((e) => e.courseId === selectedExam.courseId).length;
                       const defaultName = `${selectedExam.title.replace(/\s*\(Ca.*\)$/i, '')} - Ca ${sameCourseCount + 1}`;
                       const entered = window.prompt('Nhập tên Ca thi mới (giữ nguyên cấu trúc đề, danh sách SV riêng):', defaultName);
                       if (entered === null) return;
-                      const copy = cloneExam(selectedExam.id, entered.trim() || defaultName);
-                      if (copy) {
-                        setSelectedExamId(copy.id);
-                        showToast(`Đã tạo "${copy.title}" (PIN ${copy.roomPin}) với danh sách sinh viên riêng.`);
+                      const res = await cloneExam(selectedExam.id, entered.trim() || defaultName);
+                      if (!res.exam) {
+                        showToast(res.error || 'Không thể lưu ca thi mới lên máy chủ.');
+                        return;
                       }
+                      setSelectedExamId(res.exam.id);
+                      showToast(`Đã tạo "${res.exam.title}" (PIN ${res.exam.roomPin}) với danh sách sinh viên riêng.`);
                     }}
                     className="h-9 px-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5"
                   >
@@ -942,13 +944,15 @@ export const AdminDashboardPage: React.FC = () => {
                 <button
                   type="button"
                   disabled={!selectedExam}
-                  onClick={() => {
+                  onClick={async () => {
                     if (!requireOfficialOrPrompt() || !selectedExam) return;
-                    const copy = cloneExam(selectedExam.id);
-                    if (copy) {
-                      setSelectedExamId(copy.id);
-                      showToast(`Đã nhân bản ca thi với PIN mới: ${copy.roomPin}`);
+                    const res = await cloneExam(selectedExam.id);
+                    if (!res.exam) {
+                      showToast(res.error || 'Không thể nhân bản ca thi lên máy chủ.');
+                      return;
                     }
+                    setSelectedExamId(res.exam.id);
+                    showToast(`Đã nhân bản ca thi với PIN mới: ${res.exam.roomPin}`);
                   }}
                   className="h-9 px-3 rounded-xl border border-slate-200 bg-white text-ink-700 text-xs font-bold flex items-center gap-1.5 hover:border-brand-300 disabled:opacity-40"
                 >
@@ -1995,7 +1999,9 @@ export const AdminDashboardPage: React.FC = () => {
                   perQuestionSeconds: selectedExam?.perQuestionSeconds ?? 60,
                   canvasAntiOcr: selectedExam?.canvasAntiOcr ?? false,
                   emailDeliveryMode: selectedExam?.emailDeliveryMode ?? ('IMMEDIATE' as const),
-                  rosterWhitelist: selectedExam?.rosterWhitelist ?? [],
+                  rosterWhitelist: [],
+                  rosterEntries: [],
+                  requiresRosterVerification: false,
                   status: newExamStatus,
                   reportSentStatus: 'PENDING' as const,
                   createdAt: new Date().toISOString(),
