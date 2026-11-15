@@ -215,7 +215,7 @@ export const AdminDashboardPage: React.FC = () => {
       Array.from(
         new Set([
           ...chapterGroups.map(([name]) => name),
-          ...selectedExam.chapterMatrix.map((r) => r.chapterCategory),
+          ...(selectedExam?.chapterMatrix.map((r) => r.chapterCategory) ?? []),
         ]),
       ),
       effectiveBankTemplateTypes,
@@ -486,15 +486,11 @@ export const AdminDashboardPage: React.FC = () => {
     );
   }
 
-  if (!selectedExam) {
-    return null;
-  }
-
   const updateMatrixRule = (
     chapterCategory: string,
     patch: Partial<ChapterQuotaRule>,
   ) => {
-    if (!requireOfficialOrPrompt()) return;
+    if (!requireOfficialOrPrompt() || !selectedExam) return;
     const existing = selectedExam.chapterMatrix.find(
       (r) => r.chapterCategory === chapterCategory,
     );
@@ -514,11 +510,11 @@ export const AdminDashboardPage: React.FC = () => {
     upsertExam({ ...selectedExam, chapterMatrix: nextMatrix });
   };
 
-  const totalMatrixQuestions = selectedExam.chapterMatrix.reduce(
+  const totalMatrixQuestions = (selectedExam?.chapterMatrix ?? []).reduce(
     (s, r) => s + (r.questionCount || 0),
     0,
   );
-  const totalMatrixPoints = selectedExam.chapterMatrix.reduce(
+  const totalMatrixPoints = (selectedExam?.chapterMatrix ?? []).reduce(
     (s, r) => s + (r.questionCount || 0) * (r.pointsPerQuestion ?? 1),
     0,
   );
@@ -570,24 +566,30 @@ export const AdminDashboardPage: React.FC = () => {
 
           <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pb-0.5 md:pb-0 md:flex-wrap">
             <select
-              value={selectedExam.id}
+              value={selectedExam?.id ?? ''}
               onChange={(e) => setSelectedExamId(e.target.value)}
-              className="h-9 px-2.5 sm:px-3 rounded-xl border border-slate-300 bg-slate-50 text-xs font-bold text-ink-900 min-w-[165px] max-w-[220px] sm:max-w-[260px] shrink-0"
+              disabled={exams.length === 0}
+              className="h-9 px-2.5 sm:px-3 rounded-xl border border-slate-300 bg-slate-50 text-xs font-bold text-ink-900 min-w-[165px] max-w-[220px] sm:max-w-[260px] shrink-0 disabled:opacity-60"
             >
-              {exams.map((ex) => (
-                <option key={ex.id} value={ex.id}>
-                  [{ex.roomPin}] {ex.title}
-                </option>
-              ))}
+              {exams.length === 0 ? (
+                <option value="">Chưa có đề thi nào</option>
+              ) : (
+                exams.map((ex) => (
+                  <option key={ex.id} value={ex.id}>
+                    [{ex.roomPin}] {ex.title}
+                  </option>
+                ))
+              )}
             </select>
 
             <button
               type="button"
               onClick={() => {
                 if (!requireOfficialOrPrompt()) return;
-                setNewExamCourseId(selectedExam.courseId || courses[0]?.id || '');
+                setNewExamCourseId(selectedExam?.courseId || courses[0]?.id || '');
                 setNewExamPin(String(Math.floor(100000 + Math.random() * 900000)));
                 setNewExamTitle('');
+                setModalCourseOpen(courses.length === 0);
                 setCreateExamModalOpen(true);
               }}
               className="h-9 px-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5 shrink-0 whitespace-nowrap shadow-2xs"
@@ -597,8 +599,9 @@ export const AdminDashboardPage: React.FC = () => {
 
             <button
               type="button"
+              disabled={!selectedExam}
               onClick={() => setPreviewOpen(true)}
-              className="h-9 px-3 rounded-xl border border-brand-200 bg-brand-50 text-brand-700 text-xs font-bold flex items-center gap-1.5 shrink-0 whitespace-nowrap"
+              className="h-9 px-3 rounded-xl border border-brand-200 bg-brand-50 text-brand-700 text-xs font-bold flex items-center gap-1.5 shrink-0 whitespace-nowrap disabled:opacity-40"
             >
               <Eye className="w-3.5 h-3.5" /> Preview Mobile
             </button>
@@ -614,8 +617,12 @@ export const AdminDashboardPage: React.FC = () => {
             <button
               type="button"
               onClick={() => {
-                sendTestMailer(selectedExam.instructorEmail);
-                showToast(`Đã gửi Email thử nghiệm tới ${selectedExam.instructorEmail}`);
+                const targetEmail =
+                  selectedExam?.instructorEmail ||
+                  instructorUser?.email ||
+                  'giangvien@vneconomics.com';
+                sendTestMailer(targetEmail);
+                showToast(`Đã gửi Email thử nghiệm tới ${targetEmail}`);
               }}
               className="h-9 px-3 rounded-xl border border-slate-200 bg-white text-ink-700 text-xs font-bold flex items-center gap-1.5 hover:border-brand-300 shrink-0 whitespace-nowrap"
             >
@@ -624,15 +631,16 @@ export const AdminDashboardPage: React.FC = () => {
 
             <button
               type="button"
+              disabled={!selectedExam}
               onClick={() => {
-                if (!requireOfficialOrPrompt()) return;
+                if (!requireOfficialOrPrompt() || !selectedExam) return;
                 const copy = cloneExam(selectedExam.id);
                 if (copy) {
                   setSelectedExamId(copy.id);
                   showToast(`Đã nhân bản ca thi với PIN mới: ${copy.roomPin}`);
                 }
               }}
-              className="h-9 px-3 rounded-xl border border-slate-200 bg-white text-ink-700 text-xs font-bold flex items-center gap-1.5 hover:border-brand-300 shrink-0 whitespace-nowrap"
+              className="h-9 px-3 rounded-xl border border-slate-200 bg-white text-ink-700 text-xs font-bold flex items-center gap-1.5 hover:border-brand-300 shrink-0 whitespace-nowrap disabled:opacity-40"
             >
               <Copy className="w-3.5 h-3.5" /> Clone Ca
             </button>
@@ -708,8 +716,39 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
         )}
 
+        {!selectedExam && activeTab !== 'EMAILS' && (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-10 text-center max-w-xl mx-auto my-6 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mx-auto">
+              <Layers className="w-6 h-6" />
+            </div>
+            <div className="space-y-1.5">
+              <h2 className="text-lg font-extrabold text-ink-900">
+                Chào mừng {instructorUser?.name || instructorUser?.email || 'Giảng viên'}!
+              </h2>
+              <p className="text-xs sm:text-sm text-ink-600 leading-relaxed">
+                Tài khoản của bạn hiện chưa có học phần hoặc đề thi nào. Mọi học phần, ngân hàng câu hỏi và đề thi bạn tạo sẽ chỉ hiển thị riêng trong tài khoản của bạn.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => {
+                  setNewExamCourseId(courses[0]?.id || '');
+                  setNewExamPin(String(Math.floor(100000 + Math.random() * 900000)));
+                  setNewExamTitle('');
+                  setModalCourseOpen(courses.length === 0);
+                  setCreateExamModalOpen(true);
+                }}
+                className="h-10 px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs sm:text-sm font-bold inline-flex items-center gap-1.5 shadow-sm"
+              >
+                <Plus className="w-4 h-4" /> Tạo Học phần &amp; Đề thi đầu tiên
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* TAB 1: LIVE PROCTORING */}
-        {activeTab === 'LIVE' && (
+        {selectedExam && activeTab === 'LIVE' && (
           <LiveProctorTable
             exam={selectedExam}
             attempts={attempts}
@@ -744,7 +783,7 @@ export const AdminDashboardPage: React.FC = () => {
         )}
 
         {/* TAB 2: QUESTION BANK BY CHAPTER + ALLOCATION MATRIX + EXAM SETTINGS */}
-        {activeTab === 'BANK_MATRIX' && (
+        {selectedExam && activeTab === 'BANK_MATRIX' && (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
             {/* Left: Exam Matrix & Settings */}
             <div className="lg:col-span-5 space-y-4">
@@ -1348,7 +1387,7 @@ export const AdminDashboardPage: React.FC = () => {
         )}
 
         {/* TAB 3: CHAPTER MASTERY ANALYTICS & CSV EXPORT */}
-        {activeTab === 'ANALYTICS_ESSAY' && (
+        {selectedExam && activeTab === 'ANALYTICS_ESSAY' && (
           <div className="space-y-5">
             <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1481,20 +1520,22 @@ export const AdminDashboardPage: React.FC = () => {
         )}
       </main>
 
-      <QuestionEditorModal
-        key={editingQuestion?.id ?? 'new'}
-        isOpen={questionModalOpen}
-        courseId={selectedExam.courseId}
-        existingChapters={chapterGroups.map(([name]) => name)}
-        initialQuestion={editingQuestion}
-        onClose={() => setQuestionModalOpen(false)}
-        onSave={(q) => {
-          upsertQuestion(q);
-          showToast('Đã lưu câu hỏi vào ngân hàng.');
-        }}
-      />
+      {selectedExam && (
+        <QuestionEditorModal
+          key={editingQuestion?.id ?? 'new'}
+          isOpen={questionModalOpen}
+          courseId={selectedExam.courseId}
+          existingChapters={chapterGroups.map(([name]) => name)}
+          initialQuestion={editingQuestion}
+          onClose={() => setQuestionModalOpen(false)}
+          onSave={(q) => {
+            upsertQuestion(q);
+            showToast('Đã lưu câu hỏi vào ngân hàng.');
+          }}
+        />
+      )}
 
-      {selectedCourse && (
+      {selectedCourse && selectedExam && (
         <ExcelQuestionBankModal
           open={excelModalOpen}
           onClose={() => setExcelModalOpen(false)}
@@ -1520,15 +1561,17 @@ export const AdminDashboardPage: React.FC = () => {
         />
       )}
 
-      <EssayGradingModal
-        isOpen={Boolean(essayModalAttemptId)}
-        examId={selectedExam.id}
-        attempt={essayAttemptTarget}
-        questions={questions}
-        onClose={() => setEssayModalAttemptId(null)}
-        onOverrideScore={overrideEssayScore}
-        onEnrichRubricAndRegrade={enrichRubricAndRegradeExam}
-      />
+      {selectedExam && (
+        <EssayGradingModal
+          isOpen={Boolean(essayModalAttemptId)}
+          examId={selectedExam.id}
+          attempt={essayAttemptTarget}
+          questions={questions}
+          onClose={() => setEssayModalAttemptId(null)}
+          onOverrideScore={overrideEssayScore}
+          onEnrichRubricAndRegrade={enrichRubricAndRegradeExam}
+        />
+      )}
 
       {/* Preview Mode Simulator Modal */}
       {previewOpen && (
@@ -1601,7 +1644,12 @@ export const AdminDashboardPage: React.FC = () => {
                   showToast('Vui lòng nhập tiêu đề và mã phòng 6 chữ số hợp lệ.');
                   return;
                 }
-                const chosenCourseId = newExamCourseId || courses[0]?.id || 'course_micro_101';
+                const chosenCourseId = newExamCourseId || courses[0]?.id || '';
+                if (!chosenCourseId) {
+                  setModalCourseOpen(true);
+                  showToast('Vui lòng bấm "Thêm học phần mới" để tạo học phần trước khi tạo đề.');
+                  return;
+                }
                 const newId = `exm_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
                 const courseChapters = Array.from(
                   new Set(
@@ -1611,16 +1659,16 @@ export const AdminDashboardPage: React.FC = () => {
                   ),
                 );
                 const createdExam = {
-                  ...selectedExam,
                   id: newId,
                   courseId: chosenCourseId,
                   ownerId: instructorUser?.id,
                   title: newExamTitle.trim(),
                   roomPin: newExamPin.trim(),
+                  unlockPin: selectedExam?.unlockPin ?? String(Math.floor(100000 + Math.random() * 900000)),
                   instructorEmail:
                     instructorUser?.email && instructorUser.email !== 'demo@vneconomics.com'
                       ? instructorUser.email
-                      : selectedExam.instructorEmail,
+                      : selectedExam?.instructorEmail || 'giangvien@vneconomics.com',
                   durationMinutes: Math.max(5, newExamDuration),
                   chapterMatrix: courseChapters.map((ch) => ({
                     chapterCategory: ch,
@@ -1629,6 +1677,17 @@ export const AdminDashboardPage: React.FC = () => {
                     pointsPerQuestion: 1,
                   })),
                   pinnedQuestionIds: [],
+                  shuffleQuestions: selectedExam?.shuffleQuestions ?? true,
+                  shuffleMode: selectedExam?.shuffleMode ?? ('ESSAY_LAST' as const),
+                  shuffleOptions: selectedExam?.shuffleOptions ?? true,
+                  maxLeaveCount: selectedExam?.maxLeaveCount ?? 3,
+                  maxAwaySeconds: selectedExam?.maxAwaySeconds ?? 45,
+                  gracePeriodMs: selectedExam?.gracePeriodMs ?? 2500,
+                  oneWayMode: selectedExam?.oneWayMode ?? false,
+                  perQuestionSeconds: selectedExam?.perQuestionSeconds ?? 60,
+                  canvasAntiOcr: selectedExam?.canvasAntiOcr ?? false,
+                  emailDeliveryMode: selectedExam?.emailDeliveryMode ?? ('IMMEDIATE' as const),
+                  rosterWhitelist: selectedExam?.rosterWhitelist ?? [],
                   status: newExamStatus,
                   reportSentStatus: 'PENDING' as const,
                   createdAt: new Date().toISOString(),
