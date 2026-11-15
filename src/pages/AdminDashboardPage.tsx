@@ -1297,8 +1297,8 @@ export const AdminDashboardPage: React.FC = () => {
                       <label className="flex items-center gap-1.5 font-semibold mb-1.5">
                         <span>Kiểu trộn thứ tự câu (có thể chọn 1 hoặc nhiều)</span>
                         <InfoHint
-                          title="Kiểu trộn thứ tự câu hỏi"
-                          text="Có thể tick chọn 1 hoặc kết hợp nhiều kiểu (ví dụ: Trộn trong từng Chương + Đưa Tự luận xuống cuối). Nếu chọn 'Không trộn đề' sẽ giữ nguyên thứ tự gốc."
+                          title="Quy tắc chọn Kiểu trộn thứ tự câu"
+                          text="• Không trộn đề: giữ nguyên thứ tự gốc (sẽ tắt các ô khác). • Trộn toàn bộ đề hoặc Trộn trong từng Chương: chỉ chọn 1 trong 2 kiểu này. • Đưa Tự luận xuống cuối: có thể tick kết hợp thêm với 1 trong 2 kiểu trộn trên (hoặc chọn riêng)."
                         />
                       </label>
                       {(() => {
