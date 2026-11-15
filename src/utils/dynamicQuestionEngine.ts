@@ -282,29 +282,37 @@ export function buildAssignedQuestions(
 
   const orderRng = createSeededRng(`${studentCode}::${exam.id}::order`);
   let ordered = [...picked];
-  if (exam.shuffleQuestions && exam.shuffleMode !== 'NONE') {
-    if (exam.shuffleMode === 'FULL_RANDOM') {
-      ordered = seededShuffle(picked, orderRng);
-    } else if (exam.shuffleMode === 'BY_CHAPTER') {
-      const chapters = Array.from(
-        new Set(picked.map((p) => p.question.chapterCategory)),
-      );
-      ordered = chapters.flatMap((ch) =>
+  const activeModes = new Set(
+    String(exam.shuffleMode || 'FULL_RANDOM')
+      .split('+')
+      .map((s) => s.trim())
+      .filter(Boolean),
+  );
+  if (exam.shuffleQuestions && !activeModes.has('NONE')) {
+    const shuffleByChapter = (list: typeof picked) => {
+      const chapters = Array.from(new Set(list.map((p) => p.question.chapterCategory)));
+      return chapters.flatMap((ch) =>
         seededShuffle(
-          picked.filter((p) => p.question.chapterCategory === ch),
+          list.filter((p) => p.question.chapterCategory === ch),
           orderRng,
         ),
       );
-    } else if (exam.shuffleMode === 'ESSAY_LAST') {
-      const nonEssay = seededShuffle(
-        picked.filter((p) => p.question.type !== 'ESSAY'),
-        orderRng,
-      );
-      const essay = seededShuffle(
-        picked.filter((p) => p.question.type === 'ESSAY'),
-        orderRng,
-      );
+    };
+
+    if (activeModes.has('ESSAY_LAST')) {
+      const nonEssayRaw = picked.filter((p) => p.question.type !== 'ESSAY');
+      const essayRaw = picked.filter((p) => p.question.type === 'ESSAY');
+      const nonEssay = activeModes.has('BY_CHAPTER')
+        ? shuffleByChapter(nonEssayRaw)
+        : seededShuffle(nonEssayRaw, orderRng);
+      const essay = activeModes.has('BY_CHAPTER')
+        ? shuffleByChapter(essayRaw)
+        : seededShuffle(essayRaw, orderRng);
       ordered = [...nonEssay, ...essay];
+    } else if (activeModes.has('BY_CHAPTER')) {
+      ordered = shuffleByChapter(picked);
+    } else if (activeModes.has('FULL_RANDOM')) {
+      ordered = seededShuffle(picked, orderRng);
     }
   }
 

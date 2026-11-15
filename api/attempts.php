@@ -167,29 +167,41 @@ function buildAssignedQuestionsPhp(array $exam, array $courseQuestions, string $
 
     $orderRng = createSeededRngPhp($studentCode . '::' . $exam['id'] . '::order');
     $ordered = $picked;
-    if (!empty($exam['shuffleQuestions']) && (($exam['shuffleMode'] ?? 'FULL_RANDOM') !== 'NONE')) {
-        $mode = (string) ($exam['shuffleMode'] ?? 'FULL_RANDOM');
-        if ($mode === 'FULL_RANDOM') {
-            $ordered = seededShufflePhp($picked, $orderRng);
-        } elseif ($mode === 'BY_CHAPTER') {
+    $modeStr = (string) ($exam['shuffleMode'] ?? 'FULL_RANDOM');
+    $activeModes = array_values(array_filter(array_map('trim', explode('+', $modeStr))));
+    if (!empty($exam['shuffleQuestions']) && !in_array('NONE', $activeModes, true)) {
+        $shuffleByChapter = static function (array $list) use ($orderRng): array {
             $chapters = [];
-            foreach ($picked as $p) {
+            foreach ($list as $p) {
                 $ch = $p['question']['chapterCategory'];
                 if (!in_array($ch, $chapters, true)) {
                     $chapters[] = $ch;
                 }
             }
-            $ordered = [];
+            $out = [];
             foreach ($chapters as $ch) {
-                $sub = array_values(array_filter($picked, static fn ($p) => $p['question']['chapterCategory'] === $ch));
+                $sub = array_values(array_filter($list, static fn ($p) => $p['question']['chapterCategory'] === $ch));
                 foreach (seededShufflePhp($sub, $orderRng) as $item) {
-                    $ordered[] = $item;
+                    $out[] = $item;
                 }
             }
-        } elseif ($mode === 'ESSAY_LAST') {
-            $nonEssay = seededShufflePhp(array_values(array_filter($picked, static fn ($p) => $p['question']['type'] !== 'ESSAY')), $orderRng);
-            $essay = seededShufflePhp(array_values(array_filter($picked, static fn ($p) => $p['question']['type'] === 'ESSAY')), $orderRng);
+            return $out;
+        };
+
+        if (in_array('ESSAY_LAST', $activeModes, true)) {
+            $nonEssayRaw = array_values(array_filter($picked, static fn ($p) => $p['question']['type'] !== 'ESSAY'));
+            $essayRaw = array_values(array_filter($picked, static fn ($p) => $p['question']['type'] === 'ESSAY'));
+            $nonEssay = in_array('BY_CHAPTER', $activeModes, true)
+                ? $shuffleByChapter($nonEssayRaw)
+                : seededShufflePhp($nonEssayRaw, $orderRng);
+            $essay = in_array('BY_CHAPTER', $activeModes, true)
+                ? $shuffleByChapter($essayRaw)
+                : seededShufflePhp($essayRaw, $orderRng);
             $ordered = array_merge($nonEssay, $essay);
+        } elseif (in_array('BY_CHAPTER', $activeModes, true)) {
+            $ordered = $shuffleByChapter($picked);
+        } elseif (in_array('FULL_RANDOM', $activeModes, true)) {
+            $ordered = seededShufflePhp($picked, $orderRng);
         }
     }
 

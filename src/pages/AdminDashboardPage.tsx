@@ -36,7 +36,7 @@ import type {
   EmailDeliveryMode,
   Question,
   QuestionType,
-  ShuffleMode,
+  ShuffleModeOption,
 } from '../types/exam';
 import {
   buildExamCsvContent,
@@ -1283,32 +1283,94 @@ export const AdminDashboardPage: React.FC = () => {
                       />
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 gap-2.5">
+                  <div className="space-y-2.5">
                     <div>
-                      <label className="flex items-center gap-1.5 font-semibold mb-1">
-                        <span>Kiểu trộn thứ tự câu</span>
+                      <label className="flex items-center gap-1.5 font-semibold mb-1.5">
+                        <span>Kiểu trộn thứ tự câu (có thể chọn 1 hoặc nhiều)</span>
                         <InfoHint
                           title="Kiểu trộn thứ tự câu hỏi"
-                          text="• Không trộn đề: giữ nguyên thứ tự câu hỏi gốc. • Trộn toàn bộ đề: xáo ngẫu nhiên tất cả câu. • Trộn trong từng Chương: giữ nguyên thứ tự các chương, chỉ xáo câu bên trong. • Đưa Tự luận xuống cuối: gom câu tự luận ra cuối đề."
+                          text="Có thể tick chọn 1 hoặc kết hợp nhiều kiểu (ví dụ: Trộn trong từng Chương + Đưa Tự luận xuống cuối). Nếu chọn 'Không trộn đề' sẽ giữ nguyên thứ tự gốc."
                         />
                       </label>
-                      <select
-                        value={selectedExam.shuffleQuestions === false ? 'NONE' : selectedExam.shuffleMode}
-                        onChange={(e) => {
-                          const nextMode = e.target.value as ShuffleMode;
+                      {(() => {
+                        const rawTokens = selectedExam.shuffleQuestions === false
+                          ? ['NONE']
+                          : String(selectedExam.shuffleMode || 'FULL_RANDOM')
+                              .split('+')
+                              .map((s) => s.trim())
+                              .filter(Boolean);
+                        const selectedSet = new Set<ShuffleModeOption>(
+                          rawTokens.length > 0 ? (rawTokens as ShuffleModeOption[]) : ['NONE'],
+                        );
+                        const toggleShuffleOption = (opt: ShuffleModeOption) => {
+                          const next = new Set<ShuffleModeOption>(selectedSet);
+                          if (opt === 'NONE') {
+                            upsertExam({
+                              ...selectedExam,
+                              shuffleMode: 'NONE',
+                              shuffleQuestions: false,
+                            });
+                            return;
+                          }
+                          next.delete('NONE');
+                          if (next.has(opt)) {
+                            next.delete(opt);
+                          } else {
+                            if (opt === 'FULL_RANDOM') next.delete('BY_CHAPTER');
+                            if (opt === 'BY_CHAPTER') next.delete('FULL_RANDOM');
+                            next.add(opt);
+                          }
+                          if (next.size === 0) {
+                            upsertExam({
+                              ...selectedExam,
+                              shuffleMode: 'NONE',
+                              shuffleQuestions: false,
+                            });
+                            return;
+                          }
+                          const orderedOpts = (['FULL_RANDOM', 'BY_CHAPTER', 'ESSAY_LAST'] as ShuffleModeOption[]).filter(
+                            (k) => next.has(k),
+                          );
                           upsertExam({
                             ...selectedExam,
-                            shuffleMode: nextMode,
-                            shuffleQuestions: nextMode !== 'NONE',
+                            shuffleMode: orderedOpts.join('+'),
+                            shuffleQuestions: true,
                           });
-                        }}
-                        className="w-full h-9 px-2 rounded-lg border border-slate-300 font-semibold"
-                      >
-                        <option value="NONE">Không trộn đề (Giữ nguyên thứ tự)</option>
-                        <option value="FULL_RANDOM">Trộn toàn bộ đề</option>
-                        <option value="BY_CHAPTER">Trộn trong từng Chương</option>
-                        <option value="ESSAY_LAST">Đưa Tự luận xuống cuối</option>
-                      </select>
+                        };
+
+                        const shuffleChoices: { value: ShuffleModeOption; label: string }[] = [
+                          { value: 'NONE', label: 'Không trộn đề' },
+                          { value: 'FULL_RANDOM', label: 'Trộn toàn bộ đề' },
+                          { value: 'BY_CHAPTER', label: 'Trộn trong từng Chương' },
+                          { value: 'ESSAY_LAST', label: 'Đưa Tự luận xuống cuối' },
+                        ];
+
+                        return (
+                          <div className="flex flex-wrap gap-1.5">
+                            {shuffleChoices.map((ch) => {
+                              const active = selectedSet.has(ch.value);
+                              return (
+                                <label
+                                  key={ch.value}
+                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-[11px] font-bold cursor-pointer select-none transition ${
+                                    active
+                                      ? 'bg-brand-50 border-brand-500 text-brand-800'
+                                      : 'bg-white border-slate-300 text-ink-700 hover:border-brand-300'
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={active}
+                                    onChange={() => toggleShuffleOption(ch.value)}
+                                    className="w-3.5 h-3.5 accent-brand-600 rounded"
+                                  />
+                                  <span>{ch.label}</span>
+                                </label>
+                              );
+                            })}
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div>
                       <label className="flex items-center gap-1.5 font-semibold mb-1">

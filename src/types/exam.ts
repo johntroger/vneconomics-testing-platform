@@ -7,7 +7,8 @@ export type QuestionType =
 
 export type DifficultyLevel = 'EASY' | 'MEDIUM' | 'HARD';
 
-export type ShuffleMode = 'NONE' | 'FULL_RANDOM' | 'BY_CHAPTER' | 'ESSAY_LAST';
+export type ShuffleModeOption = 'NONE' | 'FULL_RANDOM' | 'BY_CHAPTER' | 'ESSAY_LAST';
+export type ShuffleMode = ShuffleModeOption | (string & {});
 
 export type EmailDeliveryMode = 'DELAYED_BATCH' | 'IMMEDIATE';
 
