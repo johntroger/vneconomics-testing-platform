@@ -291,17 +291,36 @@ function buildStudentScoreEmailHtml(array $exam, array $attempt, array $answers)
     $raw = (float) ($attempt['totalScore'] ?? 0) . ' / ' . (float) ($attempt['maxTotalScore'] ?? 10);
     $integrity = (int) ($attempt['integrityScore'] ?? 100);
 
-    $rowsHtml = '';
+    $wrongRowsHtml = '';
+    $wrongCount = 0;
     foreach ($answers as $idx => $ans) {
         $qNum = $idx + 1;
+        $earned = (float) ($ans['earnedPoints'] ?? 0);
+        $maxPts = (float) ($ans['maxPoints'] ?? 1);
+        $isCorrect = $ans['isCorrect'] ?? null;
+        $isWrong = ($isCorrect === false) || ($maxPts > 0 && $earned + 1e-6 < $maxPts);
+        if (!$isWrong) {
+            continue;
+        }
+        $wrongCount++;
         $ch = htmlspecialchars((string) ($ans['chapterCategory'] ?? ''), ENT_QUOTES, 'UTF-8');
-        $pts = (float) ($ans['earnedPoints'] ?? 0) . ' / ' . (float) ($ans['maxPoints'] ?? 1);
-        $fb = htmlspecialchars((string) ($ans['gradingFeedback'] ?? ''), ENT_QUOTES, 'UTF-8');
-        $rowsHtml .= "<tr><td style='padding:8px;border-bottom:1px solid #E5E7EB;'>Câu {$qNum}</td>"
+        $pts = $earned . ' / ' . $maxPts;
+        $statusLabel = $earned > 0 ? 'Chưa đạt tối đa' : 'Làm sai / Chưa trả lời';
+        $wrongRowsHtml .= "<tr><td style='padding:8px;border-bottom:1px solid #E5E7EB;font-weight:bold;'>Câu {$qNum}</td>"
             . "<td style='padding:8px;border-bottom:1px solid #E5E7EB;'>{$ch}</td>"
-            . "<td style='padding:8px;border-bottom:1px solid #E5E7EB;font-weight:bold;'>{$pts}</td>"
-            . "<td style='padding:8px;border-bottom:1px solid #E5E7EB;color:#4B5563;'>{$fb}</td></tr>";
+            . "<td style='padding:8px;border-bottom:1px solid #E5E7EB;font-weight:bold;color:#B91C1C;'>{$pts}</td>"
+            . "<td style='padding:8px;border-bottom:1px solid #E5E7EB;color:#991B1B;'>{$statusLabel}</td></tr>";
     }
+
+    $detailSectionHtml = $wrongCount > 0
+        ? "<p style='margin:18px 0 8px;font-size:14px;font-weight:700;color:#111827;'>Danh sách câu hỏi làm sai / chưa đạt điểm tối đa ({$wrongCount} câu):</p>"
+            . "<table style='width:100%;border-collapse:collapse;font-size:13px;'>"
+            . "<thead><tr style='background:#FEF2F2;text-align:left;color:#991B1B;'>"
+            . "<th style='padding:8px;'>Câu</th><th style='padding:8px;'>Chương</th><th style='padding:8px;'>Điểm</th><th style='padding:8px;'>Trạng thái</th>"
+            . "</tr></thead><tbody>{$wrongRowsHtml}</tbody></table>"
+        : "<div style='margin-top:16px;padding:12px 16px;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:10px;color:#065F46;font-size:13px;font-weight:600;'>"
+            . "Chúc mừng! Bạn không có câu hỏi nào làm sai trong bài thi này."
+            . "</div>";
 
     return "<div style='font-family:Inter,Arial,sans-serif;max-width:680px;margin:0 auto;background:#ffffff;border:1px solid #E5E7EB;border-radius:12px;overflow:hidden;'>"
         . "<div style='background:#0B1324;color:#ffffff;padding:24px;'>"
@@ -315,11 +334,8 @@ function buildStudentScoreEmailHtml(array $exam, array $attempt, array $answers)
         . "<div style='margin-right:24px;'><div style='font-size:12px;color:#6B7280;'>TỔNG ĐIỂM GỐC</div><div style='font-size:18px;font-weight:700;'>{$raw}</div></div>"
         . "<div><div style='font-size:12px;color:#6B7280;'>ĐIỂM TIN CẬY</div><div style='font-size:18px;font-weight:700;'>{$integrity}%</div></div>"
         . "</div>"
-        . "<table style='width:100%;border-collapse:collapse;font-size:13px;margin-top:12px;'>"
-        . "<thead><tr style='background:#F3F4F6;text-align:left;'>"
-        . "<th style='padding:8px;'>Câu</th><th style='padding:8px;'>Chương</th><th style='padding:8px;'>Điểm</th><th style='padding:8px;'>Nhận xét Rubric</th>"
-        . "</tr></thead><tbody>{$rowsHtml}</tbody></table>"
-        . "<p style='margin-top:20px;font-size:12px;color:#6B7280;'>Biên lai điện tử sinh tự động bởi hệ thống khảo thí VNEconomics.</p>"
+        . $detailSectionHtml
+        . "<p style='margin-top:20px;font-size:12px;color:#6B7280;'>Lưu ý: Email chỉ thông báo điểm số và các câu làm sai, không gửi kèm đáp án đúng. Biên lai điện tử sinh tự động bởi hệ thống khảo thí VNEconomics.</p>"
         . "</div></div>";
 }
 
