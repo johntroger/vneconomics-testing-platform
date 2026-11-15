@@ -291,32 +291,78 @@ function buildStudentScoreEmailHtml(array $exam, array $attempt, array $answers)
     $raw = (float) ($attempt['totalScore'] ?? 0) . ' / ' . (float) ($attempt['maxTotalScore'] ?? 10);
     $integrity = (int) ($attempt['integrityScore'] ?? 100);
 
+    $assigned = is_array($attempt['assignedQuestions'] ?? null) ? $attempt['assignedQuestions'] : [];
+    $ansByQid = [];
+    foreach ($answers as $k => $ans) {
+        $qid = (string) ($ans['questionId'] ?? $k);
+        if ($qid !== '') {
+            $ansByQid[$qid] = $ans;
+        }
+    }
+
+    $orderedItems = [];
+    if (count($assigned) > 0) {
+        foreach ($assigned as $i => $aq) {
+            $qid = (string) ($aq['questionId'] ?? '');
+            $ans = $ansByQid[$qid] ?? [];
+            $orderedItems[] = [
+                'num' => $i + 1,
+                'prompt' => (string) ($aq['renderedContent'] ?? ''),
+                'chapter' => (string) ($ans['chapterCategory'] ?? ($aq['chapterCategory'] ?? '')),
+                'earned' => (float) ($ans['earnedPoints'] ?? 0),
+                'maxPts' => (float) ($ans['maxPoints'] ?? ($aq['maxPoints'] ?? 1)),
+                'isCorrect' => $ans['isCorrect'] ?? false,
+            ];
+        }
+    } else {
+        $seq = 0;
+        foreach ($answers as $ans) {
+            $seq++;
+            $orderedItems[] = [
+                'num' => $seq,
+                'prompt' => (string) ($ans['questionContent'] ?? ''),
+                'chapter' => (string) ($ans['chapterCategory'] ?? ''),
+                'earned' => (float) ($ans['earnedPoints'] ?? 0),
+                'maxPts' => (float) ($ans['maxPoints'] ?? 1),
+                'isCorrect' => $ans['isCorrect'] ?? null,
+            ];
+        }
+    }
+
     $wrongRowsHtml = '';
     $wrongCount = 0;
-    foreach ($answers as $idx => $ans) {
-        $qNum = $idx + 1;
-        $earned = (float) ($ans['earnedPoints'] ?? 0);
-        $maxPts = (float) ($ans['maxPoints'] ?? 1);
-        $isCorrect = $ans['isCorrect'] ?? null;
+    foreach ($orderedItems as $item) {
+        $qNum = (int) $item['num'];
+        $earned = (float) $item['earned'];
+        $maxPts = (float) $item['maxPts'];
+        $isCorrect = $item['isCorrect'];
         $isWrong = ($isCorrect === false) || ($maxPts > 0 && $earned + 1e-6 < $maxPts);
         if (!$isWrong) {
             continue;
         }
         $wrongCount++;
-        $ch = htmlspecialchars((string) ($ans['chapterCategory'] ?? ''), ENT_QUOTES, 'UTF-8');
+        $rawPrompt = trim(preg_replace('/\s+/', ' ', strip_tags((string) $item['prompt'])) ?? '');
+        if ($rawPrompt !== '' && function_exists('mb_strlen') && mb_strlen($rawPrompt, 'UTF-8') > 180) {
+            $rawPrompt = mb_substr($rawPrompt, 0, 177, 'UTF-8') . '...';
+        }
+        $qTitleHtml = $rawPrompt !== ''
+            ? "<div style='font-weight:600;color:#111827;'>" . htmlspecialchars($rawPrompt, ENT_QUOTES, 'UTF-8') . "</div>"
+            : '';
+        $ch = htmlspecialchars((string) $item['chapter'], ENT_QUOTES, 'UTF-8');
+        $chHtml = $ch !== '' ? "<div style='font-size:11px;color:#6B7280;margin-top:2px;'>{$ch}</div>" : '';
         $pts = $earned . ' / ' . $maxPts;
         $statusLabel = $earned > 0 ? 'Chưa đạt tối đa' : 'Làm sai / Chưa trả lời';
-        $wrongRowsHtml .= "<tr><td style='padding:8px;border-bottom:1px solid #E5E7EB;font-weight:bold;'>Câu {$qNum}</td>"
-            . "<td style='padding:8px;border-bottom:1px solid #E5E7EB;'>{$ch}</td>"
-            . "<td style='padding:8px;border-bottom:1px solid #E5E7EB;font-weight:bold;color:#B91C1C;'>{$pts}</td>"
-            . "<td style='padding:8px;border-bottom:1px solid #E5E7EB;color:#991B1B;'>{$statusLabel}</td></tr>";
+        $wrongRowsHtml .= "<tr><td style='padding:8px;border-bottom:1px solid #E5E7EB;font-weight:bold;white-space:nowrap;vertical-align:top;'>Câu {$qNum}</td>"
+            . "<td style='padding:8px;border-bottom:1px solid #E5E7EB;vertical-align:top;'>{$qTitleHtml}{$chHtml}</td>"
+            . "<td style='padding:8px;border-bottom:1px solid #E5E7EB;font-weight:bold;color:#B91C1C;white-space:nowrap;vertical-align:top;'>{$pts}</td>"
+            . "<td style='padding:8px;border-bottom:1px solid #E5E7EB;color:#991B1B;white-space:nowrap;vertical-align:top;'>{$statusLabel}</td></tr>";
     }
 
     $detailSectionHtml = $wrongCount > 0
         ? "<p style='margin:18px 0 8px;font-size:14px;font-weight:700;color:#111827;'>Danh sách câu hỏi làm sai / chưa đạt điểm tối đa ({$wrongCount} câu):</p>"
             . "<table style='width:100%;border-collapse:collapse;font-size:13px;'>"
             . "<thead><tr style='background:#FEF2F2;text-align:left;color:#991B1B;'>"
-            . "<th style='padding:8px;'>Câu</th><th style='padding:8px;'>Chương</th><th style='padding:8px;'>Điểm</th><th style='padding:8px;'>Trạng thái</th>"
+            . "<th style='padding:8px;'>Câu</th><th style='padding:8px;'>Nội dung câu hỏi</th><th style='padding:8px;'>Điểm</th><th style='padding:8px;'>Trạng thái</th>"
             . "</tr></thead><tbody>{$wrongRowsHtml}</tbody></table>"
         : "<div style='margin-top:16px;padding:12px 16px;background:#ECFDF5;border:1px solid #A7F3D0;border-radius:10px;color:#065F46;font-size:13px;font-weight:600;'>"
             . "Chúc mừng! Bạn không có câu hỏi nào làm sai trong bài thi này."
