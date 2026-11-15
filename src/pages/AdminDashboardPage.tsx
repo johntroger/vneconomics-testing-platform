@@ -829,7 +829,7 @@ export const AdminDashboardPage: React.FC = () => {
                   }}
                   className="h-9 px-3 rounded-xl border border-slate-200 bg-white text-ink-700 text-xs font-bold flex items-center gap-1.5 hover:border-brand-300 disabled:opacity-40"
                 >
-                  <Copy className="w-3.5 h-3.5" /> Clone Ca
+                  <Copy className="w-3.5 h-3.5" /> Nhân bản đề
                 </button>
                 <button
                   type="button"
