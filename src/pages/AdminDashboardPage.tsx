@@ -64,7 +64,8 @@ type AdminTab =
   | 'EXAMS'
   | 'LIVE'
   | 'ANALYTICS_ESSAY'
-  | 'EMAILS';
+  | 'EMAILS'
+  | 'LIVE_GAME';
 
 const BANK_TEMPLATE_TYPE_OPTIONS: { type: QuestionType; label: string }[] = [
   { type: 'SINGLE_CHOICE', label: 'Trắc nghiệm 4 phương án (1 đáp án)' },
@@ -754,6 +755,7 @@ export const AdminDashboardPage: React.FC = () => {
             { id: 'LIVE' as const, label: '4. Giám sát Live & Duyệt', icon: Activity },
             { id: 'ANALYTICS_ESSAY' as const, label: '5. Thống kê & Tự luận', icon: BarChart3 },
             { id: 'EMAILS' as const, label: `6. Nhật ký Email (${emailLogs.length})`, icon: Mail },
+            { id: 'LIVE_GAME' as const, label: '7. Live Game (Kahoot)', icon: Gamepad2 },
           ].map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -2450,6 +2452,94 @@ export const AdminDashboardPage: React.FC = () => {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {/* TAB 7: LIVE GAME (KAHOOT) */}
+        {activeTab === 'LIVE_GAME' && (
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-6 space-y-5">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <h2 className="text-base font-extrabold text-ink-900 flex items-center gap-2">
+                  <Gamepad2 className="w-5 h-5 text-indigo-600" />
+                  Tổ chức Live Game (Kahoot-style)
+                </h2>
+                <p className="text-xs text-ink-500 mt-1">
+                  Tạo phòng chơi tương tác trực tiếp trên lớp hoặc học Online từ ngân hàng câu hỏi của học phần đang chọn.
+                </p>
+              </div>
+              <Link
+                to="/play"
+                target="_blank"
+                rel="noreferrer"
+                className="px-4 py-2 rounded-xl border border-indigo-200 bg-indigo-50 text-indigo-700 text-xs font-bold hover:bg-indigo-100 transition"
+              >
+                Mở trang vào PIN cho Sinh viên (/play) ↗
+              </Link>
+            </div>
+
+            {!selectedCourse ? (
+              <div className="p-6 rounded-2xl bg-slate-50 border border-dashed border-slate-200 text-center text-sm text-ink-600">
+                Vui lòng chọn hoặc tạo Học phần trước để lấy câu hỏi cho Live Game.
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-5 rounded-2xl border border-indigo-200 bg-gradient-to-br from-indigo-50/70 to-white space-y-3">
+                  <div className="text-xs font-bold uppercase tracking-wider text-indigo-600">
+                    Từ Ngân hàng câu hỏi Học phần
+                  </div>
+                  <div className="font-extrabold text-ink-900">
+                    {selectedCourse.code} — {selectedCourse.name}
+                  </div>
+                  <div className="text-xs text-ink-600">
+                    Hiện có <strong>{courseQuestions.length}</strong> câu hỏi trong học phần này (tự động lọc câu Trắc nghiệm 1 đáp án, Nhiều đáp án &amp; Đúng/Sai).
+                  </div>
+                  <button
+                    type="button"
+                    disabled={courseQuestions.length === 0}
+                    onClick={() =>
+                      setGameModalConfig({
+                        title: `Live Game: ${selectedCourse.name}`,
+                        courseId: selectedCourse.id,
+                        questions: courseQuestions,
+                      })
+                    }
+                    className="w-full py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm disabled:opacity-40"
+                  >
+                    <Gamepad2 className="w-4 h-4" />
+                    Mở Live Game từ Ngân hàng ({courseQuestions.length} câu)
+                  </button>
+                </div>
+
+                <div className="p-5 rounded-2xl border border-slate-200 bg-slate-50/60 space-y-3">
+                  <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                    Từ Đề thi đang chọn
+                  </div>
+                  <div className="font-extrabold text-ink-900">
+                    {selectedExam ? `${selectedExam.title} (PIN ${selectedExam.roomPin})` : 'Chưa chọn đề thi'}
+                  </div>
+                  <div className="text-xs text-ink-600">
+                    Sử dụng bộ câu hỏi của học phần gắn với đề thi này để tổ chức ôn tập nhanh trước hoặc sau giờ kiểm tra.
+                  </div>
+                  <button
+                    type="button"
+                    disabled={!selectedExam || courseQuestions.length === 0}
+                    onClick={() => {
+                      if (!selectedExam) return;
+                      setGameModalConfig({
+                        title: `Ôn tập: ${selectedExam.title}`,
+                        courseId: selectedExam.courseId,
+                        questions: courseQuestions,
+                      });
+                    }}
+                    className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-2 disabled:opacity-40"
+                  >
+                    <Gamepad2 className="w-4 h-4" />
+                    Mở Live Game theo Đề thi
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </main>
