@@ -58,6 +58,10 @@ interface StartAttemptInput {
   dob?: string;
   className: string;
   studentEmail: string;
+  deviceLabel?: string;
+  locationLat?: number | null;
+  locationLng?: number | null;
+  locationAccuracy?: number | null;
 }
 
 interface StartAttemptResult {
@@ -205,6 +209,13 @@ function normalizeServerAttempt(raw: Record<string, unknown>): ExamAttempt {
   return {
     ...(raw as unknown as ExamAttempt),
     deviceToken: typeof raw.deviceToken === 'string' ? raw.deviceToken : '',
+    deviceLabel: typeof raw.deviceLabel === 'string' ? raw.deviceLabel : undefined,
+    locationLat: typeof raw.locationLat === 'number' ? raw.locationLat : null,
+    locationLng: typeof raw.locationLng === 'number' ? raw.locationLng : null,
+    locationAccuracy: typeof raw.locationAccuracy === 'number' ? raw.locationAccuracy : null,
+    loginDevices: Array.isArray(raw.loginDevices)
+      ? (raw.loginDevices as ExamAttempt['loginDevices'])
+      : undefined,
     assignedQuestions: Array.isArray(raw.assignedQuestions)
       ? (raw.assignedQuestions as ExamAttempt['assignedQuestions'])
       : [],
@@ -794,6 +805,10 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
               studentEmail: normalizedEmail,
               className: input.className.trim(),
               deviceToken: myDeviceToken,
+              deviceLabel: input.deviceLabel ?? '',
+              locationLat: input.locationLat ?? null,
+              locationLng: input.locationLng ?? null,
+              locationAccuracy: input.locationAccuracy ?? null,
               assignedQuestions: assigned,
               startedAt: clientStartedAt,
             }),

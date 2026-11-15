@@ -198,6 +198,14 @@ export interface ViolationEvent {
   occurredAt: string;
 }
 
+export interface LoginDeviceEntry {
+  deviceToken: string;
+  deviceLabel: string;
+  lat?: number | null;
+  lng?: number | null;
+  at: string;
+}
+
 export interface ExamAttempt {
   id: string;
   examId: string;
@@ -206,6 +214,11 @@ export interface ExamAttempt {
   studentEmail: string;
   className: string;
   deviceToken: string;
+  deviceLabel?: string;
+  locationLat?: number | null;
+  locationLng?: number | null;
+  locationAccuracy?: number | null;
+  loginDevices?: LoginDeviceEntry[];
   assignedQuestions: AssignedQuestionSnapshot[];
   answers: Record<string, AttemptAnswer>;
   status: AttemptStatus;

@@ -561,6 +561,38 @@ function normalizeRosterDobPhp(string $val): string
     return normalizeRosterTextPhp($s);
 }
 
+function appendLoginDevicePhp(?string $rawJson, string $deviceToken, string $deviceLabel, ?float $lat, ?float $lng): array
+{
+    $list = decodeJsonSafe($rawJson, []);
+    if (!is_array($list)) {
+        $list = [];
+    }
+    $cleanLabel = $deviceLabel !== '' ? $deviceLabel : 'Trình duyệt không xác định';
+    $found = false;
+    foreach ($list as &$item) {
+        if (($item['deviceToken'] ?? '') === $deviceToken && ($item['deviceLabel'] ?? '') === $cleanLabel) {
+            $item['at'] = nowIso();
+            if ($lat !== null && $lng !== null) {
+                $item['lat'] = $lat;
+                $item['lng'] = $lng;
+            }
+            $found = true;
+            break;
+        }
+    }
+    unset($item);
+    if (!$found) {
+        $list[] = [
+            'deviceToken' => $deviceToken,
+            'deviceLabel' => $cleanLabel,
+            'lat' => $lat,
+            'lng' => $lng,
+            'at' => nowIso(),
+        ];
+    }
+    return $list;
+}
+
 if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) === __FILE__) {
     applyCorsHeaders();
     $pdo = getDb();
@@ -582,6 +614,10 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         $studentEmail = strtolower(trim((string) ($body['studentEmail'] ?? '')));
         $className = trim((string) ($body['className'] ?? ''));
         $deviceToken = trim((string) ($body['deviceToken'] ?? generateId('dev')));
+        $deviceLabel = trim((string) ($body['deviceLabel'] ?? ''));
+        $locationLat = isset($body['locationLat']) && is_numeric($body['locationLat']) ? (float) $body['locationLat'] : null;
+        $locationLng = isset($body['locationLng']) && is_numeric($body['locationLng']) ? (float) $body['locationLng'] : null;
+        $locationAccuracy = isset($body['locationAccuracy']) && is_numeric($body['locationAccuracy']) ? (float) $body['locationAccuracy'] : null;
 
         if ($studentCode === '' || $studentEmail === '') {
             jsonError('Thiếu MSSV hoặc Email sinh viên.', 400);
@@ -696,23 +732,54 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
                     ],
                 ]);
             }
+            $updatedDevices = appendLoginDevicePhp(
+                $existing['login_devices_json'] ?? null,
+                $deviceToken,
+                $deviceLabel,
+                $locationLat,
+                $locationLng
+            );
+            $updatedDevicesJson = json_encode($updatedDevices, JSON_UNESCAPED_UNICODE);
+
             if ((string) $existing['device_token'] !== '' && $existing['device_token'] !== $deviceToken) {
+                $pdo->prepare('UPDATE exam_attempts SET login_devices_json = :ld, ai_flag = 1, ai_flag_reason = :reason WHERE id = :id')
+                    ->execute([
+                        ':ld' => $updatedDevicesJson,
+                        ':reason' => 'Phát hiện đăng nhập trên nhiều thiết bị / trình duyệt (' . count($updatedDevices) . ')',
+                        ':id' => $existing['id'],
+                    ]);
                 $pdo->prepare('INSERT INTO violation_logs (id, attempt_id, severity, event_type, duration_seconds, detail, occurred_at) VALUES (:id, :aid, :sev, :et, 0, :det, :occ)')
                     ->execute([
                         ':id' => generateId('vio'),
                         ':aid' => $existing['id'],
                         ':sev' => 'DUPLICATE_DEVICE',
                         ':et' => 'SECOND_DEVICE_LOGIN',
-                        ':det' => 'Phát hiện đăng nhập từ thiết bị khác trong khi bài thi đang diễn ra.',
+                        ':det' => 'Phát hiện đăng nhập từ thiết bị/trình duyệt khác (' . ($deviceLabel ?: 'Không rõ') . ') trong khi bài thi đang diễn ra.',
                         ':occ' => nowIso(),
                     ]);
-                jsonError('Tài khoản đang thi trên một thiết bị khác. Liên hệ giám thị để reset thiết bị.', 409);
+                jsonError('Tài khoản đang thi trên một thiết bị hoặc trình duyệt khác. Liên hệ giám thị để reset thiết bị.', 409);
             }
 
-            // Resume existing attempt
+            // Resume existing attempt (update device/location tracking)
+            $resumeSql = 'UPDATE exam_attempts SET login_devices_json = :ld';
+            $resumeParams = [':ld' => $updatedDevicesJson, ':id' => $existing['id']];
             if ($existing['device_token'] === '') {
-                $pdo->prepare('UPDATE exam_attempts SET device_token = :dt WHERE id = :id')->execute([':dt' => $deviceToken, ':id' => $existing['id']]);
+                $resumeSql .= ', device_token = :dt, device_label = :dl';
+                $resumeParams[':dt'] = $deviceToken;
+                $resumeParams[':dl'] = $deviceLabel;
             }
+            if ($locationLat !== null && $locationLng !== null) {
+                $resumeSql .= ', location_lat = COALESCE(location_lat, :lat), location_lng = COALESCE(location_lng, :lng), location_accuracy = COALESCE(location_accuracy, :acc)';
+                $resumeParams[':lat'] = $locationLat;
+                $resumeParams[':lng'] = $locationLng;
+                $resumeParams[':acc'] = $locationAccuracy;
+            }
+            if (count($updatedDevices) > 1) {
+                $resumeSql .= ', ai_flag = 1, ai_flag_reason = :reason';
+                $resumeParams[':reason'] = 'Phát hiện đăng nhập trên nhiều thiết bị / trình duyệt (' . count($updatedDevices) . ')';
+            }
+            $resumeSql .= ' WHERE id = :id';
+            $pdo->prepare($resumeSql)->execute($resumeParams);
             $assigned = decodeJsonSafe($existing['assigned_questions_json'], []);
             $ansMap = fetchAttemptAnswersMapPhp($pdo, $existing['id'], false);
             jsonResponse([
@@ -754,9 +821,10 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         $attemptId = trim((string) ($body['id'] ?? '')) ?: generateId('att');
         $startedAt = trim((string) ($body['startedAt'] ?? '')) ?: nowIso();
 
+        $initialDevices = appendLoginDevicePhp(null, $deviceToken, $deviceLabel, $locationLat, $locationLng);
         $ins = $pdo->prepare(
-            'INSERT INTO exam_attempts (id, exam_id, student_code, student_name, student_email, class_name, device_token, assigned_questions_json, flagged_question_ids_json, status, max_total_score, started_at)
-             VALUES (:id, :exam_id, :student_code, :student_name, :student_email, :class_name, :device_token, :assigned_json, :flagged_json, :status, :max_total, :started_at)'
+            'INSERT INTO exam_attempts (id, exam_id, student_code, student_name, student_email, class_name, device_token, device_label, location_lat, location_lng, location_accuracy, login_devices_json, assigned_questions_json, flagged_question_ids_json, status, max_total_score, started_at)
+             VALUES (:id, :exam_id, :student_code, :student_name, :student_email, :class_name, :device_token, :device_label, :location_lat, :location_lng, :location_accuracy, :login_devices_json, :assigned_json, :flagged_json, :status, :max_total, :started_at)'
         );
         $ins->execute([
             ':id' => $attemptId,
@@ -766,6 +834,11 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             ':student_email' => $studentEmail,
             ':class_name' => $className,
             ':device_token' => $deviceToken,
+            ':device_label' => $deviceLabel,
+            ':location_lat' => $locationLat,
+            ':location_lng' => $locationLng,
+            ':location_accuracy' => $locationAccuracy,
+            ':login_devices_json' => json_encode($initialDevices, JSON_UNESCAPED_UNICODE),
             ':assigned_json' => json_encode($assigned, JSON_UNESCAPED_UNICODE),
             ':flagged_json' => json_encode([], JSON_UNESCAPED_UNICODE),
             ':status' => 'IN_PROGRESS',

@@ -6,6 +6,8 @@ import {
   Download,
   FileText,
   Mail,
+  MapPin,
+  MonitorSmartphone,
   Plus,
   RefreshCw,
   RotateCcw,
@@ -91,6 +93,57 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
 
   const examAttempts = attempts.filter((a) => a.examId === exam.id);
   const lockedQueue = examAttempts.filter((a) => a.status === 'LOCKED');
+
+  const haversineMeters = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+    const R = 6371000;
+    const toRad = (deg: number) => (deg * Math.PI) / 180;
+    const dLat = toRad(lat2 - lat1);
+    const dLng = toRad(lng2 - lng1);
+    const a =
+      Math.sin(dLat / 2) ** 2 +
+      Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+    return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+  };
+
+  const formatDist = (meters: number): string =>
+    meters >= 1000 ? `${(meters / 1000).toFixed(2)} km` : `${meters} m`;
+
+  const locatedAttempts = examAttempts.filter(
+    (a) => typeof a.locationLat === 'number' && typeof a.locationLng === 'number',
+  );
+  const medianCoords = (() => {
+    if (locatedAttempts.length < 2) return null;
+    const lats = locatedAttempts.map((a) => a.locationLat as number).sort((x, y) => x - y);
+    const lngs = locatedAttempts.map((a) => a.locationLng as number).sort((x, y) => x - y);
+    const mid = Math.floor(lats.length / 2);
+    return { lat: lats[mid], lng: lngs[mid] };
+  })();
+
+  const FAR_LOCATION_METERS = 200;
+  const distanceByAttemptId = new Map<string, number>();
+  if (medianCoords) {
+    for (const a of locatedAttempts) {
+      distanceByAttemptId.set(
+        a.id,
+        haversineMeters(
+          medianCoords.lat,
+          medianCoords.lng,
+          a.locationLat as number,
+          a.locationLng as number,
+        ),
+      );
+    }
+  }
+
+  const farLocationAttempts = examAttempts.filter(
+    (a) => (distanceByAttemptId.get(a.id) ?? 0) > FAR_LOCATION_METERS,
+  );
+  const isMultiDeviceAttempt = (a: ExamAttempt): boolean =>
+    (a.loginDevices?.length ?? 0) > 1 ||
+    a.violations.some(
+      (v) => v.eventType === 'SECOND_DEVICE_LOGIN' || v.eventType === 'DUPLICATE_LOGIN',
+    );
+  const multiDeviceAttempts = examAttempts.filter(isMultiDeviceAttempt);
 
   const countInProgress = examAttempts.filter((a) => a.status === 'IN_PROGRESS').length;
   const countLocked = lockedQueue.length;
@@ -338,6 +391,73 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
         </div>
       )}
 
+      {/* Location Outlier & Multi-Device / Multi-Browser Alert Panel */}
+      {(farLocationAttempts.length > 0 || multiDeviceAttempts.length > 0) && (
+        <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 space-y-2.5">
+          <div className="flex flex-wrap items-center gap-2 text-amber-900 font-extrabold text-sm">
+            <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0" />
+            Cảnh báo Bất thường Vị trí &amp; Đa thiết bị / Đa trình duyệt
+          </div>
+          {farLocationAttempts.length > 0 && (
+            <div className="bg-white rounded-xl border border-amber-200 p-3 space-y-1.5 text-xs">
+              <div className="font-bold text-rose-700 flex items-center gap-1.5">
+                <MapPin className="w-4 h-4 shrink-0" />
+                {farLocationAttempts.length} sinh viên có vị trí xa hơn {FAR_LOCATION_METERS}m so với trung vị lớp:
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {farLocationAttempts.map((a) => {
+                  const dist = distanceByAttemptId.get(a.id) ?? 0;
+                  return (
+                    <a
+                      key={a.id}
+                      href={`https://maps.google.com/?q=${a.locationLat},${a.locationLng}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 hover:bg-rose-100 font-semibold"
+                    >
+                      <span>{a.studentName}</span>
+                      <span className="font-mono text-[11px]">({a.studentCode})</span>
+                      <span className="font-mono font-bold text-rose-700">• Cách {formatDist(dist)}</span>
+                    </a>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {multiDeviceAttempts.length > 0 && (
+            <div className="bg-white rounded-xl border border-amber-200 p-3 space-y-1.5 text-xs">
+              <div className="font-bold text-amber-900 flex items-center gap-1.5">
+                <MonitorSmartphone className="w-4 h-4 shrink-0 text-amber-700" />
+                {multiDeviceAttempts.length} sinh viên đăng nhập / điền thông tin trên nhiều thiết bị hoặc trình duyệt khác nhau:
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {multiDeviceAttempts.map((a) => {
+                  const labels = Array.from(
+                    new Set(
+                      (a.loginDevices ?? [])
+                        .map((d) => d.deviceLabel)
+                        .filter(Boolean),
+                    ),
+                  );
+                  return (
+                    <div
+                      key={a.id}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 font-semibold"
+                    >
+                      <span>{a.studentName}</span>
+                      <span className="font-mono text-[11px]">({a.studentCode})</span>
+                      <span className="text-[11px] text-rose-700 font-bold">
+                        • {labels.length > 0 ? labels.join(' ↔ ') : 'Nhiều thiết bị/trình duyệt'}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Full Candidate Monitoring Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-card overflow-hidden">
         <div className="overflow-x-auto">
@@ -346,6 +466,7 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
               <tr className="bg-slate-50 border-b border-slate-200 text-ink-600 font-bold">
                 <th className="py-3 px-3.5">Thí sinh</th>
                 <th className="py-3 px-3.5">Trạng thái</th>
+                <th className="py-3 px-3.5">Vị trí &amp; Thiết bị</th>
                 <th className="py-3 px-3.5">Tiến độ</th>
                 <th className="py-3 px-3.5">Vi phạm / Tin cậy</th>
                 <th className="py-3 px-3.5">Điểm (Hệ 10)</th>
@@ -356,7 +477,7 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
             <tbody className="divide-y divide-slate-100">
               {examAttempts.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-ink-500">
+                  <td colSpan={8} className="py-8 text-center text-ink-500">
                     Chưa có sinh viên nào vào ca thi này. Hãy dùng mã PIN <strong className="font-mono">{exam.roomPin}</strong> ở trang chủ để thử nghiệm.
                   </td>
                 </tr>
@@ -391,6 +512,46 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
                         >
                           {a.status}
                         </span>
+                      </td>
+                      <td className="py-3 px-3.5 space-y-1">
+                        {typeof a.locationLat === 'number' && typeof a.locationLng === 'number' ? (
+                          (() => {
+                            const dist = distanceByAttemptId.get(a.id);
+                            const isFar = dist !== undefined && dist > FAR_LOCATION_METERS;
+                            return (
+                              <a
+                                href={`https://maps.google.com/?q=${a.locationLat},${a.locationLng}`}
+                                target="_blank"
+                                rel="noreferrer"
+                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold border ${
+                                  isFar
+                                    ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                    : 'bg-support-50 text-support-700 border-support-200'
+                                }`}
+                              >
+                                <MapPin className="w-3 h-3 shrink-0" />
+                                {dist !== undefined
+                                  ? isFar
+                                    ? `Xa lớp (${formatDist(dist)})`
+                                    : `Cùng lớp (${formatDist(dist)})`
+                                  : 'Có GPS'}
+                              </a>
+                            );
+                          })()
+                        ) : (
+                          <span className="inline-block px-2 py-0.5 rounded bg-slate-100 text-ink-500 text-[10px] font-semibold">
+                            Chưa có GPS
+                          </span>
+                        )}
+                        <div className="text-[10px] text-ink-600 flex items-center gap-1">
+                          <MonitorSmartphone className="w-3 h-3 shrink-0 text-ink-400" />
+                          <span>{a.deviceLabel || 'Trình duyệt'}</span>
+                        </div>
+                        {isMultiDeviceAttempt(a) && (
+                          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-bold">
+                            Đa thiết bị/trình duyệt ({Math.max(2, a.loginDevices?.length ?? 0)})
+                          </div>
+                        )}
                       </td>
                       <td className="py-3 px-3.5 font-mono font-semibold text-ink-800">
                         {answered}/{a.assignedQuestions.length} câu

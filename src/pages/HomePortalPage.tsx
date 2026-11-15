@@ -8,6 +8,7 @@ import {
   GraduationCap,
   Lock,
   Mail,
+  MapPin,
   RefreshCw,
   ShieldCheck,
   Smartphone,
@@ -18,6 +19,64 @@ import { RoomMatchOption, useExamPlatform } from '../context/ExamContext';
 
 const DOMAIN_CHIPS = ['@gmail.com', '@st.ueh.edu.vn', '@edu.vn', '@icloud.com'];
 const COMMON_EMAIL_TYPOS = ['@gmai.com', '@gmial.com', '@gnail.com', '@yaho.com', '@gamil.com'];
+
+function getDeviceLabel(): string {
+  const ua = navigator.userAgent || '';
+  let browser = 'Trình duyệt khác';
+  if (/Edg\//i.test(ua)) browser = 'Edge';
+  else if (/Chrome\//i.test(ua) && !/Chromium/i.test(ua)) browser = 'Chrome';
+  else if (/Firefox\//i.test(ua)) browser = 'Firefox';
+  else if (/Safari\//i.test(ua) && !/Chrome/i.test(ua)) browser = 'Safari';
+
+  let os = 'Desktop';
+  if (/iPhone/i.test(ua)) os = 'iPhone';
+  else if (/iPad/i.test(ua)) os = 'iPad';
+  else if (/Android/i.test(ua)) os = 'Android';
+  else if (/Windows/i.test(ua)) os = 'Windows';
+  else if (/Mac OS X/i.test(ua)) os = 'macOS';
+  else if (/Linux/i.test(ua)) os = 'Linux';
+
+  return `${browser} / ${os}`;
+}
+
+function requestStudentLocation(): Promise<
+  { ok: true; lat: number; lng: number; accuracy: number } | { ok: false; error: string }
+> {
+  if (typeof navigator === 'undefined' || !navigator.geolocation) {
+    return Promise.resolve({
+      ok: false,
+      error: 'Trình duyệt hoặc thiết bị này không hỗ trợ định vị Vị trí (GPS). Vui lòng dùng Chrome/Safari mới nhất.',
+    });
+  }
+  return new Promise((resolve) => {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        resolve({
+          ok: true,
+          lat: pos.coords.latitude,
+          lng: pos.coords.longitude,
+          accuracy: Math.round(pos.coords.accuracy || 0),
+        });
+      },
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) {
+          resolve({
+            ok: false,
+            error:
+              'Bắt buộc bật & cấp quyền Vị trí (Location) để vào phòng thi (chống thi hộ). Vui lòng bấm Cho phép truy cập vị trí trên trình duyệt rồi thử lại.',
+          });
+        } else {
+          resolve({
+            ok: false,
+            error:
+              'Không thể lấy tọa độ Vị trí (GPS/Wi-Fi). Hãy bật Dịch vụ định vị (Location) trên thiết bị và thử lại.',
+          });
+        }
+      },
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
+    );
+  });
+}
 
 export const HomePortalPage: React.FC = () => {
   const [searchParams] = useSearchParams();
@@ -231,6 +290,13 @@ export const HomePortalPage: React.FC = () => {
       : studentName.trim();
 
     setLoading(true);
+    const loc = await requestStudentLocation();
+    if (!loc.ok) {
+      setLoading(false);
+      setError(loc.error);
+      return;
+    }
+
     const res = await startOrResumeAttempt({
       pin,
       examId: selectedExamId || undefined,
@@ -242,6 +308,10 @@ export const HomePortalPage: React.FC = () => {
       dob: requiresRosterVerification ? dob : undefined,
       className: className.trim() || (requiresRosterVerification ? 'K48' : ''),
       studentEmail,
+      deviceLabel: getDeviceLabel(),
+      locationLat: loc.lat,
+      locationLng: loc.lng,
+      locationAccuracy: loc.accuracy,
     });
     setLoading(false);
 
@@ -644,6 +714,13 @@ export const HomePortalPage: React.FC = () => {
                   <span>{error}</span>
                 </div>
               )}
+
+              <div className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-[11px] text-ink-600 flex items-center gap-2">
+                <MapPin className="w-3.5 h-3.5 text-brand-600 shrink-0" />
+                <span>
+                  Bắt buộc <strong>mở Vị trí (Location)</strong> trên trình duyệt/điện thoại khi vào thi để xác thực phòng thi.
+                </span>
+              </div>
 
               <button
                 type="submit"
