@@ -15,11 +15,11 @@ function ensureExamSchema(PDO $pdo, string $driver): void
 
     // Fast check if core tables with latest columns exist
     try {
-        $pdo->query('SELECT shuffle_mode, pinned_question_ids_json, owner_id FROM exams LIMIT 1');
+        $pdo->query('SELECT shuffle_mode, pinned_question_ids_json, owner_id, roster_entries_json FROM exams LIMIT 1');
         $pdo->query('SELECT owner_id FROM courses LIMIT 1');
         $pdo->query('SELECT owner_id FROM questions LIMIT 1');
         $pdo->query('SELECT id, auth_provider FROM instructors LIMIT 1');
-        $pdo->query('SELECT flagged_question_ids_json, email_edit_count FROM exam_attempts LIMIT 1');
+        $pdo->query('SELECT flagged_question_ids_json, email_edit_count, device_label, location_lat, location_lng, location_accuracy, login_devices_json FROM exam_attempts LIMIT 1');
         $pdo->query('SELECT grading_rubric_json, numerical_formula FROM questions LIMIT 1');
         $pdo->query('SELECT status FROM email_queue LIMIT 1');
         if ($driver === 'mysql') {
