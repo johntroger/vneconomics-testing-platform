@@ -132,6 +132,9 @@ export const AdminDashboardPage: React.FC = () => {
   const [newCourseOpen, setNewCourseOpen] = useState(false);
   const [newCourseCode, setNewCourseCode] = useState('');
   const [newCourseName, setNewCourseName] = useState('');
+  const [modalCourseOpen, setModalCourseOpen] = useState(false);
+  const [modalCourseCode, setModalCourseCode] = useState('');
+  const [modalCourseName, setModalCourseName] = useState('');
   const [bankTemplateTypes, setBankTemplateTypes] = useState<QuestionType[]>([]);
 
   const effectiveBankTemplateTypes = useMemo<QuestionType[]>(
@@ -1091,13 +1094,13 @@ export const AdminDashboardPage: React.FC = () => {
                       value={newCourseCode}
                       onChange={(e) => setNewCourseCode(e.target.value)}
                       placeholder="Mã HP (VD: FIN101)"
-                      className="w-28 px-2.5 py-1.5 border rounded-lg font-mono"
+                      className="w-28 min-w-0 px-2.5 py-1.5 border rounded-lg font-mono"
                     />
                     <input
                       value={newCourseName}
                       onChange={(e) => setNewCourseName(e.target.value)}
                       placeholder="Tên học phần mới..."
-                      className="flex-1 px-2.5 py-1.5 border rounded-lg"
+                      className="flex-1 min-w-0 px-2.5 py-1.5 border rounded-lg"
                     />
                     <button
                       type="button"
@@ -1114,7 +1117,7 @@ export const AdminDashboardPage: React.FC = () => {
                         setNewCourseOpen(false);
                         showToast('Đã tạo học phần mới.');
                       }}
-                      className="px-3 py-1.5 rounded-lg bg-brand-600 text-white font-bold"
+                      className="px-3 py-1.5 rounded-lg bg-brand-600 text-white font-bold shrink-0 whitespace-nowrap"
                     >
                       Lưu
                     </button>
@@ -1577,8 +1580,8 @@ export const AdminDashboardPage: React.FC = () => {
 
       {/* Modal: Create Official Exam */}
       {createExamModalOpen && (
-        <div className="fixed inset-0 z-[100] bg-ink-900/60 flex items-center justify-center p-4">
-          <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-2xl p-5 space-y-4">
+        <div className="fixed inset-0 z-[100] bg-ink-900/60 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-2xl p-4 sm:p-5 space-y-4 max-h-[92dvh] overflow-y-auto">
             <div className="flex items-center justify-between">
               <h2 className="text-base font-extrabold text-ink-900">
                 Tạo Đề thi Chính thức Mới
@@ -1638,7 +1641,17 @@ export const AdminDashboardPage: React.FC = () => {
               className="space-y-3 text-xs"
             >
               <div>
-                <label className="block font-bold text-ink-700 mb-1">Học phần</label>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <label className="block font-bold text-ink-700">Học phần</label>
+                  <button
+                    type="button"
+                    onClick={() => setModalCourseOpen((o) => !o)}
+                    className="text-[11px] font-bold text-brand-700 hover:underline flex items-center gap-1 shrink-0 whitespace-nowrap"
+                  >
+                    <Plus className="w-3 h-3" />
+                    {modalCourseOpen ? 'Đóng' : 'Thêm học phần mới'}
+                  </button>
+                </div>
                 <select
                   value={newExamCourseId || courses[0]?.id || ''}
                   onChange={(e) => setNewExamCourseId(e.target.value)}
@@ -1650,6 +1663,62 @@ export const AdminDashboardPage: React.FC = () => {
                     </option>
                   ))}
                 </select>
+                {modalCourseOpen && (
+                  <div className="mt-2 p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={modalCourseCode}
+                        onChange={(e) => setModalCourseCode(e.target.value)}
+                        placeholder="Mã HP (VD: FIN101)"
+                        className="w-28 min-w-0 h-9 px-2.5 rounded-lg border border-slate-300 bg-white font-mono uppercase"
+                      />
+                      <input
+                        type="text"
+                        value={modalCourseName}
+                        onChange={(e) => setModalCourseName(e.target.value)}
+                        placeholder="Tên học phần mới..."
+                        className="flex-1 min-w-0 h-9 px-2.5 rounded-lg border border-slate-300 bg-white"
+                      />
+                    </div>
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setModalCourseOpen(false);
+                          setModalCourseCode('');
+                          setModalCourseName('');
+                        }}
+                        className="px-2.5 py-1 rounded-lg border border-slate-200 bg-white text-ink-600 font-semibold"
+                      >
+                        Hủy
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!modalCourseCode.trim() || !modalCourseName.trim()) {
+                            showToast('Vui lòng nhập đủ Mã HP và Tên học phần.');
+                            return;
+                          }
+                          const created = addCourse({
+                            code: modalCourseCode.trim().toUpperCase(),
+                            name: modalCourseName.trim(),
+                            semester: 'HK1 2026-2027',
+                            credits: 3,
+                          });
+                          setNewExamCourseId(created.id);
+                          setModalCourseCode('');
+                          setModalCourseName('');
+                          setModalCourseOpen(false);
+                          showToast(`Đã thêm học phần ${created.code} — ${created.name}.`);
+                        }}
+                        className="px-3 py-1 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-bold"
+                      >
+                        Lưu học phần
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
               <div>
                 <label className="block font-bold text-ink-700 mb-1">Tên kỳ thi / ca thi</label>

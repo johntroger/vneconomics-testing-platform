@@ -74,18 +74,13 @@ export const ExamLobbyPage: React.FC = () => {
     );
   }
 
-  const handleStartExam = async () => {
+  const handleStartExam = () => {
     if (!agreed) return;
-    try {
-      await document.documentElement.requestFullscreen?.();
-    } catch {
-      // iOS Safari may block fullscreen programmatically; AntiCheatGuard handles gracefully
-    }
     navigate(`/exam/${exam.id}/take?attempt=${attempt.id}`);
   };
 
   return (
-    <div className="min-h-screen bg-surface-100 py-5 px-4">
+    <div className="min-h-screen bg-surface-100 pt-5 pb-12 safe-bottom px-4">
       <div className="max-w-md mx-auto space-y-4">
         <button
           type="button"
@@ -95,7 +90,7 @@ export const ExamLobbyPage: React.FC = () => {
           <ArrowLeft className="w-4 h-4" /> Đổi phòng thi khác
         </button>
 
-        <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-4">
+        <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-4 sm:p-5 space-y-4">
           <div>
             <span className="text-[11px] font-mono font-bold px-2.5 py-1 rounded-full bg-brand-50 text-brand-700">
               {course?.code} • PIN {exam.roomPin}
@@ -108,7 +103,7 @@ export const ExamLobbyPage: React.FC = () => {
             </p>
           </div>
 
-          <div className="grid grid-cols-3 gap-2 text-center">
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-2 text-center">
             <div className="bg-slate-50 rounded-xl p-2.5 border border-slate-200">
               <Clock className="w-4 h-4 text-brand-600 mx-auto mb-1" />
               <div className="text-sm font-mono font-bold text-ink-900">

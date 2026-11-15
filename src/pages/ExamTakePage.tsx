@@ -209,123 +209,180 @@ export const ExamTakePage: React.FC = () => {
         onViolation={handleViolation}
       />
 
-      {/* Fixed Top Bar (56px) */}
-      <header className="h-14 shrink-0 bg-white border-b border-slate-200 px-3 flex items-center justify-between gap-2 z-30">
-        <div className="flex items-center gap-2">
-          <div
-            className={`px-2.5 py-1 rounded-lg font-mono text-sm font-bold flex items-center gap-1.5 ${
-              remainingSeconds < 300
-                ? 'bg-rose-100 text-rose-700 animate-pulse'
-                : 'bg-brand-50 text-brand-700'
-            }`}
-          >
-            <Clock className="w-3.5 h-3.5" />
-            {formatClock(remainingSeconds)}
+      {/* Fixed Top Bar */}
+      <header className="safe-top shrink-0 bg-white border-b border-slate-200 z-30">
+        <div className="min-h-[52px] py-1.5 px-2.5 sm:px-4 flex items-center justify-between gap-1.5">
+          <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+            <div
+              className={`px-2 sm:px-2.5 py-1 rounded-lg font-mono text-xs sm:text-sm font-bold flex items-center gap-1 shrink-0 whitespace-nowrap ${
+                remainingSeconds < 300
+                  ? 'bg-rose-100 text-rose-700 animate-pulse'
+                  : 'bg-brand-50 text-brand-700'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5 shrink-0" />
+              {formatClock(remainingSeconds)}
+            </div>
+            <span className="text-xs font-mono font-bold text-ink-800 shrink-0 whitespace-nowrap">
+              {currentIndex + 1}/{attempt.assignedQuestions.length}
+            </span>
           </div>
-          <span className="text-xs font-mono font-bold text-ink-800">
-            {currentIndex + 1}/{attempt.assignedQuestions.length}
-          </span>
-        </div>
 
-        <div className="flex items-center gap-1.5">
-          <span
-            className={`text-[11px] font-semibold px-2 py-1 rounded-lg flex items-center gap-1 ${
-              attempt.leaveCount > 0
-                ? 'bg-amber-100 text-amber-800'
-                : 'bg-support-50 text-support-700'
-            }`}
-          >
-            <ShieldCheck className="w-3.5 h-3.5" />
-            {attempt.leaveCount}/{maxLeavesAllowed}
-          </span>
+          <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
+            <span
+              className={`text-[11px] font-semibold px-2 py-1 rounded-lg flex items-center gap-1 shrink-0 whitespace-nowrap ${
+                attempt.leaveCount > 0
+                  ? 'bg-amber-100 text-amber-800'
+                  : 'bg-support-50 text-support-700'
+              }`}
+            >
+              <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
+              {attempt.leaveCount}/{maxLeavesAllowed}
+            </span>
 
-          <button
-            type="button"
-            onClick={() => setFontSizePx((s) => Math.max(14, s - 1))}
-            className="w-7 h-7 rounded-lg border border-slate-200 text-xs font-bold text-ink-700 bg-slate-50"
-            title="Giảm cỡ chữ"
-          >
-            A-
-          </button>
-          <button
-            type="button"
-            onClick={() => setFontSizePx((s) => Math.min(20, s + 1))}
-            className="w-7 h-7 rounded-lg border border-slate-200 text-xs font-bold text-ink-700 bg-slate-50"
-            title="Tăng cỡ chữ"
-          >
-            A+
-          </button>
+            <button
+              type="button"
+              onClick={() => setFontSizePx((s) => Math.max(14, s - 1))}
+              className="w-7 h-7 rounded-lg border border-slate-200 text-xs font-bold text-ink-700 bg-slate-50 shrink-0"
+              title="Giảm cỡ chữ"
+            >
+              A-
+            </button>
+            <button
+              type="button"
+              onClick={() => setFontSizePx((s) => Math.min(20, s + 1))}
+              className="w-7 h-7 rounded-lg border border-slate-200 text-xs font-bold text-ink-700 bg-slate-50 shrink-0"
+              title="Tăng cỡ chữ"
+            >
+              A+
+            </button>
+          </div>
         </div>
       </header>
 
       {/* One-way micro-timer bar */}
       {exam.oneWayMode && (
-        <div className="bg-amber-50 border-b border-amber-200 px-4 py-1.5 flex items-center justify-between text-[11px] font-semibold text-amber-900 z-30">
-          <span>Chế độ 1 chiều (Không quay lại câu trước)</span>
-          <span className="font-mono font-bold text-rose-700">
+        <div className="bg-amber-50 border-b border-amber-200 px-3 sm:px-4 py-1.5 flex items-center justify-between gap-2 text-[11px] font-semibold text-amber-900 z-30 shrink-0">
+          <span className="truncate">Chế độ 1 chiều (Không quay lại câu trước)</span>
+          <span className="font-mono font-bold text-rose-700 shrink-0 whitespace-nowrap">
             Chuyển câu sau: {oneWaySeconds}s
           </span>
         </div>
       )}
 
       {/* Main Scrollable Question Card */}
-      <main className="flex-1 overflow-y-auto px-3 sm:px-4 py-4 z-30">
-        <div className="max-w-xl mx-auto bg-white rounded-2xl border border-slate-200 shadow-card p-4 sm:p-6">
-          <div className="flex items-center justify-between mb-3 pb-2.5 border-b border-slate-100">
-            <span className="text-xs font-mono font-extrabold text-brand-600 uppercase">
-              Câu hỏi số {currentIndex + 1}
-            </span>
-            <span className="text-[11px] text-support-600 font-medium">
-              {currentAnswer ? '✓ Đã tự lưu câu này' : 'Chưa trả lời'}
-            </span>
+      <main className="flex-1 overflow-y-auto px-3 sm:px-4 pt-3.5 pb-6 z-30">
+        <div className="max-w-xl mx-auto space-y-3">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-4 sm:p-6">
+            <div className="flex items-center justify-between gap-2 mb-3 pb-2.5 border-b border-slate-100">
+              <span className="text-xs font-mono font-extrabold text-brand-600 uppercase">
+                Câu hỏi số {currentIndex + 1}
+              </span>
+              <span className="text-[11px] text-support-600 font-medium shrink-0">
+                {currentAnswer ? '✓ Đã tự lưu câu này' : 'Chưa trả lời'}
+              </span>
+            </div>
+
+            <QuestionRenderer
+              question={currentQuestion}
+              snapshot={currentSnapshot}
+              value={currentAnswer?.answerPayload}
+              fontSizePx={fontSizePx}
+              canvasAntiOcr={exam.canvasAntiOcr}
+              watermarkLabel={`${attempt.studentCode} - ${attempt.studentName}`}
+              onChange={handleAnswerChange}
+            />
           </div>
 
-          <QuestionRenderer
-            question={currentQuestion}
-            snapshot={currentSnapshot}
-            value={currentAnswer?.answerPayload}
-            fontSizePx={fontSizePx}
-            canvasAntiOcr={exam.canvasAntiOcr}
-            watermarkLabel={`${attempt.studentCode} - ${attempt.studentName}`}
-            onChange={handleAnswerChange}
-          />
+          {/* Inline quick navigation right below the question card */}
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <div className="flex items-center gap-1.5">
+              {!exam.oneWayMode && (
+                <button
+                  type="button"
+                  disabled={currentIndex === 0}
+                  onClick={() => updateCurrentIndex(attempt.id, currentIndex - 1)}
+                  className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-ink-800 disabled:opacity-40 text-xs font-bold flex items-center gap-1 shrink-0 whitespace-nowrap shadow-xs"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                  Câu trước
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => toggleFlagQuestion(attempt.id, currentQuestion.id)}
+                className={`h-11 px-3 rounded-xl border text-xs font-bold flex items-center gap-1.5 shrink-0 whitespace-nowrap transition shadow-xs ${
+                  isFlagged
+                    ? 'bg-amber-100 border-amber-300 text-amber-800'
+                    : 'bg-white border-slate-200 text-ink-600'
+                }`}
+              >
+                <Flag className="w-4 h-4" />
+                {isFlagged ? 'Đã đánh dấu' : 'Đánh dấu'}
+              </button>
+            </div>
+
+            {currentIndex < attempt.assignedQuestions.length - 1 ? (
+              <button
+                type="button"
+                onClick={() => updateCurrentIndex(attempt.id, currentIndex + 1)}
+                className="h-11 px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm shrink-0 whitespace-nowrap"
+              >
+                Câu kế tiếp
+                <ChevronRight className="w-4 h-4" />
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setConfirmSubmitOpen(true)}
+                className="h-11 px-4 rounded-xl bg-support-600 hover:bg-support-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm shrink-0 whitespace-nowrap"
+              >
+                <Send className="w-4 h-4" />
+                Nộp bài thi
+              </button>
+            )}
+          </div>
         </div>
       </main>
 
-      {/* Fixed Bottom Navigation Thumb-Zone (64px) */}
-      <footer className="h-16 shrink-0 bg-white border-t border-slate-200 px-3 flex items-center justify-between gap-2 z-30">
-        <div className="flex items-center gap-1.5">
+      {/* Fixed Bottom Navigation Thumb-Zone */}
+      <footer className="min-h-[60px] pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shrink-0 bg-white border-t border-slate-200 px-2.5 sm:px-4 flex items-center justify-between gap-1.5 z-30">
+        <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
           {!exam.oneWayMode && (
             <button
               type="button"
               disabled={currentIndex === 0}
               onClick={() => updateCurrentIndex(attempt.id, currentIndex - 1)}
-              className="h-11 px-3 rounded-xl border border-slate-200 bg-slate-50 text-ink-800 disabled:opacity-40 text-xs font-bold flex items-center gap-1"
+              aria-label="Câu trước"
+              className="h-10 px-2 sm:px-3 rounded-xl border border-slate-200 bg-slate-50 text-ink-800 disabled:opacity-40 text-xs font-bold flex items-center gap-1 shrink-0 whitespace-nowrap"
             >
               <ChevronLeft className="w-4 h-4" />
-              Trước
+              <span className="hidden min-[360px]:inline">Trước</span>
             </button>
           )}
           <button
             type="button"
             onClick={() => toggleFlagQuestion(attempt.id, currentQuestion.id)}
-            className={`h-11 w-11 rounded-xl border flex items-center justify-center transition ${
+            className={`h-10 w-10 rounded-xl border flex items-center justify-center transition shrink-0 ${
               isFlagged
                 ? 'bg-amber-100 border-amber-300 text-amber-800'
                 : 'bg-white border-slate-200 text-ink-600'
             }`}
             title="Đánh dấu xem lại"
+            aria-label="Đánh dấu xem lại"
           >
             <Flag className="w-4 h-4" />
           </button>
           <button
             type="button"
             onClick={() => setCalcOpen((o) => !o)}
-            className={`h-11 px-3 rounded-xl border text-xs font-bold flex items-center gap-1.5 transition ${
+            className={`h-10 w-10 sm:w-auto sm:px-3 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition shrink-0 ${
               calcOpen
                 ? 'bg-brand-600 text-white border-brand-600'
                 : 'bg-white border-slate-200 text-ink-700'
             }`}
+            title="Máy tính & Bảng nháp"
+            aria-label="Máy tính & Bảng nháp"
           >
             <Calculator className="w-4 h-4" />
             <span className="hidden sm:inline">Máy tính</span>
@@ -333,7 +390,8 @@ export const ExamTakePage: React.FC = () => {
           <button
             type="button"
             onClick={() => setGridOpen(true)}
-            className="h-11 px-3 rounded-xl border border-slate-200 bg-white text-ink-700 text-xs font-bold flex items-center gap-1"
+            className="h-10 px-2.5 rounded-xl border border-slate-200 bg-white text-ink-700 text-xs font-bold flex items-center gap-1 shrink-0 whitespace-nowrap"
+            title="Danh sách câu hỏi"
           >
             <LayoutGrid className="w-4 h-4" />
             <span>{answeredCount}/{attempt.assignedQuestions.length}</span>
@@ -344,7 +402,7 @@ export const ExamTakePage: React.FC = () => {
           <button
             type="button"
             onClick={() => updateCurrentIndex(attempt.id, currentIndex + 1)}
-            className="h-11 px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm"
+            className="h-10 px-3.5 sm:px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm shrink-0 whitespace-nowrap"
           >
             Câu tiếp
             <ChevronRight className="w-4 h-4" />
@@ -353,7 +411,7 @@ export const ExamTakePage: React.FC = () => {
           <button
             type="button"
             onClick={() => setConfirmSubmitOpen(true)}
-            className="h-11 px-4 rounded-xl bg-support-600 hover:bg-support-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm"
+            className="h-10 px-3.5 sm:px-4 rounded-xl bg-support-600 hover:bg-support-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm shrink-0 whitespace-nowrap"
           >
             <Send className="w-4 h-4" />
             Nộp bài
@@ -373,7 +431,6 @@ export const ExamTakePage: React.FC = () => {
         lockedWaitSeconds={lockedWait}
         onResumeWarning={() => {
           setPausedModal(false);
-          document.documentElement.requestFullscreen?.().catch(() => {});
         }}
         onSendUnlockNote={(note) => submitUnlockRequestNote(attempt.id, note)}
         onVerifyRescuePin={(pin) => {
@@ -386,59 +443,63 @@ export const ExamTakePage: React.FC = () => {
       {/* Question Navigator Bottom Sheet */}
       {gridOpen && (
         <div className="fixed inset-0 z-[75] bg-ink-900/50 flex items-end sm:items-center justify-center p-0 sm:p-4">
-          <div className="w-full max-w-md bg-white rounded-t-2xl sm:rounded-2xl p-5 space-y-4">
-            <div className="flex items-center justify-between">
+          <div className="w-full max-w-md bg-white rounded-t-2xl sm:rounded-2xl max-h-[82dvh] flex flex-col overflow-hidden">
+            <div className="px-5 pt-4 pb-3 flex items-center justify-between border-b border-slate-100 shrink-0">
               <h3 className="text-sm font-bold text-ink-900">
                 Danh sách câu hỏi ({answeredCount}/{attempt.assignedQuestions.length} đã làm)
               </h3>
               <button
                 type="button"
                 onClick={() => setGridOpen(false)}
-                className="p-1.5 rounded-lg text-ink-500 hover:bg-slate-100"
+                className="p-1.5 rounded-lg text-ink-500 hover:bg-slate-100 shrink-0"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
-            <div className="grid grid-cols-5 gap-2">
-              {attempt.assignedQuestions.map((snap, idx) => {
-                const isDone = Boolean(attempt.answers[snap.questionId]);
-                const flagged = attempt.flaggedQuestionIds.includes(snap.questionId);
-                const isCur = idx === currentIndex;
-                return (
-                  <button
-                    key={snap.questionId}
-                    type="button"
-                    disabled={exam.oneWayMode && idx < currentIndex}
-                    onClick={() => {
-                      updateCurrentIndex(attempt.id, idx);
-                      setGridOpen(false);
-                    }}
-                    className={`h-11 rounded-xl font-mono text-xs font-bold border-2 relative transition disabled:opacity-35 ${
-                      isCur
-                        ? 'border-brand-600 bg-brand-600 text-white'
-                        : isDone
-                          ? 'border-support-500 bg-support-50 text-support-700'
-                          : 'border-slate-200 bg-white text-ink-700'
-                    }`}
-                  >
-                    {idx + 1}
-                    {flagged && (
-                      <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500 border border-white" />
-                    )}
-                  </button>
-                );
-              })}
+            <div className="p-4 overflow-y-auto max-h-[55dvh]">
+              <div className="grid grid-cols-5 gap-2">
+                {attempt.assignedQuestions.map((snap, idx) => {
+                  const isDone = Boolean(attempt.answers[snap.questionId]);
+                  const flagged = attempt.flaggedQuestionIds.includes(snap.questionId);
+                  const isCur = idx === currentIndex;
+                  return (
+                    <button
+                      key={snap.questionId}
+                      type="button"
+                      disabled={exam.oneWayMode && idx < currentIndex}
+                      onClick={() => {
+                        updateCurrentIndex(attempt.id, idx);
+                        setGridOpen(false);
+                      }}
+                      className={`h-11 rounded-xl font-mono text-xs font-bold border-2 relative transition disabled:opacity-35 ${
+                        isCur
+                          ? 'border-brand-600 bg-brand-600 text-white'
+                          : isDone
+                            ? 'border-support-500 bg-support-50 text-support-700'
+                            : 'border-slate-200 bg-white text-ink-700'
+                      }`}
+                    >
+                      {idx + 1}
+                      {flagged && (
+                        <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full bg-amber-500 border border-white" />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setGridOpen(false);
-                setConfirmSubmitOpen(true);
-              }}
-              className="w-full h-11 rounded-xl bg-support-600 text-white text-xs font-bold flex items-center justify-center gap-2"
-            >
-              <Send className="w-4 h-4" /> Kết thúc & Nộp bài
-            </button>
+            <div className="px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] border-t border-slate-100 bg-white shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setGridOpen(false);
+                  setConfirmSubmitOpen(true);
+                }}
+                className="w-full h-11 rounded-xl bg-support-600 text-white text-xs font-bold flex items-center justify-center gap-2"
+              >
+                <Send className="w-4 h-4" /> Kết thúc & Nộp bài
+              </button>
+            </div>
           </div>
         </div>
       )}

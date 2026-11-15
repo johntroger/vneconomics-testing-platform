@@ -117,7 +117,7 @@ interface ExamContextValue extends ExamPlatformState {
     slotId: string,
     newPhrase: string,
   ) => { updatedCount: number };
-  addCourse: (course: Omit<Course, 'id'>) => void;
+  addCourse: (course: Omit<Course, 'id'>) => Course;
   upsertQuestion: (question: Question) => void;
   deleteQuestion: (questionId: string) => void;
   importQuestionsBulk: (
@@ -1865,9 +1865,10 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const addCourse = useCallback(
-    (course: Omit<Course, 'id'>) => {
+    (course: Omit<Course, 'id'>): Course => {
       const newCourse: Course = {
         ...course,
+        ownerId: course.ownerId ?? instructorUser?.id,
         id: `course_${Date.now().toString(36)}`,
       };
       updateState((prev) => ({
@@ -1881,8 +1882,9 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
           body: JSON.stringify(newCourse),
         });
       }
+      return newCourse;
     },
-    [backendConnected, updateState],
+    [backendConnected, instructorUser?.id, updateState],
   );
 
   const upsertQuestion = useCallback(

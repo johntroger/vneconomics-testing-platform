@@ -65,7 +65,7 @@ export const ExamResultPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-surface-100 py-6 px-4">
+    <div className="min-h-screen bg-surface-100 pt-6 pb-10 safe-bottom px-4">
       <div className="max-w-lg mx-auto space-y-4">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 sm:p-6 space-y-5">
           <div className="flex items-start justify-between gap-3">
@@ -156,19 +156,19 @@ export const ExamResultPage: React.FC = () => {
             </div>
 
             {editEmailOpen && (
-              <form onSubmit={handleCorrectEmail} className="flex gap-2 pt-1">
+              <form onSubmit={handleCorrectEmail} className="flex flex-col sm:flex-row gap-2 pt-1">
                 <input
                   type="email"
                   value={emailDraft}
                   onChange={(e) => setEmailDraft(e.target.value)}
-                  className="flex-1 text-xs px-3 py-2 rounded-lg border border-slate-300 bg-white"
+                  className="flex-1 min-w-0 text-xs px-3 py-2.5 rounded-lg border border-slate-300 bg-white"
                   placeholder="Nhập email chính xác..."
                 />
                 <button
                   type="submit"
-                  className="px-3 py-2 rounded-lg bg-brand-600 text-white text-xs font-bold"
+                  className="px-3.5 py-2.5 rounded-lg bg-brand-600 text-white text-xs font-bold shrink-0 whitespace-nowrap"
                 >
-                  Cập nhật & Gửi lại
+                  Cập nhật &amp; Gửi lại
                 </button>
               </form>
             )}

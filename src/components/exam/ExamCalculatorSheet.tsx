@@ -46,28 +46,28 @@ export const ExamCalculatorSheet: React.FC<ExamCalculatorSheetProps> = ({
   };
 
   return (
-    <div className="fixed inset-x-0 bottom-0 z-[70] flex justify-center pointer-events-none">
-      <div className="w-full max-w-md bg-white border-t border-x border-slate-200 rounded-t-2xl shadow-2xl p-4 pointer-events-auto">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl">
+    <div className="fixed inset-x-0 bottom-16 sm:bottom-20 z-[70] flex justify-center px-2 sm:px-4 pointer-events-none safe-bottom">
+      <div className="w-full max-w-md bg-white border border-slate-200 rounded-2xl shadow-2xl p-3.5 sm:p-4 max-h-[72dvh] overflow-y-auto pointer-events-auto">
+        <div className="flex items-center justify-between gap-2 mb-3">
+          <div className="flex gap-1 bg-slate-100 p-1 rounded-xl min-w-0">
             <button
               type="button"
               onClick={() => setTab('CALC')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition whitespace-nowrap ${
                 tab === 'CALC' ? 'bg-white text-brand-600 shadow-sm' : 'text-ink-600'
               }`}
             >
-              <Calculator className="w-3.5 h-3.5" />
+              <Calculator className="w-3.5 h-3.5 shrink-0" />
               Máy tính Kinh tế
             </button>
             <button
               type="button"
               onClick={() => setTab('SCRATCH')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition ${
+              className={`px-2.5 sm:px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition whitespace-nowrap ${
                 tab === 'SCRATCH' ? 'bg-white text-brand-600 shadow-sm' : 'text-ink-600'
               }`}
             >
-              <NotebookPen className="w-3.5 h-3.5" />
+              <NotebookPen className="w-3.5 h-3.5 shrink-0" />
               Bảng nháp
             </button>
           </div>
@@ -75,7 +75,7 @@ export const ExamCalculatorSheet: React.FC<ExamCalculatorSheetProps> = ({
             type="button"
             onClick={onClose}
             aria-label="Đóng công cụ"
-            className="p-1.5 rounded-lg text-ink-500 hover:bg-slate-100"
+            className="p-1.5 rounded-lg text-ink-500 hover:bg-slate-100 shrink-0"
           >
             <X className="w-5 h-5" />
           </button>

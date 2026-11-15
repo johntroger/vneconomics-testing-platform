@@ -100,11 +100,11 @@ export const EssayGradingModal: React.FC<EssayGradingModalProps> = ({
   );
 
   return (
-    <div className="fixed inset-0 z-[90] bg-ink-900/60 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-          <div>
-            <h2 className="text-base font-extrabold text-ink-900">
+    <div className="fixed inset-0 z-[90] bg-ink-900/60 flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto">
+      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[90dvh] flex flex-col overflow-hidden">
+        <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-slate-200 flex items-center justify-between gap-2 bg-slate-50 shrink-0">
+          <div className="min-w-0">
+            <h2 className="text-sm sm:text-base font-extrabold text-ink-900 truncate">
               Rà soát Tự luận Rubric — {attempt.studentName} ({attempt.studentCode})
             </h2>
             <p className="text-xs text-ink-500">
@@ -114,13 +114,13 @@ export const EssayGradingModal: React.FC<EssayGradingModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-slate-200 text-ink-600"
+            className="p-1.5 rounded-lg hover:bg-slate-200 text-ink-600 shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <div className="p-5 overflow-y-auto space-y-4 text-xs">
+        <div className="p-4 sm:p-5 overflow-y-auto space-y-4 text-xs pb-[max(1.25rem,env(safe-area-inset-bottom))]">
           {statusBanner && (
             <div className="p-3 rounded-xl bg-support-50 border border-support-200 text-support-800 font-semibold flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4" />
@@ -209,7 +209,7 @@ export const EssayGradingModal: React.FC<EssayGradingModalProps> = ({
                         onOverrideScore(attempt.id, q.id, Number(draftScore));
                         setStatusBanner(`Đã cập nhật điểm thủ công cho câu ${idx + 1}.`);
                       }}
-                      className="px-3 py-1.5 rounded-lg bg-ink-900 text-white font-bold"
+                      className="px-3 py-1.5 rounded-lg bg-ink-900 text-white font-bold shrink-0 whitespace-nowrap"
                     >
                       Lưu điểm Override
                     </button>
@@ -222,7 +222,7 @@ export const EssayGradingModal: React.FC<EssayGradingModalProps> = ({
                         <Sparkles className="w-3.5 h-3.5" />
                         Bổ sung cách diễn đạt đúng mới vào Rubric &amp; Chấm lại cả lớp (&lt; 0.5s):
                       </span>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-2">
                         <select
                           value={selectedSlot}
                           onChange={(e) =>
@@ -231,7 +231,7 @@ export const EssayGradingModal: React.FC<EssayGradingModalProps> = ({
                               [q.id]: e.target.value,
                             }))
                           }
-                          className="px-2 py-1.5 rounded border bg-white text-[11px] font-semibold"
+                          className="w-full sm:w-auto max-w-full px-2 py-1.5 rounded border bg-white text-[11px] font-semibold"
                         >
                           {q.gradingRubric?.map((sl) => (
                             <option key={sl.id} value={sl.id}>
@@ -248,7 +248,7 @@ export const EssayGradingModal: React.FC<EssayGradingModalProps> = ({
                             }))
                           }
                           placeholder="Cụm từ mới hợp lý..."
-                          className="flex-1 min-w-[140px] px-2.5 py-1.5 rounded border bg-white"
+                          className="flex-1 min-w-0 px-2.5 py-1.5 rounded border bg-white"
                         />
                         <button
                           type="button"
@@ -264,9 +264,9 @@ export const EssayGradingModal: React.FC<EssayGradingModalProps> = ({
                               `✓ Đã thêm cụm từ vào Rubric & chấm lại tự động ${res.updatedCount} bài nộp trong ca!`,
                             );
                           }}
-                          className="px-3 py-1.5 rounded bg-brand-600 text-white font-bold"
+                          className="px-3 py-1.5 rounded bg-brand-600 text-white font-bold shrink-0 whitespace-nowrap"
                         >
-                          + Thêm & Chấm lại
+                          + Thêm &amp; Chấm lại
                         </button>
                       </div>
                     </div>

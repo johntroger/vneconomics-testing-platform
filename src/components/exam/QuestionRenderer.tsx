@@ -249,10 +249,10 @@ export const QuestionRenderer: React.FC<QuestionRendererProps> = ({
               value={stringVal}
               onChange={(e) => onChange(e.target.value)}
               placeholder="Ví dụ: 22 hoặc 12.5"
-              className="flex-1 h-12 px-4 rounded-xl border-2 border-slate-300 bg-white font-mono text-lg font-bold text-ink-900 focus:outline-none focus:border-brand-600"
+              className="flex-1 min-w-0 h-12 px-4 rounded-xl border-2 border-slate-300 bg-white font-mono text-lg font-bold text-ink-900 focus:outline-none focus:border-brand-600"
             />
             {question.numericalUnit && (
-              <span className="text-xs font-semibold text-ink-600 bg-white px-3 py-3 rounded-xl border border-slate-200 shrink-0">
+              <span className="text-xs font-semibold text-ink-600 bg-white px-3 py-3 rounded-xl border border-slate-200 shrink-0 whitespace-nowrap">
                 {question.numericalUnit}
               </span>
             )}
@@ -264,14 +264,14 @@ export const QuestionRenderer: React.FC<QuestionRendererProps> = ({
       {question.type === 'ESSAY' && (
         <div className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-2.5">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs font-semibold text-ink-700 flex items-center gap-1.5">
-              <FileText className="w-3.5 h-3.5 text-brand-600" />
-              Trả lời cực ngắn (1–2 câu, chấp nhận mũi tên {'->'})
+            <span className="text-xs font-semibold text-ink-700 flex items-center gap-1.5 min-w-0">
+              <FileText className="w-3.5 h-3.5 text-brand-600 shrink-0" />
+              <span>Trả lời cực ngắn (1–2 câu, chấp nhận mũi tên {'->'})</span>
             </span>
             <button
               type="button"
               onClick={() => handleEssayInput(`${stringVal} -> `.trimStart())}
-              className="text-[11px] font-mono font-semibold px-2.5 py-1 rounded-lg bg-white border border-brand-200 text-brand-700 hover:bg-brand-50 flex items-center gap-1"
+              className="text-[11px] font-mono font-semibold px-2.5 py-1 rounded-lg bg-white border border-brand-200 text-brand-700 hover:bg-brand-50 flex items-center gap-1 shrink-0 whitespace-nowrap"
             >
               Chèn <ArrowRight className="w-3 h-3" />
             </button>

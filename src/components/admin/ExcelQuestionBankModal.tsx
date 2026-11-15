@@ -167,19 +167,19 @@ export const ExcelQuestionBankModal: React.FC<ExcelQuestionBankModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5">
-      <div className="bg-white w-full max-w-5xl max-h-[92vh] rounded-2xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-5">
+      <div className="bg-white w-full max-w-5xl max-h-[92dvh] rounded-2xl border border-slate-200 shadow-2xl flex flex-col overflow-hidden">
         {/* Modal Header */}
-        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-support-600 text-white flex items-center justify-center shadow-xs">
+        <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-slate-200 flex items-center justify-between gap-2 bg-slate-50 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-support-600 text-white flex items-center justify-center shadow-xs shrink-0">
               <FileSpreadsheet className="w-5 h-5" />
             </div>
-            <div>
-              <h2 className="text-base font-extrabold text-ink-900">
+            <div className="min-w-0">
+              <h2 className="text-sm sm:text-base font-extrabold text-ink-900 truncate">
                 Nhập / Xuất Ngân hàng Đề thi bằng Excel (.xlsx)
               </h2>
-              <p className="text-xs text-ink-500">
+              <p className="text-xs text-ink-500 truncate">
                 Học phần: <strong className="text-ink-800">{course.code} — {course.name}</strong> (đang có {courseQuestions.length} câu)
               </p>
             </div>
@@ -187,7 +187,7 @@ export const ExcelQuestionBankModal: React.FC<ExcelQuestionBankModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            className="p-2 rounded-xl hover:bg-slate-200 text-ink-600"
+            className="p-2 rounded-xl hover:bg-slate-200 text-ink-600 shrink-0"
             aria-label="Đóng cửa sổ Excel"
           >
             <X className="w-5 h-5" />
@@ -195,11 +195,11 @@ export const ExcelQuestionBankModal: React.FC<ExcelQuestionBankModalProps> = ({
         </div>
 
         {/* Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-5">
           {/* Step 1: Download Template or Export Current Bank */}
           <div className="grid grid-cols-1 lg:grid-cols-[1.55fr_1fr] gap-3 items-stretch">
             <div className="p-4 rounded-xl border border-brand-200 bg-brand-50/50 space-y-3">
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-extrabold text-brand-900">
                     Bước 1A: Chọn Loại Câu Hỏi & Tải File Mẫu Excel
@@ -310,7 +310,7 @@ export const ExcelQuestionBankModal: React.FC<ExcelQuestionBankModalProps> = ({
               </div>
             </div>
 
-            <div className="p-4 rounded-xl border border-support-200 bg-support-50/50 flex items-center justify-between gap-3">
+            <div className="p-4 rounded-xl border border-support-200 bg-support-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <p className="text-xs font-extrabold text-support-900">
                   Bước 1B: Xuất Kho Câu Hỏi Hiện Tại Để Sửa Hàng Loạt
@@ -629,7 +629,7 @@ export const ExcelQuestionBankModal: React.FC<ExcelQuestionBankModalProps> = ({
         </div>
 
         {/* Footer Actions */}
-        <div className="px-5 py-3.5 border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2">
+        <div className="px-4 sm:px-5 py-3 pb-[max(0.875rem,env(safe-area-inset-bottom))] border-t border-slate-200 bg-slate-50 flex flex-wrap items-center justify-between gap-2 shrink-0">
           <p className="text-xs text-ink-500">
             {errorCount > 0 && validQuestions.length > 0
               ? `Các dòng lỗi (${errorCount}) sẽ tự động bỏ qua; chỉ nạp ${validQuestions.length} câu hợp lệ.`

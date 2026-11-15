@@ -231,30 +231,30 @@ export const HomePortalPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-surface-100 flex flex-col">
       {/* Top Minimal Header */}
-      <header className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-brand-600 text-white flex items-center justify-center font-bold shadow-sm">
+      <header className="bg-white border-b border-slate-200 px-3 sm:px-4 py-3 safe-top flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-9 h-9 rounded-xl bg-brand-600 text-white flex items-center justify-center font-bold shadow-sm shrink-0">
             <GraduationCap className="w-5 h-5" />
           </div>
-          <div>
-            <p className="text-sm font-extrabold text-ink-900 leading-none">
+          <div className="min-w-0">
+            <p className="text-sm font-extrabold text-ink-900 leading-none truncate">
               VNEconomics Testing
             </p>
-            <p className="text-[11px] text-ink-500 mt-0.5">
+            <p className="text-[11px] text-ink-500 mt-0.5 truncate">
               Khảo thí Trực tuyến Mobile-First
             </p>
           </div>
         </div>
         <Link
           to="/admin"
-          className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-ink-700 hover:border-brand-400 hover:text-brand-700 flex items-center gap-1.5 transition"
+          className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-ink-700 hover:border-brand-400 hover:text-brand-700 flex items-center gap-1.5 transition shrink-0 whitespace-nowrap"
         >
           <Lock className="w-3.5 h-3.5" />
           Giảng viên
         </Link>
       </header>
 
-      <main className="flex-1 flex flex-col items-center justify-center p-4 py-6">
+      <main className="flex-1 flex flex-col items-center justify-center px-3 sm:px-4 pt-5 pb-10 safe-bottom">
         <div className="w-full max-w-xl space-y-4">
           {/* Public Demo Sandbox Quick-Access Banner (Student & Instructor) */}
           <div className="bg-gradient-to-br from-brand-50 via-white to-support-50 rounded-2xl border border-brand-200 shadow-sm p-4 sm:p-5 space-y-3">
@@ -425,8 +425,8 @@ export const HomePortalPage: React.FC = () => {
                     Cấp MSSV Demo mới ngẫu nhiên
                   </button>
                 </div>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
+                <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
+                  <div className="min-w-0">
                     <label className="block text-xs font-semibold text-ink-700 mb-1">
                       Mã số SV (MSSV)
                     </label>
@@ -435,10 +435,10 @@ export const HomePortalPage: React.FC = () => {
                       value={studentCode}
                       onChange={(e) => setStudentCode(e.target.value)}
                       placeholder="3122102..."
-                      className="w-full h-11 px-3 rounded-xl border border-slate-300 font-mono text-sm font-semibold text-ink-900 placeholder:text-slate-300 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      className="w-full min-w-0 h-11 px-3 rounded-xl border border-slate-300 font-mono text-sm font-semibold text-ink-900 placeholder:text-slate-300 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-brand-500"
                     />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label className="block text-xs font-semibold text-ink-700 mb-1">
                       Lớp học phần
                     </label>
@@ -447,7 +447,7 @@ export const HomePortalPage: React.FC = () => {
                       value={className}
                       onChange={(e) => setClassName(e.target.value)}
                       placeholder="K48-KT01"
-                      className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm text-ink-900 placeholder:text-slate-300 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      className="w-full min-w-0 h-11 px-3 rounded-xl border border-slate-300 text-sm text-ink-900 placeholder:text-slate-300 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-brand-500"
                     />
                   </div>
                 </div>

@@ -79,8 +79,8 @@ export const PauseWarningModal: React.FC<PauseWarningModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[85] bg-ink-900/95 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
-      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 p-5 sm:p-6 text-ink-900">
+    <div className="fixed inset-0 z-[85] bg-ink-900/95 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+      <div className="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 p-4 sm:p-6 text-ink-900 max-h-[90dvh] overflow-y-auto">
         {!isLocked ? (
           <>
             <div className="flex items-center gap-3 mb-4">
@@ -171,11 +171,11 @@ export const PauseWarningModal: React.FC<PauseWarningModalProps> = ({
                   }}
                   placeholder="Hoặc nhập giải trình ngắn khác..."
                   maxLength={120}
-                  className="flex-1 text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  className="flex-1 min-w-0 text-xs px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
                 <button
                   type="submit"
-                  className="px-3 py-2 rounded-lg bg-ink-900 text-white text-xs font-semibold hover:bg-ink-800"
+                  className="px-3 py-2 rounded-lg bg-ink-900 text-white text-xs font-semibold hover:bg-ink-800 shrink-0 whitespace-nowrap"
                 >
                   Gửi
                 </button>
@@ -194,8 +194,8 @@ export const PauseWarningModal: React.FC<PauseWarningModalProps> = ({
                   onClick={() => setShowPinForm(true)}
                   className="w-full py-2.5 px-3 rounded-xl border border-slate-300 text-ink-700 text-xs font-semibold hover:bg-slate-50 flex items-center justify-center gap-1.5"
                 >
-                  <KeyRound className="w-3.5 h-3.5" />
-                  Giảng viên đứng cạnh? Nhập PIN cứu hộ 4 số để mở khóa ngay
+                  <KeyRound className="w-3.5 h-3.5 shrink-0" />
+                  <span>Giảng viên đứng cạnh? Nhập PIN cứu hộ 4 số để mở khóa ngay</span>
                 </button>
               ) : (
                 <form onSubmit={handlePinSubmit} className="space-y-2">
@@ -207,11 +207,11 @@ export const PauseWarningModal: React.FC<PauseWarningModalProps> = ({
                       value={pinInput}
                       onChange={(e) => setPinInput(e.target.value)}
                       placeholder="PIN 4 số (VD: 8888)"
-                      className="flex-1 text-sm font-mono tracking-widest px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      className="flex-1 min-w-0 text-sm font-mono tracking-widest px-3 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500"
                     />
                     <button
                       type="submit"
-                      className="px-4 py-2 rounded-lg bg-support-600 text-white text-xs font-semibold hover:bg-support-700"
+                      className="px-4 py-2 rounded-lg bg-support-600 text-white text-xs font-semibold hover:bg-support-700 shrink-0 whitespace-nowrap"
                     >
                       Mở khóa
                     </button>

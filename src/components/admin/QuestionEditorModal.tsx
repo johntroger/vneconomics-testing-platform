@@ -161,22 +161,23 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[90] bg-ink-900/60 flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[92vh] flex flex-col overflow-hidden">
-        <div className="px-5 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-          <h2 className="text-base font-extrabold text-ink-900">
+    <div className="fixed inset-0 z-[90] bg-ink-900/60 flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto">
+      <div className="w-full max-w-2xl bg-white rounded-2xl shadow-2xl border border-slate-200 max-h-[92dvh] flex flex-col overflow-hidden">
+        <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-slate-200 flex items-center justify-between gap-2 bg-slate-50 shrink-0">
+          <h2 className="text-sm sm:text-base font-extrabold text-ink-900 truncate">
             {initialQuestion ? 'Chỉnh sửa câu hỏi' : 'Thêm câu hỏi mới vào Ngân hàng'}
           </h2>
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg hover:bg-slate-200 text-ink-600"
+            className="p-1.5 rounded-lg hover:bg-slate-200 text-ink-600 shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        <form onSubmit={handleSubmit} className="p-5 overflow-y-auto space-y-4 text-xs">
+        <form onSubmit={handleSubmit} className="flex-1 flex flex-col min-h-0 overflow-hidden">
+          <div className="flex-1 p-4 sm:p-5 overflow-y-auto space-y-4 text-xs">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block font-bold text-ink-700 mb-1">Dạng câu hỏi</label>
@@ -272,13 +273,13 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
                     },
                   ])
                 }
-                className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-brand-700 font-bold flex items-center gap-1"
+                className="px-2.5 py-1 rounded-lg bg-white border border-slate-300 text-brand-700 font-bold flex items-center gap-1 shrink-0 whitespace-nowrap"
               >
                 <Plus className="w-3 h-3" /> Thêm biến
               </button>
             </div>
             {dynamicVars.map((dv, idx) => (
-              <div key={idx} className="grid grid-cols-5 gap-2 items-center">
+              <div key={idx} className="grid grid-cols-5 gap-1.5 sm:gap-2 items-center">
                 <input
                   value={dv.name}
                   onChange={(e) =>
@@ -286,7 +287,7 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
                       prev.map((x, i) => (i === idx ? { ...x, name: e.target.value } : x)),
                     )
                   }
-                  className="px-2 py-1.5 border rounded-lg font-mono font-bold"
+                  className="min-w-0 px-2 py-1.5 border rounded-lg font-mono font-bold"
                   placeholder="a"
                 />
                 <input
@@ -300,7 +301,7 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
                       ),
                     )
                   }
-                  className="px-2 py-1.5 border rounded-lg font-mono"
+                  className="min-w-0 px-2 py-1.5 border rounded-lg font-mono"
                   placeholder="Min"
                 />
                 <input
@@ -314,7 +315,7 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
                       ),
                     )
                   }
-                  className="px-2 py-1.5 border rounded-lg font-mono"
+                  className="min-w-0 px-2 py-1.5 border rounded-lg font-mono"
                   placeholder="Max"
                 />
                 <input
@@ -328,7 +329,7 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
                       ),
                     )
                   }
-                  className="px-2 py-1.5 border rounded-lg font-mono"
+                  className="min-w-0 px-2 py-1.5 border rounded-lg font-mono"
                   placeholder="Bước"
                 />
                 <button
@@ -379,9 +380,9 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
                           ),
                         )
                       }
-                      className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
+                      className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
                     />
-                    <label className="text-[11px] flex items-center gap-1 shrink-0">
+                    <label className="text-[11px] flex items-center gap-1 shrink-0 whitespace-nowrap">
                       <input
                         type="checkbox"
                         checked={Boolean(opt.pinLast)}
@@ -416,7 +417,7 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
                         ),
                       )
                     }
-                    className="flex-1 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
+                    className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-slate-300 bg-white"
                   />
                   <select
                     value={tf.answer ? 'T' : 'F'}
@@ -427,7 +428,7 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
                         ),
                       )
                     }
-                    className="px-2 py-1.5 rounded-lg border border-slate-300 font-bold"
+                    className="px-2 py-1.5 rounded-lg border border-slate-300 font-bold shrink-0"
                   >
                     <option value="T">ĐÚNG</option>
                     <option value="F">SAI</option>
@@ -439,7 +440,7 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
 
           {/* NUMERICAL */}
           {type === 'NUMERICAL' && (
-            <div className="grid grid-cols-3 gap-3 bg-slate-50 border border-slate-200 rounded-xl p-3">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 border border-slate-200 rounded-xl p-3">
               <div>
                 <label className="block font-bold mb-1">Biểu thức đáp án</label>
                 <input
@@ -472,18 +473,18 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
           {/* ESSAY Micro-Essay + Rubric + Live Tester */}
           {type === 'ESSAY' && (
             <div className="space-y-3 bg-brand-50/50 border border-brand-200 rounded-xl p-3.5">
-              <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                <div className="sm:col-span-2 min-w-0">
                   <label className="block font-bold text-ink-800 mb-1">
                     Đáp án mẫu ngắn (1–2 câu chuẩn Micro-Essay)
                   </label>
                   <input
                     value={sampleAnswer}
                     onChange={(e) => setSampleAnswer(e.target.value)}
-                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
+                    className="w-full min-w-0 px-3 py-1.5 rounded-lg border border-slate-300 bg-white"
                   />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <label className="block font-bold text-ink-800 mb-1">
                     Giới hạn ký tự
                   </label>
@@ -493,13 +494,13 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
                     max={500}
                     value={maxChars}
                     onChange={(e) => setMaxChars(Number(e.target.value))}
-                    className="w-full px-3 py-1.5 rounded-lg border border-slate-300 font-mono bg-white"
+                    className="w-full min-w-0 px-3 py-1.5 rounded-lg border border-slate-300 font-mono bg-white"
                   />
                 </div>
               </div>
 
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <span className="font-bold text-ink-800">
                     Bảng Ý chấm Rubric Từ khóa – Từ đồng nghĩa
                   </span>
@@ -517,7 +518,7 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
                         },
                       ])
                     }
-                    className="px-2 py-1 rounded bg-white border border-brand-300 text-brand-700 font-bold"
+                    className="px-2 py-1 rounded bg-white border border-brand-300 text-brand-700 font-bold shrink-0 whitespace-nowrap"
                   >
                     + Thêm Ý
                   </button>
@@ -538,7 +539,7 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
                             ),
                           )
                         }
-                        className="flex-1 px-2 py-1 border rounded font-semibold"
+                        className="flex-1 min-w-0 px-2 py-1 border rounded font-semibold"
                         placeholder="Tên ý chấm"
                       />
                       <input
@@ -552,14 +553,14 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
                             ),
                           )
                         }
-                        className="w-20 px-2 py-1 border rounded font-mono font-bold"
+                        className="w-16 sm:w-20 px-2 py-1 border rounded font-mono font-bold shrink-0"
                       />
                       <button
                         type="button"
                         onClick={() =>
                           setGradingRubric((prev) => prev.filter((_, i) => i !== idx))
                         }
-                        className="text-rose-600 px-1.5"
+                        className="text-rose-600 px-1.5 shrink-0"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
@@ -619,12 +620,12 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
                     value={testEssaySample}
                     onChange={(e) => setTestEssaySample(e.target.value)}
                     placeholder="Nhập thử câu trả lời của sinh viên để test Rubric..."
-                    className="flex-1 px-2.5 py-1.5 border rounded-lg"
+                    className="flex-1 min-w-0 px-2.5 py-1.5 border rounded-lg"
                   />
                   <button
                     type="button"
                     onClick={handleRunLiveRubricTest}
-                    className="px-3 py-1.5 rounded-lg bg-brand-600 text-white font-bold"
+                    className="px-3 py-1.5 rounded-lg bg-brand-600 text-white font-bold shrink-0 whitespace-nowrap"
                   >
                     Chấm thử
                   </button>
@@ -674,17 +675,19 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-2 border-t border-slate-200">
+          </div>
+
+          <div className="shrink-0 border-t border-slate-200 bg-slate-50 px-4 sm:px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex justify-end gap-2 text-xs">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl border border-slate-300 font-bold text-ink-700"
+              className="px-4 py-2 rounded-xl border border-slate-300 bg-white font-bold text-ink-700 shrink-0 whitespace-nowrap"
             >
               Hủy
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-brand-600 text-white font-bold hover:bg-brand-700"
+              className="px-5 py-2 rounded-xl bg-brand-600 text-white font-bold hover:bg-brand-700 shrink-0 whitespace-nowrap"
             >
               Lưu câu hỏi
             </button>

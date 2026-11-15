@@ -20,10 +20,23 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
   const [blackout, setBlackout] = useState(false);
   const [minorNotice, setMinorNotice] = useState<string | null>(null);
   const leftAtRef = useRef<number | null>(null);
+  const mountedAtRef = useRef<number>(Date.now());
+  const noticeTimerRef = useRef<number | null>(null);
   const baseViewportWidthRef = useRef<number>(
     typeof window !== 'undefined' ? window.innerWidth : 390,
   );
   const wakeLockRef = useRef<WakeLockSentinel | null>(null);
+
+  const showQuickNotice = useCallback((msg: string, durationMs = 1400) => {
+    if (noticeTimerRef.current !== null) {
+      window.clearTimeout(noticeTimerRef.current);
+    }
+    setMinorNotice(msg);
+    noticeTimerRef.current = window.setTimeout(() => {
+      setMinorNotice(null);
+      noticeTimerRef.current = null;
+    }, durationMs);
+  }, []);
 
   const acquireWakeLock = useCallback(async () => {
     try {
@@ -37,8 +50,14 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
 
   useEffect(() => {
     if (!enabled) return;
+    mountedAtRef.current = Date.now();
+    baseViewportWidthRef.current = window.visualViewport?.width ?? window.innerWidth;
     void acquireWakeLock();
     return () => {
+      if (noticeTimerRef.current !== null) {
+        window.clearTimeout(noticeTimerRef.current);
+        noticeTimerRef.current = null;
+      }
       void wakeLockRef.current?.release().catch(() => {});
     };
   }, [acquireWakeLock, enabled]);
@@ -46,6 +65,10 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
   const handleLeaveSignal = useCallback(
     (reason: string) => {
       if (!enabled || isLocked) return;
+      // Bỏ qua tín hiệu blur thoáng qua trong 1.5s đầu khi mới chuyển từ phòng chờ vào phòng thi
+      if (Date.now() - mountedAtRef.current < 1500 && document.visibilityState === 'visible') {
+        return;
+      }
       // Same-frame DOM blackout (< 16ms) before warning dialog
       setBlackout(true);
       if (leftAtRef.current === null) {
@@ -74,10 +97,13 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
         detail: `Mất focus ${elapsedMs}ms (< ${(gracePeriodMs / 1000).toFixed(1)}s ân xá thông minh)`,
       });
       onPauseChange(false, 0, '');
-      setMinorNotice(
-        `Đã tự động ẩn đề bảo vệ (${(elapsedMs / 1000).toFixed(1)}s — nằm trong ngưỡng ân xá, không trừ lượt vi phạm).`,
-      );
-      window.setTimeout(() => setMinorNotice(null), 4000);
+      // Chỉ hiện thông báo ngắn gọn nếu mất focus >= 350ms và ngoài 1.5s đầu lúc vào thi
+      if (elapsedMs >= 350 && Date.now() - mountedAtRef.current >= 1500) {
+        showQuickNotice(
+          `Đã ẩn đề bảo vệ (${(elapsedMs / 1000).toFixed(1)}s — không tính vi phạm)`,
+          1400,
+        );
+      }
       return;
     }
 
@@ -89,7 +115,7 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
       detail: `Rời màn hình thi ${awaySecs} giây`,
     });
     onPauseChange(true, awaySecs, `Bạn vừa rời màn hình ${awaySecs} giây.`);
-  }, [acquireWakeLock, enabled, gracePeriodMs, onPauseChange, onViolation]);
+  }, [acquireWakeLock, enabled, gracePeriodMs, onPauseChange, onViolation, showQuickNotice]);
 
   useEffect(() => {
     if (!enabled) return;
@@ -115,13 +141,19 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
     };
 
     const onResizeCheckSplit = () => {
+      if (Date.now() - mountedAtRef.current < 1500) return;
+
       const activeTag = document.activeElement?.tagName ?? '';
       const isTyping = activeTag === 'INPUT' || activeTag === 'TEXTAREA';
       const vw = window.visualViewport?.width ?? window.innerWidth;
       const vh = window.visualViewport?.height ?? window.innerHeight;
+
+      if (vw > baseViewportWidthRef.current) {
+        baseViewportWidthRef.current = vw;
+      }
       const baseW = baseViewportWidthRef.current;
 
-      const widthShrunk = vw < baseW * 0.85;
+      const widthShrunk = vw < baseW * 0.8;
       const heightShrunkWithoutTyping =
         !isTyping && vh < window.screen.height * 0.56 && window.innerHeight < window.screen.height * 0.62;
 
@@ -140,8 +172,7 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
     window.history.pushState({ examGuard: true }, '', window.location.href);
     const onPopState = () => {
       window.history.pushState({ examGuard: true }, '', window.location.href);
-      setMinorNotice('Thao tác vuốt quay lại bị khóa trong phòng thi để bảo vệ bài làm.');
-      window.setTimeout(() => setMinorNotice(null), 3200);
+      showQuickNotice('Thao tác vuốt quay lại bị khóa trong phòng thi.', 1400);
     };
 
     const blockAction = (e: Event) => {
@@ -198,7 +229,7 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
       document.removeEventListener('dragstart', blockAction);
       window.removeEventListener('keydown', onKeyDown);
     };
-  }, [enabled, handleLeaveSignal, handleReturnSignal, onViolation]);
+  }, [enabled, handleLeaveSignal, handleReturnSignal, onViolation, showQuickNotice]);
 
   if (!enabled) return null;
 
@@ -207,7 +238,9 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
       {blackout && (
         <div
           aria-hidden="true"
-          className="fixed inset-0 z-[90] bg-ink-900 flex flex-col items-center justify-center p-6 text-center text-white select-none"
+          onClick={handleReturnSignal}
+          onTouchEnd={handleReturnSignal}
+          className="fixed inset-0 z-[90] bg-ink-900 flex flex-col items-center justify-center p-6 text-center text-white select-none cursor-pointer"
         >
           <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center mb-4">
             <EyeOff className="w-8 h-8 text-amber-300" />
@@ -216,13 +249,16 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
           <p className="text-sm text-slate-300 max-w-xs leading-relaxed">
             Hệ thống phát hiện màn hình vừa mất focus hoặc bị chuyển đổi. Vui lòng quay lại màn hình thi ngay.
           </p>
+          <p className="text-xs text-amber-300 font-semibold mt-4">
+            Chạm vào màn hình nếu bạn đã quay lại bài thi
+          </p>
         </div>
       )}
 
       {minorNotice && !blackout && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-[75] w-[92%] max-w-md bg-ink-900 text-white text-xs font-medium px-3.5 py-2.5 rounded-xl shadow-lg flex items-center gap-2.5 animate-fadeIn">
-          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
-          <span>{minorNotice}</span>
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-[65] w-auto max-w-[92%] sm:max-w-sm bg-ink-900/95 text-white text-[11px] font-medium px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2 pointer-events-none animate-fadeIn">
+          <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+          <span className="truncate">{minorNotice}</span>
         </div>
       )}
     </>
