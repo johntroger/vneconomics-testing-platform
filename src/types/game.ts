@@ -5,6 +5,8 @@ import type {
   TrueFalseStatement,
 } from './exam';
 
+export type GameMode = 'CLASSIC' | 'TEAM';
+
 export type GameState =
   | 'LOBBY'
   | 'QUESTION_INTRO'
@@ -34,6 +36,8 @@ export interface GameSessionSummary {
   id: string;
   title: string;
   gamePin: string;
+  gameMode?: GameMode;
+  teamNames?: string[];
   showQuestionOnPlayer: boolean;
   requireStudentCode: boolean;
   isLocked: boolean;
@@ -65,6 +69,7 @@ export interface GamePlayer {
   id: string;
   nickname: string;
   studentCode: string;
+  teamName?: string;
   score: number;
   prevRank: number;
   rank: number;
@@ -72,11 +77,20 @@ export interface GamePlayer {
   correctCount: number;
 }
 
+export interface TeamStanding {
+  teamName: string;
+  memberCount: number;
+  totalScore: number;
+  avgScore: number;
+  rank: number;
+}
+
 export interface GameHostView {
   ok: boolean;
   session: GameSessionSummary;
   currentQuestion: GameQuestionSnapshot | null;
   players: GamePlayer[];
+  teamLeaderboard?: TeamStanding[];
   answeredCount: number;
   correctAnsweredCount: number;
   optionCounts: Record<string, number>;
@@ -87,6 +101,7 @@ export interface GamePlayerView {
   ok: boolean;
   session: GameSessionSummary;
   player: GamePlayer & {
+    teamRank?: number;
     gapToAbove: number;
     totalPlayers: number;
   };
@@ -102,6 +117,8 @@ export interface GamePlayerView {
 export interface CreateGamePayload {
   title: string;
   courseId?: string;
+  gameMode?: GameMode;
+  teamNames?: string[];
   showQuestionOnPlayer: boolean;
   requireStudentCode: boolean;
   doubleFinalQuestion: boolean;

@@ -167,6 +167,7 @@ export const GameHostPage: React.FC = () => {
       Hang: p.rank,
       Nickname: p.nickname,
       MSSV: p.studentCode || '',
+      Doi: p.teamName || '',
       TongDiem: p.score,
       SoCauDung: p.correctCount,
       TongSoCau: view.session.totalQuestions,
@@ -331,6 +332,11 @@ export const GameHostPage: React.FC = () => {
                       className="group px-4 py-2.5 rounded-2xl bg-slate-800 border border-slate-700 font-bold text-base flex items-center gap-2"
                     >
                       <span>{p.nickname}</span>
+                      {p.teamName && (
+                        <span className="text-xs px-2 py-0.5 rounded-md bg-violet-500/25 text-violet-200">
+                          {p.teamName}
+                        </span>
+                      )}
                       {p.studentCode && (
                         <span className="text-xs px-2 py-0.5 rounded-md bg-indigo-500/20 text-indigo-300">
                           {p.studentCode}
@@ -639,38 +645,70 @@ export const GameHostPage: React.FC = () => {
           <div className="flex-1 flex flex-col items-center justify-center max-w-2xl w-full mx-auto gap-6">
             <div className="flex items-center gap-3">
               <Trophy className="w-9 h-9 text-amber-400" />
-              <h2 className="text-3xl font-black">Bảng xếp hạng Top 5</h2>
+              <h2 className="text-3xl font-black">
+                {session.gameMode === 'TEAM' ? 'Bảng xếp hạng Đội (Điểm TB)' : 'Bảng xếp hạng Top 5'}
+              </h2>
             </div>
 
-            <div className="w-full space-y-3">
-              {players.slice(0, 5).map((p, idx) => (
-                <div
-                  key={p.id}
-                  className={`rounded-2xl px-5 py-4 flex items-center justify-between border ${
-                    idx === 0
-                      ? 'bg-amber-400/15 border-amber-400/50'
-                      : 'bg-slate-900 border-slate-800'
-                  }`}
-                >
-                  <div className="flex items-center gap-4">
-                    <span className="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center font-black text-lg">
-                      #{p.rank}
-                    </span>
-                    <div>
-                      <div className="font-bold text-lg">{p.nickname}</div>
-                      {p.streak >= 2 && (
-                        <div className="text-xs text-amber-300 font-bold flex items-center gap-1">
-                          <Flame className="w-3.5 h-3.5" /> Chuỗi {p.streak} câu đúng
+            {session.gameMode === 'TEAM' && view.teamLeaderboard && view.teamLeaderboard.length > 0 ? (
+              <div className="w-full space-y-3">
+                {view.teamLeaderboard.map((t, idx) => (
+                  <div
+                    key={t.teamName}
+                    className={`rounded-2xl px-5 py-4 flex items-center justify-between border ${
+                      idx === 0
+                        ? 'bg-amber-400/15 border-amber-400/50'
+                        : 'bg-slate-900 border-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <span className="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center font-black text-lg">
+                        #{t.rank}
+                      </span>
+                      <div>
+                        <div className="font-bold text-lg">{t.teamName}</div>
+                        <div className="text-xs text-slate-400">
+                          {t.memberCount} thành viên • Tổng {t.totalScore.toLocaleString('vi-VN')} đ
                         </div>
-                      )}
+                      </div>
+                    </div>
+                    <div className="text-2xl font-black text-emerald-400">
+                      {t.avgScore.toLocaleString('vi-VN')} <span className="text-xs text-slate-400">TB</span>
                     </div>
                   </div>
-                  <div className="text-2xl font-black text-emerald-400">
-                    {p.score.toLocaleString('vi-VN')}
+                ))}
+              </div>
+            ) : (
+              <div className="w-full space-y-3">
+                {players.slice(0, 5).map((p, idx) => (
+                  <div
+                    key={p.id}
+                    className={`rounded-2xl px-5 py-4 flex items-center justify-between border ${
+                      idx === 0
+                        ? 'bg-amber-400/15 border-amber-400/50'
+                        : 'bg-slate-900 border-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center gap-4">
+                      <span className="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center font-black text-lg">
+                        #{p.rank}
+                      </span>
+                      <div>
+                        <div className="font-bold text-lg">{p.nickname}</div>
+                        {p.streak >= 2 && (
+                          <div className="text-xs text-amber-300 font-bold flex items-center gap-1">
+                            <Flame className="w-3.5 h-3.5" /> Chuỗi {p.streak} câu đúng
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="text-2xl font-black text-emerald-400">
+                      {p.score.toLocaleString('vi-VN')}
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
 
             <button
               type="button"
@@ -693,39 +731,75 @@ export const GameHostPage: React.FC = () => {
             </div>
 
             {/* Podium Top 3 */}
-            <div className="grid grid-cols-3 gap-4 items-end w-full max-w-2xl">
-              {[players[1], players[0], players[2]].map((p, slot) => {
-                const place = slot === 0 ? 2 : slot === 1 ? 1 : 3;
-                const height = place === 1 ? 'h-48' : place === 2 ? 'h-36' : 'h-28';
-                const color =
-                  place === 1
-                    ? 'from-amber-400 to-yellow-500 text-slate-950'
-                    : place === 2
-                      ? 'from-slate-300 to-slate-400 text-slate-950'
-                      : 'from-orange-600 to-amber-700 text-white';
-                return (
-                  <div key={place} className="flex flex-col items-center">
-                    {p ? (
-                      <>
-                        <div className="font-black text-lg text-center truncate max-w-full">
-                          {p.nickname}
-                        </div>
-                        <div className="text-sm font-bold text-emerald-400 mb-2">
-                          {p.score.toLocaleString('vi-VN')} đ
-                        </div>
-                      </>
-                    ) : (
-                      <div className="text-slate-600 text-sm mb-2">—</div>
-                    )}
-                    <div
-                      className={`w-full ${height} rounded-t-3xl bg-gradient-to-b ${color} flex items-center justify-center text-4xl font-black shadow-2xl`}
-                    >
-                      #{place}
+            {session.gameMode === 'TEAM' && view.teamLeaderboard && view.teamLeaderboard.length > 0 ? (
+              <div className="grid grid-cols-3 gap-4 items-end w-full max-w-2xl">
+                {[view.teamLeaderboard[1], view.teamLeaderboard[0], view.teamLeaderboard[2]].map((t, slot) => {
+                  const place = slot === 0 ? 2 : slot === 1 ? 1 : 3;
+                  const height = place === 1 ? 'h-48' : place === 2 ? 'h-36' : 'h-28';
+                  const color =
+                    place === 1
+                      ? 'from-amber-400 to-yellow-500 text-slate-950'
+                      : place === 2
+                        ? 'from-slate-300 to-slate-400 text-slate-950'
+                        : 'from-orange-600 to-amber-700 text-white';
+                  return (
+                    <div key={place} className="flex flex-col items-center">
+                      {t ? (
+                        <>
+                          <div className="font-black text-lg text-center truncate max-w-full">
+                            {t.teamName}
+                          </div>
+                          <div className="text-sm font-bold text-emerald-400 mb-2">
+                            {t.avgScore.toLocaleString('vi-VN')} TB ({t.memberCount} TV)
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-slate-600 text-sm mb-2">—</div>
+                      )}
+                      <div
+                        className={`w-full ${height} rounded-t-3xl bg-gradient-to-b ${color} flex items-center justify-center text-4xl font-black shadow-2xl`}
+                      >
+                        #{place}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 gap-4 items-end w-full max-w-2xl">
+                {[players[1], players[0], players[2]].map((p, slot) => {
+                  const place = slot === 0 ? 2 : slot === 1 ? 1 : 3;
+                  const height = place === 1 ? 'h-48' : place === 2 ? 'h-36' : 'h-28';
+                  const color =
+                    place === 1
+                      ? 'from-amber-400 to-yellow-500 text-slate-950'
+                      : place === 2
+                        ? 'from-slate-300 to-slate-400 text-slate-950'
+                        : 'from-orange-600 to-amber-700 text-white';
+                  return (
+                    <div key={place} className="flex flex-col items-center">
+                      {p ? (
+                        <>
+                          <div className="font-black text-lg text-center truncate max-w-full">
+                            {p.nickname}
+                          </div>
+                          <div className="text-sm font-bold text-emerald-400 mb-2">
+                            {p.score.toLocaleString('vi-VN')} đ
+                          </div>
+                        </>
+                      ) : (
+                        <div className="text-slate-600 text-sm mb-2">—</div>
+                      )}
+                      <div
+                        className={`w-full ${height} rounded-t-3xl bg-gradient-to-b ${color} flex items-center justify-center text-4xl font-black shadow-2xl`}
+                      >
+                        #{place}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
 
             <div className="flex flex-wrap items-center justify-center gap-3">
               <button

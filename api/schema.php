@@ -1353,8 +1353,8 @@ function ensureGameSchema(PDO $pdo, string $driver): void
     }
 
     try {
-        $pdo->query('SELECT id, game_pin, state_version, double_final_question FROM game_sessions LIMIT 1');
-        $pdo->query('SELECT id, prev_rank, streak, is_kicked FROM game_players LIMIT 1');
+        $pdo->query('SELECT id, game_pin, state_version, double_final_question, game_mode, team_names_json FROM game_sessions LIMIT 1');
+        $pdo->query('SELECT id, prev_rank, streak, is_kicked, team_name FROM game_players LIMIT 1');
         $pdo->query('SELECT id, answer_payload_json, earned_ratio FROM game_answers LIMIT 1');
         $checked = true;
         return;
@@ -1370,6 +1370,8 @@ function ensureGameSchema(PDO $pdo, string $driver): void
                 course_id VARCHAR(64) NOT NULL DEFAULT '',
                 title VARCHAR(255) NOT NULL,
                 game_pin VARCHAR(16) NOT NULL,
+                game_mode VARCHAR(16) NOT NULL DEFAULT 'CLASSIC',
+                team_names_json TEXT NULL,
                 show_question_on_player TINYINT(1) NOT NULL DEFAULT 0,
                 require_student_code TINYINT(1) NOT NULL DEFAULT 0,
                 is_locked TINYINT(1) NOT NULL DEFAULT 0,
@@ -1391,6 +1393,7 @@ function ensureGameSchema(PDO $pdo, string $driver): void
                 session_id VARCHAR(64) NOT NULL,
                 nickname VARCHAR(100) NOT NULL,
                 student_code VARCHAR(64) NOT NULL DEFAULT '',
+                team_name VARCHAR(64) NOT NULL DEFAULT '',
                 device_token VARCHAR(128) NOT NULL,
                 score INT NOT NULL DEFAULT 0,
                 prev_rank INT NOT NULL DEFAULT 0,
@@ -1477,5 +1480,26 @@ function ensureGameSchema(PDO $pdo, string $driver): void
     foreach ($statements as $sql) {
         $pdo->exec($sql);
     }
+
+    // Safe idempotent column migrations for Phase 3 Team Mode
+    $alterStatements = $driver === 'mysql'
+        ? [
+            "ALTER TABLE game_sessions ADD COLUMN game_mode VARCHAR(16) NOT NULL DEFAULT 'CLASSIC'",
+            "ALTER TABLE game_sessions ADD COLUMN team_names_json TEXT NULL",
+            "ALTER TABLE game_players ADD COLUMN team_name VARCHAR(64) NOT NULL DEFAULT ''",
+        ]
+        : [
+            "ALTER TABLE game_sessions ADD COLUMN game_mode TEXT NOT NULL DEFAULT 'CLASSIC'",
+            "ALTER TABLE game_sessions ADD COLUMN team_names_json TEXT NULL",
+            "ALTER TABLE game_players ADD COLUMN team_name TEXT NOT NULL DEFAULT ''",
+        ];
+    foreach ($alterStatements as $alter) {
+        try {
+            $pdo->exec($alter);
+        } catch (Throwable) {
+            // Column already exists
+        }
+    }
+
     $checked = true;
 }

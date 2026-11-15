@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { ArrowRight, Gamepad2, Hash, IdCard, Lock, Sparkles, User } from 'lucide-react';
 import { joinLiveGame, lookupGamePin } from '../services/gameApi';
+import type { GameMode } from '../types/game';
 
 export const GameJoinPage: React.FC = () => {
   const { pin: paramPin } = useParams();
@@ -13,12 +14,15 @@ export const GameJoinPage: React.FC = () => {
   const [roomInfo, setRoomInfo] = useState<{
     sessionId: string;
     title: string;
+    gameMode: GameMode;
+    teamNames: string[];
     requireStudentCode: boolean;
     isLocked: boolean;
   } | null>(null);
 
   const [nickname, setNickname] = useState('');
   const [studentCode, setStudentCode] = useState('');
+  const [teamName, setTeamName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -44,6 +48,8 @@ export const GameJoinPage: React.FC = () => {
     setRoomInfo({
       sessionId: res.sessionId,
       title: res.title ?? 'Live Quiz Game',
+      gameMode: res.gameMode ?? 'CLASSIC',
+      teamNames: res.teamNames ?? [],
       requireStudentCode: Boolean(res.requireStudentCode),
       isLocked: Boolean(res.isLocked),
     });
@@ -77,6 +83,7 @@ export const GameJoinPage: React.FC = () => {
       gamePin: pin.trim(),
       nickname: nickname.trim(),
       studentCode: studentCode.trim(),
+      teamName: roomInfo.gameMode === 'TEAM' ? teamName : undefined,
     });
     setLoading(false);
 
@@ -190,6 +197,26 @@ export const GameJoinPage: React.FC = () => {
                       className="w-full pl-11 pr-4 py-3 rounded-2xl bg-white text-slate-900 font-bold uppercase focus:outline-none focus:ring-4 focus:ring-amber-400/50"
                     />
                   </div>
+                </div>
+              )}
+
+              {roomInfo.gameMode === 'TEAM' && roomInfo.teamNames.length > 0 && (
+                <div>
+                  <label className="block text-xs font-bold uppercase tracking-wider text-indigo-200 mb-1.5">
+                    Chọn Đội thi đấu (Để trống = Tự động chia đều)
+                  </label>
+                  <select
+                    value={teamName}
+                    onChange={(e) => setTeamName(e.target.value)}
+                    className="w-full px-4 py-3 rounded-2xl bg-white text-slate-900 font-bold focus:outline-none focus:ring-4 focus:ring-amber-400/50"
+                  >
+                    <option value="">Tự động chia đội cân bằng</option>
+                    {roomInfo.teamNames.map((tn) => (
+                      <option key={tn} value={tn}>
+                        {tn}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               )}
 

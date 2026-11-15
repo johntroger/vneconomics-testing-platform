@@ -187,7 +187,14 @@ export const GamePlayPage: React.FC = () => {
           <div className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider">
             PIN {session.gamePin} • Câu {session.currentQIndex + 1}/{session.totalQuestions}
           </div>
-          <div className="font-black text-base truncate">{player.nickname}</div>
+          <div className="font-black text-base truncate flex items-center gap-2">
+            <span>{player.nickname}</span>
+            {player.teamName && (
+              <span className="px-2 py-0.5 rounded-lg bg-violet-500/25 text-violet-200 text-xs font-bold">
+                {player.teamName}
+              </span>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           {player.streak >= 2 && (
@@ -591,6 +598,11 @@ export const GamePlayPage: React.FC = () => {
               <h2 className="text-4xl font-black text-amber-300 mt-1">
                 Hạng #{player.rank}
               </h2>
+              {player.teamName && (player.teamRank ?? 0) > 0 && (
+                <p className="text-violet-300 font-bold text-sm mt-1">
+                  {player.teamName}: Hạng #{player.teamRank}
+                </p>
+              )}
               <p className="text-slate-400 text-sm mt-1">
                 Tổng {player.totalPlayers} người chơi
               </p>

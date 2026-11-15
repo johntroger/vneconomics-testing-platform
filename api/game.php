@@ -194,7 +194,7 @@ function gradeGameAnswer(array $q, mixed $payload): array
 function getRankedPlayers(PDO $pdo, string $sessionId): array
 {
     $stmt = $pdo->prepare(
-        'SELECT id, nickname, student_code, score, prev_rank, streak, correct_count, joined_at
+        'SELECT id, nickname, student_code, team_name, score, prev_rank, streak, correct_count, joined_at
          FROM game_players
          WHERE session_id = :sid AND is_kicked = 0
          ORDER BY score DESC, correct_count DESC, joined_at ASC'
@@ -208,6 +208,7 @@ function getRankedPlayers(PDO $pdo, string $sessionId): array
             'id' => (string) $r['id'],
             'nickname' => (string) $r['nickname'],
             'studentCode' => (string) $r['student_code'],
+            'teamName' => (string) ($r['team_name'] ?? ''),
             'score' => (int) $r['score'],
             'prevRank' => (int) $r['prev_rank'],
             'rank' => $rank++,
@@ -216,6 +217,39 @@ function getRankedPlayers(PDO $pdo, string $sessionId): array
         ];
     }
     return $ranked;
+}
+
+function getTeamStandings(array $rankedPlayers, array $teamNames): array
+{
+    $buckets = [];
+    foreach ($teamNames as $tn) {
+        $name = trim((string) $tn);
+        if ($name !== '') {
+            $buckets[$name] = ['teamName' => $name, 'memberCount' => 0, 'totalScore' => 0, 'avgScore' => 0];
+        }
+    }
+    foreach ($rankedPlayers as $p) {
+        $tn = trim((string) ($p['teamName'] ?? ''));
+        if ($tn === '') {
+            continue;
+        }
+        if (!isset($buckets[$tn])) {
+            $buckets[$tn] = ['teamName' => $tn, 'memberCount' => 0, 'totalScore' => 0, 'avgScore' => 0];
+        }
+        $buckets[$tn]['memberCount']++;
+        $buckets[$tn]['totalScore'] += (int) $p['score'];
+    }
+    $list = [];
+    foreach ($buckets as $b) {
+        $b['avgScore'] = $b['memberCount'] > 0 ? (int) round($b['totalScore'] / $b['memberCount']) : 0;
+        $list[] = $b;
+    }
+    usort($list, static fn (array $a, array $b): int => $b['avgScore'] <=> $a['avgScore'] ?: $b['totalScore'] <=> $a['totalScore']);
+    $rank = 1;
+    foreach ($list as &$item) {
+        $item['rank'] = $rank++;
+    }
+    return $list;
 }
 
 if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) === __FILE__) {
@@ -265,17 +299,23 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         if ($pin === '') {
             jsonError('Vui lòng nhập mã PIN.', 400);
         }
-        $stmt = $pdo->prepare('SELECT id, title, game_pin, show_question_on_player, require_student_code, is_locked, state FROM game_sessions WHERE game_pin = :pin ORDER BY created_at DESC LIMIT 1');
+        $stmt = $pdo->prepare('SELECT id, title, game_pin, game_mode, team_names_json, show_question_on_player, require_student_code, is_locked, state FROM game_sessions WHERE game_pin = :pin ORDER BY created_at DESC LIMIT 1');
         $stmt->execute([':pin' => $pin]);
         $row = $stmt->fetch();
         if (!$row || $row['state'] === 'ENDED') {
             jsonError('Mã PIN không tồn tại hoặc trò chơi đã kết thúc.', 404);
+        }
+        $teamNames = json_decode((string) ($row['team_names_json'] ?? '[]'), true);
+        if (!is_array($teamNames)) {
+            $teamNames = [];
         }
         jsonResponse([
             'ok' => true,
             'sessionId' => $row['id'],
             'title' => $row['title'],
             'gamePin' => $row['game_pin'],
+            'gameMode' => (string) ($row['game_mode'] ?? 'CLASSIC'),
+            'teamNames' => $teamNames,
             'showQuestionOnPlayer' => (bool) $row['show_question_on_player'],
             'requireStudentCode' => (bool) $row['require_student_code'],
             'isLocked' => (bool) $row['is_locked'],
@@ -287,6 +327,12 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         $admin = requireAdminAuth();
         $title = trim((string) ($body['title'] ?? 'Live Quiz Game'));
         $courseId = trim((string) ($body['courseId'] ?? ''));
+        $gameMode = strtoupper(trim((string) ($body['gameMode'] ?? 'CLASSIC'))) === 'TEAM' ? 'TEAM' : 'CLASSIC';
+        $rawTeamNames = is_array($body['teamNames'] ?? null) ? $body['teamNames'] : [];
+        $teamNames = array_values(array_filter(array_map(static fn ($t) => mb_substr(trim((string) $t), 0, 40, 'UTF-8'), $rawTeamNames)));
+        if ($gameMode === 'TEAM' && count($teamNames) < 2) {
+            $teamNames = ['Đội Đỏ', 'Đội Xanh', 'Đội Vàng', 'Đội Lục'];
+        }
         $showQuestionOnPlayer = !empty($body['showQuestionOnPlayer']) ? 1 : 0;
         $requireStudentCode = !empty($body['requireStudentCode']) ? 1 : 0;
         $doubleFinalQuestion = array_key_exists('doubleFinalQuestion', $body) ? (!empty($body['doubleFinalQuestion']) ? 1 : 0) : 1;
@@ -295,6 +341,16 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
 
         if (count($questionsSnapshot) === 0) {
             jsonError('Cần ít nhất 1 câu hỏi để tạo phòng Game.', 400);
+        }
+
+        // Cleanup old ENDED sessions (> 30 days)
+        $cutoffIso = gmdate('c', time() - 30 * 86400);
+        try {
+            $pdo->prepare("DELETE FROM game_answers WHERE session_id IN (SELECT id FROM game_sessions WHERE state = 'ENDED' AND created_at < :cut)")->execute([':cut' => $cutoffIso]);
+            $pdo->prepare("DELETE FROM game_players WHERE session_id IN (SELECT id FROM game_sessions WHERE state = 'ENDED' AND created_at < :cut)")->execute([':cut' => $cutoffIso]);
+            $pdo->prepare("DELETE FROM game_sessions WHERE state = 'ENDED' AND created_at < :cut")->execute([':cut' => $cutoffIso]);
+        } catch (Throwable) {
+            // Non-critical cleanup
         }
 
         // Generate unique 6-digit PIN among non-ENDED sessions
@@ -316,12 +372,12 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         $now = nowIso();
         $stmt = $pdo->prepare(
             'INSERT INTO game_sessions (
-                id, owner_id, course_id, title, game_pin,
+                id, owner_id, course_id, title, game_pin, game_mode, team_names_json,
                 show_question_on_player, require_student_code, is_locked, double_final_question,
                 default_time_sec, questions_snapshot_json, state, current_q_index,
                 question_started_at_ms, question_ends_at_ms, state_version, created_at
             ) VALUES (
-                :id, :owner, :cid, :title, :pin,
+                :id, :owner, :cid, :title, :pin, :gm, :tn,
                 :sqp, :rsc, 0, :dfq,
                 :dts, :qs, :st, 0,
                 0, 0, 1, :cat
@@ -333,6 +389,8 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             ':cid' => $courseId,
             ':title' => $title,
             ':pin' => $pin,
+            ':gm' => $gameMode,
+            ':tn' => json_encode($teamNames, JSON_UNESCAPED_UNICODE),
             ':sqp' => $showQuestionOnPlayer,
             ':rsc' => $requireStudentCode,
             ':dfq' => $doubleFinalQuestion,
@@ -402,15 +460,41 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             jsonError('Phòng này yêu cầu nhập Mã số sinh viên (MSSV).', 400);
         }
 
+        $requestedTeam = trim((string) ($body['teamName'] ?? ''));
+        $assignedTeam = '';
+        if ((string) ($session['game_mode'] ?? 'CLASSIC') === 'TEAM') {
+            $teamNames = json_decode((string) ($session['team_names_json'] ?? '[]'), true);
+            if (!is_array($teamNames) || count($teamNames) === 0) {
+                $teamNames = ['Đội Đỏ', 'Đội Xanh', 'Đội Vàng', 'Đội Lục'];
+            }
+            if ($requestedTeam !== '' && in_array($requestedTeam, $teamNames, true)) {
+                $assignedTeam = $requestedTeam;
+            } else {
+                // Auto-balance to team with fewest active players
+                $counts = array_fill_keys($teamNames, 0);
+                $cntStmt = $pdo->prepare('SELECT team_name, COUNT(*) AS c FROM game_players WHERE session_id = :sid AND is_kicked = 0 GROUP BY team_name');
+                $cntStmt->execute([':sid' => $session['id']]);
+                foreach ($cntStmt->fetchAll() as $cr) {
+                    $tn = (string) ($cr['team_name'] ?? '');
+                    if (isset($counts[$tn])) {
+                        $counts[$tn] = (int) $cr['c'];
+                    }
+                }
+                asort($counts);
+                $assignedTeam = (string) array_key_first($counts);
+            }
+        }
+
         $playerId = generateId('gpl');
         $pdo->prepare(
-            'INSERT INTO game_players (id, session_id, nickname, student_code, device_token, score, prev_rank, streak, correct_count, is_kicked, joined_at)
-             VALUES (:id, :sid, :nick, :code, :dt, 0, 0, 0, 0, 0, :jat)'
+            'INSERT INTO game_players (id, session_id, nickname, student_code, team_name, device_token, score, prev_rank, streak, correct_count, is_kicked, joined_at)
+             VALUES (:id, :sid, :nick, :code, :team, :dt, 0, 0, 0, 0, 0, :jat)'
         )->execute([
             ':id' => $playerId,
             ':sid' => $session['id'],
             ':nick' => mb_substr($nickname, 0, 40, 'UTF-8'),
             ':code' => mb_substr($studentCode, 0, 32, 'UTF-8'),
+            ':team' => $assignedTeam,
             ':dt' => $deviceToken,
             ':jat' => nowIso(),
         ]);
@@ -424,6 +508,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             'playerId' => $playerId,
             'nickname' => mb_substr($nickname, 0, 40, 'UTF-8'),
             'studentCode' => mb_substr($studentCode, 0, 32, 'UTF-8'),
+            'teamName' => $assignedTeam,
         ]);
     }
 
@@ -611,12 +696,21 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         usort($topAnswers, static fn (array $a, array $b): int => $b['count'] <=> $a['count']);
         $topAnswers = array_slice($topAnswers, 0, 5);
 
+        $teamNames = json_decode((string) ($session['team_names_json'] ?? '[]'), true);
+        if (!is_array($teamNames)) {
+            $teamNames = [];
+        }
+        $gameMode = (string) ($session['game_mode'] ?? 'CLASSIC');
+        $teamLeaderboard = $gameMode === 'TEAM' ? getTeamStandings($ranked, $teamNames) : [];
+
         jsonResponse([
             'ok' => true,
             'session' => [
                 'id' => $session['id'],
                 'title' => $session['title'],
                 'gamePin' => $session['game_pin'],
+                'gameMode' => $gameMode,
+                'teamNames' => $teamNames,
                 'showQuestionOnPlayer' => (bool) $session['show_question_on_player'],
                 'requireStudentCode' => (bool) $session['require_student_code'],
                 'isLocked' => (bool) $session['is_locked'],
@@ -631,6 +725,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             ],
             'currentQuestion' => $curQ,
             'players' => $ranked,
+            'teamLeaderboard' => $teamLeaderboard,
             'answeredCount' => count($ansRows),
             'correctAnsweredCount' => $correctAnswered,
             'optionCounts' => $optionCounts,
@@ -678,12 +773,29 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             }
         }
 
+        $teamNames = json_decode((string) ($session['team_names_json'] ?? '[]'), true);
+        if (!is_array($teamNames)) {
+            $teamNames = [];
+        }
+        $gameMode = (string) ($session['game_mode'] ?? 'CLASSIC');
+        $teamLeaderboard = $gameMode === 'TEAM' ? getTeamStandings($ranked, $teamNames) : [];
+        $myTeamName = (string) ($player['team_name'] ?? '');
+        $myTeamRank = 0;
+        foreach ($teamLeaderboard as $tl) {
+            if ($tl['teamName'] === $myTeamName) {
+                $myTeamRank = (int) $tl['rank'];
+                break;
+            }
+        }
+
         jsonResponse([
             'ok' => true,
             'session' => [
                 'id' => $session['id'],
                 'title' => $session['title'],
                 'gamePin' => $session['game_pin'],
+                'gameMode' => $gameMode,
+                'teamNames' => $teamNames,
                 'showQuestionOnPlayer' => (bool) $session['show_question_on_player'],
                 'state' => $state,
                 'currentQIndex' => $curIdx,
@@ -697,6 +809,8 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
                 'id' => $player['id'],
                 'nickname' => $player['nickname'],
                 'studentCode' => $player['student_code'],
+                'teamName' => $myTeamName,
+                'teamRank' => $myTeamRank,
                 'score' => (int) $player['score'],
                 'prevRank' => (int) $player['prev_rank'],
                 'rank' => $myRank,

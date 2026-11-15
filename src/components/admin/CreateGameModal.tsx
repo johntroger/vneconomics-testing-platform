@@ -3,7 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { Gamepad2, Play, X } from 'lucide-react';
 import { createLiveGame } from '../../services/gameApi';
 import type { Question } from '../../types/exam';
+import type { GameMode } from '../../types/game';
 import { buildGameQuestionsSnapshot } from '../../utils/gameSnapshotBuilder';
+
+const DEFAULT_TEAMS = ['Đội Đỏ', 'Đội Xanh', 'Đội Vàng', 'Đội Lục', 'Đội Tím', 'Đội Cam'];
 
 interface CreateGameModalProps {
   open: boolean;
@@ -22,6 +25,8 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
 }) => {
   const navigate = useNavigate();
   const [title, setTitle] = useState(defaultTitle);
+  const [gameMode, setGameMode] = useState<GameMode>('CLASSIC');
+  const [teamCount, setTeamCount] = useState(4);
   const [showQuestionOnPlayer, setShowQuestionOnPlayer] = useState(false);
   const [requireStudentCode, setRequireStudentCode] = useState(false);
   const [doubleFinalQuestion, setDoubleFinalQuestion] = useState(true);
@@ -53,6 +58,8 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
     const res = await createLiveGame({
       title: title.trim() || 'Live Quiz Game',
       courseId,
+      gameMode,
+      teamNames: gameMode === 'TEAM' ? DEFAULT_TEAMS.slice(0, teamCount) : [],
       showQuestionOnPlayer,
       requireStudentCode,
       doubleFinalQuestion,
@@ -104,6 +111,55 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
             <span className="block text-xs text-slate-500 mt-0.5">
               Hỗ trợ Trắc nghiệm 1/nhiều đáp án, Đúng/Sai, Tính toán số (Numerical) &amp; Tự luận ngắn có Rubric.
             </span>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1.5">
+              Chế độ thi đấu
+            </label>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setGameMode('CLASSIC')}
+                className={`py-2 px-3 rounded-xl font-bold text-xs border transition ${
+                  gameMode === 'CLASSIC'
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                Cá nhân (Classic)
+              </button>
+              <button
+                type="button"
+                onClick={() => setGameMode('TEAM')}
+                className={`py-2 px-3 rounded-xl font-bold text-xs border transition ${
+                  gameMode === 'TEAM'
+                    ? 'bg-indigo-600 text-white border-indigo-600'
+                    : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                }`}
+              >
+                Theo Nhóm (Team Mode)
+              </button>
+            </div>
+            {gameMode === 'TEAM' && (
+              <div className="mt-2 flex items-center gap-2 text-xs">
+                <span className="text-slate-500 font-semibold">Số đội:</span>
+                {[2, 3, 4, 6].map((cnt) => (
+                  <button
+                    key={cnt}
+                    type="button"
+                    onClick={() => setTeamCount(cnt)}
+                    className={`px-2.5 py-1 rounded-lg font-bold border ${
+                      teamCount === cnt
+                        ? 'bg-violet-600 text-white border-violet-600'
+                        : 'bg-white text-slate-700 border-slate-200'
+                    }`}
+                  >
+                    {cnt} đội
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div>

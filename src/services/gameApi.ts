@@ -11,11 +11,13 @@ import type { Question } from '../types/exam';
 import type {
   CreateGamePayload,
   GameHostView,
+  GameMode,
   GamePlayer,
   GamePlayerView,
   GamePollResponse,
   GameQuestionSnapshot,
   GameState,
+  TeamStanding,
 } from '../types/game';
 
 const LOCAL_GAMES_KEY = 'vne_live_games_demo_v1';
@@ -34,6 +36,8 @@ interface LocalGameRecord {
   id: string;
   title: string;
   gamePin: string;
+  gameMode: GameMode;
+  teamNames: string[];
   showQuestionOnPlayer: boolean;
   requireStudentCode: boolean;
   isLocked: boolean;
@@ -113,12 +117,37 @@ function rankLocalPlayers(game: LocalGameRecord): GamePlayer[] {
     id: p.id,
     nickname: p.nickname,
     studentCode: p.studentCode,
+    teamName: p.teamName ?? '',
     score: p.score,
     prevRank: p.prevRank,
     rank: idx + 1,
     streak: p.streak,
     correctCount: p.correctCount,
   }));
+}
+
+function rankLocalTeams(players: GamePlayer[], teamNames: string[]): TeamStanding[] {
+  const map = new Map<string, { memberCount: number; totalScore: number }>();
+  for (const tn of teamNames) {
+    if (tn.trim()) map.set(tn.trim(), { memberCount: 0, totalScore: 0 });
+  }
+  for (const p of players) {
+    const tn = (p.teamName ?? '').trim();
+    if (!tn) continue;
+    const entry = map.get(tn) ?? { memberCount: 0, totalScore: 0 };
+    entry.memberCount += 1;
+    entry.totalScore += p.score;
+    map.set(tn, entry);
+  }
+  const list = Array.from(map.entries()).map(([teamName, val]) => ({
+    teamName,
+    memberCount: val.memberCount,
+    totalScore: val.totalScore,
+    avgScore: val.memberCount > 0 ? Math.round(val.totalScore / val.memberCount) : 0,
+    rank: 0,
+  }));
+  list.sort((a, b) => b.avgScore - a.avgScore || b.totalScore - a.totalScore);
+  return list.map((t, i) => ({ ...t, rank: i + 1 }));
 }
 
 function gradeLocalAnswer(
@@ -244,10 +273,17 @@ export async function createLiveGame(
   const games = readLocalGames();
   const id = `game_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
   const gamePin = String(Math.floor(100000 + Math.random() * 900000));
+  const gameMode: GameMode = payload.gameMode === 'TEAM' ? 'TEAM' : 'CLASSIC';
+  const teamNames =
+    gameMode === 'TEAM'
+      ? (payload.teamNames?.filter((t) => t.trim()) ?? ['Đội Đỏ', 'Đội Xanh', 'Đội Vàng', 'Đội Lục'])
+      : [];
   games[id] = {
     id,
     title: payload.title,
     gamePin,
+    gameMode,
+    teamNames,
     showQuestionOnPlayer: payload.showQuestionOnPlayer,
     requireStudentCode: payload.requireStudentCode,
     isLocked: false,
@@ -271,6 +307,8 @@ export async function lookupGamePin(pin: string): Promise<{
   ok: boolean;
   sessionId?: string;
   title?: string;
+  gameMode?: GameMode;
+  teamNames?: string[];
   requireStudentCode?: boolean;
   isLocked?: boolean;
   error?: string;
@@ -280,6 +318,8 @@ export async function lookupGamePin(pin: string): Promise<{
       ok: boolean;
       sessionId: string;
       title: string;
+      gameMode?: GameMode;
+      teamNames?: string[];
       requireStudentCode: boolean;
       isLocked: boolean;
     }>(`/api/game.php?action=lookup_pin&pin=${encodeURIComponent(pin.trim())}`, {
@@ -303,6 +343,8 @@ export async function lookupGamePin(pin: string): Promise<{
     ok: true,
     sessionId: found.id,
     title: found.title,
+    gameMode: found.gameMode ?? 'CLASSIC',
+    teamNames: found.teamNames ?? [],
     requireStudentCode: found.requireStudentCode,
     isLocked: found.isLocked,
   };
@@ -312,11 +354,13 @@ export async function joinLiveGame(params: {
   gamePin: string;
   nickname: string;
   studentCode?: string;
+  teamName?: string;
 }): Promise<{
   ok: boolean;
   sessionId?: string;
   playerId?: string;
   nickname?: string;
+  teamName?: string;
   error?: string;
 }> {
   const deviceToken = getOrCreateDeviceToken();
@@ -363,10 +407,26 @@ export async function joinLiveGame(params: {
     return { ok: false, error: 'Phòng này yêu cầu nhập MSSV.' };
   }
   const playerId = `gpl_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+  let assignedTeam = '';
+  if (game.gameMode === 'TEAM') {
+    const tNames = game.teamNames?.length ? game.teamNames : ['Đội Đỏ', 'Đội Xanh'];
+    if (params.teamName && tNames.includes(params.teamName)) {
+      assignedTeam = params.teamName;
+    } else {
+      const counts = new Map<string, number>(tNames.map((t) => [t, 0]));
+      for (const p of game.players) {
+        if (!p.isKicked && p.teamName && counts.has(p.teamName)) {
+          counts.set(p.teamName, (counts.get(p.teamName) ?? 0) + 1);
+        }
+      }
+      assignedTeam = Array.from(counts.entries()).sort((a, b) => a[1] - b[1])[0][0];
+    }
+  }
   game.players.push({
     id: playerId,
     nickname: params.nickname.trim().slice(0, 40),
     studentCode: (params.studentCode ?? '').trim().toUpperCase(),
+    teamName: assignedTeam,
     deviceToken,
     score: 0,
     prevRank: 0,
@@ -378,7 +438,13 @@ export async function joinLiveGame(params: {
   game.stateVersion += 1;
   writeLocalGames(games);
   broadcastGameUpdate(game.id);
-  return { ok: true, sessionId: game.id, playerId, nickname: params.nickname.trim() };
+  return {
+    ok: true,
+    sessionId: game.id,
+    playerId,
+    nickname: params.nickname.trim(),
+    teamName: assignedTeam,
+  };
 }
 
 export async function pollGameStatus(pin: string): Promise<GamePollResponse | null> {
@@ -458,12 +524,17 @@ export async function fetchGameHostView(sessionId: string): Promise<GameHostView
     .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 
+  const teamLeaderboard =
+    game.gameMode === 'TEAM' ? rankLocalTeams(ranked, game.teamNames ?? []) : [];
+
   return {
     ok: true,
     session: {
       id: game.id,
       title: game.title,
       gamePin: game.gamePin,
+      gameMode: game.gameMode ?? 'CLASSIC',
+      teamNames: game.teamNames ?? [],
       showQuestionOnPlayer: game.showQuestionOnPlayer,
       requireStudentCode: game.requireStudentCode,
       isLocked: game.isLocked,
@@ -478,6 +549,7 @@ export async function fetchGameHostView(sessionId: string): Promise<GameHostView
     },
     currentQuestion: game.questionsSnapshot[game.currentQIndex] ?? null,
     players: ranked,
+    teamLeaderboard,
     answeredCount: ansRows.length,
     correctAnsweredCount,
     optionCounts,
@@ -613,6 +685,11 @@ export async function fetchGamePlayerView(
     (a) => a.playerId === playerId && a.questionIndex === game.currentQIndex,
   );
 
+  const teamLeaderboard =
+    game.gameMode === 'TEAM' ? rankLocalTeams(ranked, game.teamNames ?? []) : [];
+  const myTeamRank =
+    teamLeaderboard.find((t) => t.teamName === (player.teamName ?? ''))?.rank ?? 0;
+
   return {
     ok: true,
     data: {
@@ -621,6 +698,8 @@ export async function fetchGamePlayerView(
         id: game.id,
         title: game.title,
         gamePin: game.gamePin,
+        gameMode: game.gameMode ?? 'CLASSIC',
+        teamNames: game.teamNames ?? [],
         showQuestionOnPlayer: game.showQuestionOnPlayer,
         requireStudentCode: game.requireStudentCode,
         isLocked: game.isLocked,
@@ -637,6 +716,8 @@ export async function fetchGamePlayerView(
         id: player.id,
         nickname: player.nickname,
         studentCode: player.studentCode,
+        teamName: player.teamName ?? '',
+        teamRank: myTeamRank,
         score: player.score,
         prevRank: player.prevRank,
         rank: myRank,
