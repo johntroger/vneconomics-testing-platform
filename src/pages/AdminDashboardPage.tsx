@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { CoursesTabPanel } from '../components/admin/CoursesTabPanel';
 import { EssayGradingModal } from '../components/admin/EssayGradingModal';
+import { ExamAnalyticsCharts } from '../components/admin/ExamAnalyticsCharts';
 import { ExcelQuestionBankModal } from '../components/admin/ExcelQuestionBankModal';
 import { GoogleSignInButton } from '../components/admin/GoogleSignInButton';
 import { LiveProctorTable } from '../components/admin/LiveProctorTable';
@@ -1988,6 +1989,12 @@ export const AdminDashboardPage: React.FC = () => {
                   ))}
               </div>
             </div>
+
+            <ExamAnalyticsCharts
+              exam={selectedExam}
+              attempts={attempts}
+              itemAnalysisRows={itemAnalysisRows}
+            />
 
             <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
