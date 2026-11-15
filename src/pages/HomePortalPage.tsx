@@ -335,49 +335,51 @@ export const HomePortalPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-surface-100 flex flex-col">
-      {/* Top Minimal Header */}
-      <header className="bg-white border-b border-slate-200 px-3 sm:px-4 py-3 safe-top flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2.5 min-w-0">
-          <div className="w-9 h-9 rounded-xl bg-brand-600 text-white flex items-center justify-center font-bold shadow-sm shrink-0">
-            <GraduationCap className="w-5 h-5" />
+    <div className="min-h-screen bg-gradient-to-b from-slate-50 via-surface-100 to-slate-100 flex flex-col">
+      {/* Top Header aligned to content container */}
+      <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-3 sm:px-6 py-3 safe-top">
+        <div className="max-w-5xl mx-auto w-full flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-600 to-brand-700 text-white flex items-center justify-center font-bold shadow-sm shrink-0">
+              <GraduationCap className="w-5 h-5" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-sm font-extrabold text-ink-900 leading-none truncate">
+                VNEconomics Testing
+              </p>
+              <p className="text-[11px] text-ink-500 mt-1 truncate">
+                Khảo thí Trực tuyến Mobile-First
+              </p>
+            </div>
           </div>
-          <div className="min-w-0">
-            <p className="text-sm font-extrabold text-ink-900 leading-none truncate">
-              VNEconomics Testing
-            </p>
-            <p className="text-[11px] text-ink-500 mt-0.5 truncate">
-              Khảo thí Trực tuyến Mobile-First
-            </p>
-          </div>
+          <Link
+            to="/admin"
+            className="text-xs font-semibold px-3.5 py-2 rounded-xl border border-slate-200 bg-white text-ink-700 hover:border-brand-400 hover:text-brand-700 hover:bg-brand-50/40 flex items-center gap-1.5 transition shadow-2xs shrink-0 whitespace-nowrap"
+          >
+            <Lock className="w-3.5 h-3.5" />
+            Giảng viên
+          </Link>
         </div>
-        <Link
-          to="/admin"
-          className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-slate-200 bg-slate-50 text-ink-700 hover:border-brand-400 hover:text-brand-700 flex items-center gap-1.5 transition shrink-0 whitespace-nowrap"
-        >
-          <Lock className="w-3.5 h-3.5" />
-          Giảng viên
-        </Link>
       </header>
 
-      <main className="flex-1 flex flex-col items-center justify-center px-3 sm:px-4 pt-5 pb-10 safe-bottom">
-        <div className="w-full max-w-xl space-y-4">
-          {/* Public Demo Sandbox Quick-Access Banner (Student & Instructor) */}
-          <div className="bg-gradient-to-br from-brand-50 via-white to-support-50 rounded-2xl border border-brand-200 shadow-sm p-4 sm:p-5 space-y-3">
+      <main className="flex-1 flex flex-col justify-center px-3 sm:px-6 py-5 sm:py-8 safe-bottom">
+        <div className="max-w-5xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
+          {/* Public Demo Sandbox Quick-Access Banner (Right column on desktop, top on mobile) */}
+          <div className="lg:col-span-5 lg:order-2 bg-gradient-to-br from-brand-50 via-white to-support-50 rounded-2xl border border-brand-200/90 shadow-sm p-4 sm:p-5 space-y-3.5">
             <div className="flex items-start justify-between gap-2">
               <div>
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-brand-700 bg-brand-100/80 px-2.5 py-0.5 rounded-full">
                   <Sparkles className="w-3 h-3" /> Trải nghiệm Công khai (Demo 1-Chạm)
                 </span>
-                <h2 className="text-sm sm:text-base font-extrabold text-ink-900 mt-1.5">
+                <h2 className="text-sm sm:text-base font-extrabold text-ink-900 mt-2">
                   Dùng thử Hệ thống cho Sinh viên &amp; Giảng viên bất kỳ
                 </h2>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3">
               {/* Student Demo Card */}
-              <div className="bg-white/95 rounded-xl border border-brand-200/80 p-3.5 flex flex-col justify-between gap-2.5">
+              <div className="bg-white/95 rounded-xl border border-brand-200/80 p-3.5 flex flex-col justify-between gap-2.5 shadow-2xs">
                 <div>
                   <p className="text-xs font-extrabold text-brand-900 flex items-center gap-1.5">
                     <UserCheck className="w-4 h-4 text-brand-600 shrink-0" />
@@ -408,7 +410,7 @@ export const HomePortalPage: React.FC = () => {
               </div>
 
               {/* Instructor Demo Card */}
-              <div className="bg-white/95 rounded-xl border border-support-200/90 p-3.5 flex flex-col justify-between gap-2.5">
+              <div className="bg-white/95 rounded-xl border border-support-200/90 p-3.5 flex flex-col justify-between gap-2.5 shadow-2xs">
                 <div>
                   <p className="text-xs font-extrabold text-ink-900 flex items-center gap-1.5">
                     <ShieldCheck className="w-4 h-4 text-support-600 shrink-0" />
@@ -428,6 +430,8 @@ export const HomePortalPage: React.FC = () => {
               </div>
             </div>
           </div>
+
+          <div className="lg:col-span-7 lg:order-1 space-y-4">
 
           {/* Zalo/Messenger In-App Browser Guard */}
           {isInAppWebView && !bypassWebViewNotice && (
@@ -748,8 +752,9 @@ export const HomePortalPage: React.FC = () => {
           <div className="bg-white/80 rounded-xl border border-slate-200 px-4 py-3 text-[11px] text-ink-600 flex items-center gap-2.5">
             <CheckCircle2 className="w-4 h-4 text-support-600 shrink-0" />
             <span>
-              Điểm số & biên nhận sẽ được gửi tự động về Email bạn cung cấp ngay sau khi hoàn thành (cho phép tự sửa lại email trong 5 phút nếu gõ nhầm).
+              Điểm số &amp; biên nhận sẽ được gửi tự động về Email bạn cung cấp ngay sau khi hoàn thành (cho phép tự sửa lại email trong 5 phút nếu gõ nhầm).
             </span>
+          </div>
           </div>
         </div>
       </main>
