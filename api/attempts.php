@@ -124,7 +124,7 @@ function buildAssignedQuestionsPhp(array $exam, array $courseQuestions, string $
                 static fn ($q) => $q['chapterCategory'] === $cat && empty($usedIds[$q['id']])
             ));
             $rng = createSeededRngPhp($studentCode . '::' . $exam['id'] . '::pool::' . $cat);
-            if (!empty($exam['shuffleQuestions'])) {
+            if (!empty($exam['shuffleQuestions']) && (($exam['shuffleMode'] ?? 'FULL_RANDOM') !== 'NONE')) {
                 $easy = seededShufflePhp(array_values(array_filter($pool, static fn ($q) => ($q['difficulty'] ?? 'MEDIUM') === 'EASY')), $rng);
                 $medium = seededShufflePhp(array_values(array_filter($pool, static fn ($q) => ($q['difficulty'] ?? 'MEDIUM') === 'MEDIUM')), $rng);
                 $hard = seededShufflePhp(array_values(array_filter($pool, static fn ($q) => !in_array($q['difficulty'] ?? 'MEDIUM', ['EASY', 'MEDIUM'], true))), $rng);
@@ -167,7 +167,7 @@ function buildAssignedQuestionsPhp(array $exam, array $courseQuestions, string $
 
     $orderRng = createSeededRngPhp($studentCode . '::' . $exam['id'] . '::order');
     $ordered = $picked;
-    if (!empty($exam['shuffleQuestions'])) {
+    if (!empty($exam['shuffleQuestions']) && (($exam['shuffleMode'] ?? 'FULL_RANDOM') !== 'NONE')) {
         $mode = (string) ($exam['shuffleMode'] ?? 'FULL_RANDOM');
         if ($mode === 'FULL_RANDOM') {
             $ordered = seededShufflePhp($picked, $orderRng);

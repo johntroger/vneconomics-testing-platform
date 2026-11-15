@@ -235,7 +235,7 @@ export function buildAssignedQuestions(
         `${studentCode}::${exam.id}::pool::${rule.chapterCategory}`,
       );
       let selected: Question[];
-      if (exam.shuffleQuestions) {
+      if (exam.shuffleQuestions && exam.shuffleMode !== 'NONE') {
         const easy = seededShuffle(pool.filter((q) => q.difficulty === 'EASY'), chapterRng);
         const medium = seededShuffle(pool.filter((q) => q.difficulty === 'MEDIUM'), chapterRng);
         const hard = seededShuffle(
@@ -282,7 +282,7 @@ export function buildAssignedQuestions(
 
   const orderRng = createSeededRng(`${studentCode}::${exam.id}::order`);
   let ordered = [...picked];
-  if (exam.shuffleQuestions) {
+  if (exam.shuffleQuestions && exam.shuffleMode !== 'NONE') {
     if (exam.shuffleMode === 'FULL_RANDOM') {
       ordered = seededShuffle(picked, orderRng);
     } else if (exam.shuffleMode === 'BY_CHAPTER') {

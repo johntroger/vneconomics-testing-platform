@@ -1289,19 +1289,22 @@ export const AdminDashboardPage: React.FC = () => {
                         <span>Kiểu trộn thứ tự câu</span>
                         <InfoHint
                           title="Kiểu trộn thứ tự câu hỏi"
-                          text="• Trộn toàn bộ đề: xáo ngẫu nhiên tất cả câu. • Trộn trong từng Chương: giữ nguyên thứ tự các chương, chỉ xáo câu bên trong. • Đưa Tự luận xuống cuối: gom câu tự luận ra cuối đề."
+                          text="• Không trộn đề: giữ nguyên thứ tự câu hỏi gốc. • Trộn toàn bộ đề: xáo ngẫu nhiên tất cả câu. • Trộn trong từng Chương: giữ nguyên thứ tự các chương, chỉ xáo câu bên trong. • Đưa Tự luận xuống cuối: gom câu tự luận ra cuối đề."
                         />
                       </label>
                       <select
-                        value={selectedExam.shuffleMode}
-                        onChange={(e) =>
+                        value={selectedExam.shuffleQuestions === false ? 'NONE' : selectedExam.shuffleMode}
+                        onChange={(e) => {
+                          const nextMode = e.target.value as ShuffleMode;
                           upsertExam({
                             ...selectedExam,
-                            shuffleMode: e.target.value as ShuffleMode,
-                          })
-                        }
+                            shuffleMode: nextMode,
+                            shuffleQuestions: nextMode !== 'NONE',
+                          });
+                        }}
                         className="w-full h-9 px-2 rounded-lg border border-slate-300 font-semibold"
                       >
+                        <option value="NONE">Không trộn đề (Giữ nguyên thứ tự)</option>
                         <option value="FULL_RANDOM">Trộn toàn bộ đề</option>
                         <option value="BY_CHAPTER">Trộn trong từng Chương</option>
                         <option value="ESSAY_LAST">Đưa Tự luận xuống cuối</option>
