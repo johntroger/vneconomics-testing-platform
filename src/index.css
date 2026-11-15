@@ -5,9 +5,12 @@
 @layer base {
   html,
   body {
-    overscroll-behavior-y: contain;
-    overflow-x: hidden;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    overscroll-behavior-y: contain;
+    overflow-x: clip;
   }
 }
 
