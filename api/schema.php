@@ -15,24 +15,43 @@ function ensureExamSchema(PDO $pdo, string $driver): void
 
     // Fast check if core tables with latest columns exist
     try {
-        $pdo->query('SELECT shuffle_mode, pinned_question_ids_json FROM exams LIMIT 1');
+        $pdo->query('SELECT shuffle_mode, pinned_question_ids_json, owner_id FROM exams LIMIT 1');
+        $pdo->query('SELECT owner_id FROM courses LIMIT 1');
+        $pdo->query('SELECT owner_id FROM questions LIMIT 1');
+        $pdo->query('SELECT id, auth_provider FROM instructors LIMIT 1');
         $pdo->query('SELECT flagged_question_ids_json, email_edit_count FROM exam_attempts LIMIT 1');
         $pdo->query('SELECT grading_rubric_json, numerical_formula FROM questions LIMIT 1');
         $pdo->query('SELECT status FROM email_queue LIMIT 1');
         $checked = true;
         return;
     } catch (Throwable) {
-        // Proceed with DDL creation
+        // Proceed with DDL creation & idempotent migrations
     }
 
     if ($driver === 'mysql') {
         $statements = [
+            "CREATE TABLE IF NOT EXISTS instructors (
+                id VARCHAR(64) PRIMARY KEY,
+                email VARCHAR(255) NOT NULL UNIQUE,
+                full_name VARCHAR(255) NOT NULL,
+                password_hash VARCHAR(255) NULL,
+                google_sub VARCHAR(128) NULL,
+                avatar_url TEXT NULL,
+                auth_provider VARCHAR(32) NOT NULL DEFAULT 'LOCAL',
+                status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
+                created_at VARCHAR(40) NOT NULL,
+                last_login_at VARCHAR(40) NULL,
+                INDEX idx_inst_email (email),
+                INDEX idx_inst_google (google_sub)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
             "CREATE TABLE IF NOT EXISTS courses (
                 id VARCHAR(64) PRIMARY KEY,
                 code VARCHAR(64) NOT NULL,
                 name VARCHAR(255) NOT NULL,
                 semester VARCHAR(64) DEFAULT '',
-                credits INT NOT NULL DEFAULT 3
+                credits INT NOT NULL DEFAULT 3,
+                owner_id VARCHAR(64) NOT NULL DEFAULT 'SYSTEM_DEMO'
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
 
             "CREATE TABLE IF NOT EXISTS questions (
@@ -316,6 +335,44 @@ function ensureExamSchema(PDO $pdo, string $driver): void
 
     foreach ($statements as $sql) {
         $pdo->exec($sql);
+    }
+
+    // Safe idempotent migrations for existing SQLite / MySQL tables
+    if ($driver !== 'mysql') {
+        $pdo->exec(
+            "CREATE TABLE IF NOT EXISTS instructors (
+                id TEXT PRIMARY KEY,
+                email TEXT NOT NULL UNIQUE,
+                full_name TEXT NOT NULL,
+                password_hash TEXT NULL,
+                google_sub TEXT NULL,
+                avatar_url TEXT NULL,
+                auth_provider TEXT NOT NULL DEFAULT 'LOCAL',
+                status TEXT NOT NULL DEFAULT 'ACTIVE',
+                created_at TEXT NOT NULL,
+                last_login_at TEXT NULL
+            )"
+        );
+        $pdo->exec("CREATE INDEX IF NOT EXISTS idx_inst_google ON instructors(google_sub)");
+    }
+
+    $ownerMigrations = $driver === 'mysql'
+        ? [
+            "ALTER TABLE courses ADD COLUMN owner_id VARCHAR(64) NOT NULL DEFAULT 'SYSTEM_DEMO'",
+            "ALTER TABLE questions ADD COLUMN owner_id VARCHAR(64) NOT NULL DEFAULT 'SYSTEM_DEMO'",
+            "ALTER TABLE exams ADD COLUMN owner_id VARCHAR(64) NOT NULL DEFAULT 'SYSTEM_DEMO'",
+        ]
+        : [
+            "ALTER TABLE courses ADD COLUMN owner_id TEXT NOT NULL DEFAULT 'SYSTEM_DEMO'",
+            "ALTER TABLE questions ADD COLUMN owner_id TEXT NOT NULL DEFAULT 'SYSTEM_DEMO'",
+            "ALTER TABLE exams ADD COLUMN owner_id TEXT NOT NULL DEFAULT 'SYSTEM_DEMO'",
+        ];
+    foreach ($ownerMigrations as $alterSql) {
+        try {
+            $pdo->exec($alterSql);
+        } catch (Throwable) {
+            // Column already exists
+        }
     }
 
     seedDefaultEconomicsData($pdo);

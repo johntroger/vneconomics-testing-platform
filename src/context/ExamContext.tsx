@@ -21,6 +21,7 @@ import type {
   EmailLogEntry,
   Exam,
   ExamAttempt,
+  InstructorUser,
   KeystrokeTelemetry,
   Question,
   RubricSlot,
@@ -60,10 +61,20 @@ interface ExamPlatformState {
   emailLogs: EmailLogEntry[];
 }
 
+interface AuthActionResult {
+  ok: boolean;
+  error?: string;
+}
+
 interface ExamContextValue extends ExamPlatformState {
   backendConnected: boolean;
   isAdminAuthenticated: boolean;
+  instructorUser: InstructorUser | null;
+  googleClientId: string;
   adminLogin: (passcode: string) => Promise<boolean>;
+  instructorLogin: (email: string, password: string) => Promise<AuthActionResult>;
+  instructorRegister: (fullName: string, email: string, password: string) => Promise<AuthActionResult>;
+  instructorGoogleLogin: (credential: string) => Promise<AuthActionResult>;
   adminLogout: () => void;
   startOrResumeAttempt: (input: StartAttemptInput) => Promise<StartAttemptResult>;
   saveAnswer: (
@@ -231,6 +242,20 @@ function loadInitialState(): ExamPlatformState {
   };
 }
 
+const INSTRUCTOR_USER_KEY = 'vne_instructor_user_v1';
+
+function loadStoredInstructorUser(): InstructorUser | null {
+  try {
+    const raw = sessionStorage.getItem(INSTRUCTOR_USER_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as InstructorUser;
+    if (parsed && typeof parsed.role === 'string') return parsed;
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
 export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
   children,
 }) => {
@@ -242,6 +267,10 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() =>
     Boolean(sessionStorage.getItem(ADMIN_TOKEN_KEY)),
   );
+  const [instructorUser, setInstructorUser] = useState<InstructorUser | null>(
+    loadStoredInstructorUser,
+  );
+  const [googleClientId, setGoogleClientId] = useState('');
 
   const persistState = useCallback((next: ExamPlatformState) => {
     try {
@@ -268,7 +297,39 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   useEffect(() => {
-    pingPhpApi().then((alive) => setBackendConnected(alive));
+    pingPhpApi().then((alive) => {
+      setBackendConnected(alive);
+      if (alive) {
+        void apiRequestDetailed<{
+          ok: boolean;
+          googleClientId?: string;
+        }>('/api/admin_auth.php?action=config', { method: 'GET' }).then((cfgRes) => {
+          if (cfgRes.ok && cfgRes.data?.ok) {
+            setGoogleClientId(String(cfgRes.data.googleClientId ?? ''));
+          }
+        });
+
+        if (sessionStorage.getItem(ADMIN_TOKEN_KEY)) {
+          void apiRequestDetailed<{
+            ok: boolean;
+            user?: InstructorUser | null;
+          }>('/api/admin_auth.php', { method: 'GET' }).then((meRes) => {
+            if (meRes.reachedJson) {
+              if (meRes.ok && meRes.data?.ok && meRes.data.user) {
+                sessionStorage.setItem(INSTRUCTOR_USER_KEY, JSON.stringify(meRes.data.user));
+                setInstructorUser(meRes.data.user);
+                setIsAdminAuthenticated(true);
+              } else {
+                sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+                sessionStorage.removeItem(INSTRUCTOR_USER_KEY);
+                setInstructorUser(null);
+                setIsAdminAuthenticated(false);
+              }
+            }
+          });
+        }
+      }
+    });
 
     const handleStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY && e.newValue) {
@@ -382,20 +443,43 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, [backendConnected, isAdminAuthenticated, updateState]);
 
+  const saveAuthSession = useCallback((token: string, user: InstructorUser) => {
+    sessionStorage.setItem(ADMIN_TOKEN_KEY, token);
+    sessionStorage.setItem(INSTRUCTOR_USER_KEY, JSON.stringify(user));
+    setInstructorUser(user);
+    setIsAdminAuthenticated(true);
+  }, []);
+
   const adminLogin = useCallback(async (passcode: string): Promise<boolean> => {
-    const res = await apiRequestDetailed<{ ok: boolean; token?: string }>(
-      '/api/admin_auth.php',
-      {
-        method: 'POST',
-        body: JSON.stringify({ passcode }),
-      },
-    );
+    const res = await apiRequestDetailed<{
+      ok: boolean;
+      token?: string;
+      user?: InstructorUser;
+    }>('/api/admin_auth.php', {
+      method: 'POST',
+      body: JSON.stringify({ passcode }),
+    });
 
     if (res.reachedJson) {
       setBackendConnected(true);
       if (res.ok && res.data?.ok && res.data.token) {
-        sessionStorage.setItem(ADMIN_TOKEN_KEY, res.data.token);
-        setIsAdminAuthenticated(true);
+        const fallbackUser: InstructorUser =
+          passcode.trim() === 'vne2026'
+            ? {
+                id: 'DEMO_INSTRUCTOR',
+                email: 'demo@vneconomics.com',
+                name: 'Giảng viên Demo',
+                role: 'DEMO',
+                authProvider: 'DEMO',
+              }
+            : {
+                id: 'MASTER_ADMIN',
+                email: 'giangvien@vneconomics.com',
+                name: 'Quản trị viên Hệ thống',
+                role: 'OFFICIAL',
+                authProvider: 'PASSCODE',
+              };
+        saveAuthSession(res.data.token, res.data.user ?? fallbackUser);
         return true;
       }
       return false;
@@ -403,15 +487,97 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
 
     if (passcode.trim() === 'vne2026' || passcode.trim() === '8888') {
       const localToken = `local_hmac_${btoa(passcode + ':' + Date.now())}`;
-      sessionStorage.setItem(ADMIN_TOKEN_KEY, localToken);
-      setIsAdminAuthenticated(true);
+      saveAuthSession(localToken, {
+        id: passcode.trim() === 'vne2026' ? 'DEMO_INSTRUCTOR' : 'MASTER_ADMIN',
+        email: passcode.trim() === 'vne2026' ? 'demo@vneconomics.com' : 'giangvien@vneconomics.com',
+        name: passcode.trim() === 'vne2026' ? 'Giảng viên Demo' : 'Quản trị viên',
+        role: passcode.trim() === 'vne2026' ? 'DEMO' : 'OFFICIAL',
+        authProvider: passcode.trim() === 'vne2026' ? 'DEMO' : 'PASSCODE',
+      });
       return true;
     }
     return false;
-  }, []);
+  }, [saveAuthSession]);
+
+  const instructorLogin = useCallback(
+    async (email: string, password: string): Promise<AuthActionResult> => {
+      const res = await apiRequestDetailed<{
+        ok: boolean;
+        token?: string;
+        user?: InstructorUser;
+        error?: string;
+      }>('/api/admin_auth.php?action=login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
+
+      if (!res.reachedJson) {
+        return { ok: false, error: 'Không thể kết nối máy chủ xác thực.' };
+      }
+      setBackendConnected(true);
+      if (res.ok && res.data?.ok && res.data.token && res.data.user) {
+        saveAuthSession(res.data.token, res.data.user);
+        return { ok: true };
+      }
+      return { ok: false, error: res.data?.error ?? 'Đăng nhập thất bại.' };
+    },
+    [saveAuthSession],
+  );
+
+  const instructorRegister = useCallback(
+    async (fullName: string, email: string, password: string): Promise<AuthActionResult> => {
+      const res = await apiRequestDetailed<{
+        ok: boolean;
+        token?: string;
+        user?: InstructorUser;
+        error?: string;
+      }>('/api/admin_auth.php?action=register', {
+        method: 'POST',
+        body: JSON.stringify({ fullName, email, password }),
+      });
+
+      if (!res.reachedJson) {
+        return { ok: false, error: 'Không thể kết nối máy chủ đăng ký.' };
+      }
+      setBackendConnected(true);
+      if (res.ok && res.data?.ok && res.data.token && res.data.user) {
+        saveAuthSession(res.data.token, res.data.user);
+        return { ok: true };
+      }
+      return { ok: false, error: res.data?.error ?? 'Đăng ký thất bại.' };
+    },
+    [saveAuthSession],
+  );
+
+  const instructorGoogleLogin = useCallback(
+    async (credential: string): Promise<AuthActionResult> => {
+      const res = await apiRequestDetailed<{
+        ok: boolean;
+        token?: string;
+        user?: InstructorUser;
+        error?: string;
+      }>('/api/admin_auth.php?action=google', {
+        method: 'POST',
+        body: JSON.stringify({ credential }),
+      });
+
+      if (!res.reachedJson) {
+        return { ok: false, error: 'Không thể kết nối máy chủ xác thực Google.' };
+      }
+      setBackendConnected(true);
+      if (res.ok && res.data?.ok && res.data.token && res.data.user) {
+        saveAuthSession(res.data.token, res.data.user);
+        return { ok: true };
+      }
+      return { ok: false, error: res.data?.error ?? 'Đăng nhập Google thất bại.' };
+    },
+    [saveAuthSession],
+  );
 
   const adminLogout = useCallback(() => {
     sessionStorage.removeItem(ADMIN_TOKEN_KEY);
+    sessionStorage.removeItem(INSTRUCTOR_USER_KEY);
+    setInstructorUser(null);
     setIsAdminAuthenticated(false);
   }, []);
 
@@ -2042,7 +2208,12 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         ...state,
         backendConnected,
         isAdminAuthenticated,
+        instructorUser,
+        googleClientId,
         adminLogin,
+        instructorLogin,
+        instructorRegister,
+        instructorGoogleLogin,
         adminLogout,
         startOrResumeAttempt,
         saveAnswer,

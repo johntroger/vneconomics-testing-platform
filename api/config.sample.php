@@ -43,6 +43,10 @@ return [
     // Default instructor email for aggregate CSV reports
     'default_instructor_email' => 'giangvien@vneconomics.com',
 
+    // Google OAuth 2.0 Web Client ID (for "Đăng nhập bằng Google" on /admin)
+    // Get from Google Cloud Console -> APIs & Services -> Credentials -> OAuth 2.0 Client IDs
+    'google_client_id' => '',
+
     // SMTP configuration (native TLS/SSL socket client in mailer.php, falls back to mail())
     'smtp' => [
         'enabled' => false,

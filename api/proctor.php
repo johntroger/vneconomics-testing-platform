@@ -156,15 +156,30 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
     }
 
     // Admin proctoring actions below require Bearer HMAC
-    requireAdminAuth();
+    $auth = requireAdminAuth();
+    $authRole = (string) ($auth['role'] ?? 'DEMO');
+    $authActorId = (string) ($auth['instructorId'] ?? 'DEMO_INSTRUCTOR');
 
     if ($action === 'live') {
         $examId = trim((string) ($_GET['examId'] ?? ''));
+        $scopeWhere = $authRole !== 'OFFICIAL'
+            ? "e.owner_id = 'SYSTEM_DEMO'"
+            : ($authActorId === 'MASTER_ADMIN' ? '1=1' : "(e.owner_id = :uid OR e.owner_id = 'SYSTEM_DEMO')");
+
         if ($examId !== '') {
-            $stmt = $pdo->prepare('SELECT * FROM exam_attempts WHERE exam_id = :eid ORDER BY started_at DESC');
-            $stmt->execute([':eid' => $examId]);
+            $stmt = $pdo->prepare("SELECT a.* FROM exam_attempts a JOIN exams e ON e.id = a.exam_id WHERE a.exam_id = :eid AND ($scopeWhere) ORDER BY a.started_at DESC");
+            $params = [':eid' => $examId];
+            if ($authRole === 'OFFICIAL' && $authActorId !== 'MASTER_ADMIN') {
+                $params[':uid'] = $authActorId;
+            }
+            $stmt->execute($params);
         } else {
-            $stmt = $pdo->query('SELECT * FROM exam_attempts ORDER BY started_at DESC LIMIT 200');
+            $stmt = $pdo->prepare("SELECT a.* FROM exam_attempts a JOIN exams e ON e.id = a.exam_id WHERE ($scopeWhere) ORDER BY a.started_at DESC LIMIT 200");
+            $params = [];
+            if ($authRole === 'OFFICIAL' && $authActorId !== 'MASTER_ADMIN') {
+                $params[':uid'] = $authActorId;
+            }
+            $stmt->execute($params);
         }
         $rows = $stmt->fetchAll();
 

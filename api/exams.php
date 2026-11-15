@@ -29,6 +29,7 @@ function formatCourseRow(array $r): array
         'name' => (string) $r['name'],
         'semester' => (string) ($r['semester'] ?? ''),
         'credits' => (int) ($r['credits'] ?? 3),
+        'ownerId' => (string) ($r['owner_id'] ?? 'SYSTEM_DEMO'),
     ];
 }
 
@@ -46,6 +47,7 @@ function formatQuestionRow(array $r, bool $stripSecrets = false): array
     $q = [
         'id' => (string) $r['id'],
         'courseId' => (string) $r['course_id'],
+        'ownerId' => (string) ($r['owner_id'] ?? 'SYSTEM_DEMO'),
         'chapterCategory' => (string) $r['chapter_category'],
         'difficulty' => (string) $r['difficulty'],
         'type' => (string) $r['type'],
@@ -78,6 +80,7 @@ function formatExamRow(array $r, bool $stripSecrets = false): array
     $exam = [
         'id' => (string) $r['id'],
         'courseId' => (string) $r['course_id'],
+        'ownerId' => (string) ($r['owner_id'] ?? 'SYSTEM_DEMO'),
         'title' => (string) $r['title'],
         'roomPin' => (string) $r['room_pin'],
         'instructorEmail' => (string) ($r['instructor_email'] ?? ''),
@@ -109,7 +112,7 @@ function formatExamRow(array $r, bool $stripSecrets = false): array
     return $exam;
 }
 
-function upsertQuestionRow(PDO $pdo, array $body): array
+function upsertQuestionRow(PDO $pdo, array $body, string $actorId = 'SYSTEM_DEMO', bool $isMaster = false): array
 {
     $id = trim((string) ($body['id'] ?? '')) ?: generateId('q');
     $courseId = trim((string) ($body['courseId'] ?? ''));
@@ -141,18 +144,57 @@ function upsertQuestionRow(PDO $pdo, array $body): array
         ':points' => (float) ($body['points'] ?? 1.0),
     ];
 
-    $exists = $pdo->prepare('SELECT COUNT(*) FROM questions WHERE id = :id');
+    $exists = $pdo->prepare('SELECT owner_id FROM questions WHERE id = :id LIMIT 1');
     $exists->execute([':id' => $id]);
-    $isUpdate = (int) $exists->fetchColumn() > 0;
+    $existingOwner = $exists->fetchColumn();
+    $isUpdate = ($existingOwner !== false);
     if ($isUpdate) {
+        if (!$isMaster && (string) $existingOwner !== $actorId) {
+            throw new InvalidArgumentException('Bạn chỉ được chỉnh sửa câu hỏi do tài khoản của mình tạo.');
+        }
         $sql = 'UPDATE questions SET course_id=:course_id, chapter_category=:chapter_category, difficulty=:difficulty, type=:type, content=:content, options_json=:options_json, correct_option_ids_json=:correct_option_ids_json, true_false_items_json=:true_false_items_json, dynamic_vars_json=:dynamic_vars_json, numerical_formula=:numerical_formula, numerical_unit=:numerical_unit, tolerance=:tolerance, sample_answer=:sample_answer, grading_rubric_json=:grading_rubric_json, max_chars=:max_chars, ai_honeypot_text=:ai_honeypot_text, ai_honeypot_option_id=:ai_honeypot_option_id, ai_honeypot_keyword=:ai_honeypot_keyword, points=:points WHERE id=:id';
     } else {
-        $sql = 'INSERT INTO questions (id, course_id, chapter_category, difficulty, type, content, options_json, correct_option_ids_json, true_false_items_json, dynamic_vars_json, numerical_formula, numerical_unit, tolerance, sample_answer, grading_rubric_json, max_chars, ai_honeypot_text, ai_honeypot_option_id, ai_honeypot_keyword, points)
-                VALUES (:id, :course_id, :chapter_category, :difficulty, :type, :content, :options_json, :correct_option_ids_json, :true_false_items_json, :dynamic_vars_json, :numerical_formula, :numerical_unit, :tolerance, :sample_answer, :grading_rubric_json, :max_chars, :ai_honeypot_text, :ai_honeypot_option_id, :ai_honeypot_keyword, :points)';
+        $params[':owner_id'] = $actorId;
+        $sql = 'INSERT INTO questions (id, course_id, owner_id, chapter_category, difficulty, type, content, options_json, correct_option_ids_json, true_false_items_json, dynamic_vars_json, numerical_formula, numerical_unit, tolerance, sample_answer, grading_rubric_json, max_chars, ai_honeypot_text, ai_honeypot_option_id, ai_honeypot_keyword, points)
+                VALUES (:id, :course_id, :owner_id, :chapter_category, :difficulty, :type, :content, :options_json, :correct_option_ids_json, :true_false_items_json, :dynamic_vars_json, :numerical_formula, :numerical_unit, :tolerance, :sample_answer, :grading_rubric_json, :max_chars, :ai_honeypot_text, :ai_honeypot_option_id, :ai_honeypot_keyword, :points)';
     }
     $pdo->prepare($sql)->execute($params);
 
     return ['id' => $id, 'op' => $isUpdate ? 'updated' : 'added'];
+}
+
+function fetchScopedData(PDO $pdo, array $auth): array
+{
+    $role = (string) ($auth['role'] ?? 'DEMO');
+    $actorId = (string) ($auth['instructorId'] ?? 'DEMO_INSTRUCTOR');
+
+    if ($role !== 'OFFICIAL') {
+        $cRows = $pdo->query("SELECT * FROM courses WHERE owner_id = 'SYSTEM_DEMO' ORDER BY code ASC")->fetchAll();
+        $qRows = $pdo->query("SELECT * FROM questions WHERE owner_id = 'SYSTEM_DEMO'")->fetchAll();
+        $eRows = $pdo->query("SELECT * FROM exams WHERE owner_id = 'SYSTEM_DEMO' ORDER BY created_at DESC")->fetchAll();
+    } elseif ($actorId === 'MASTER_ADMIN') {
+        $cRows = $pdo->query('SELECT * FROM courses ORDER BY code ASC')->fetchAll();
+        $qRows = $pdo->query('SELECT * FROM questions')->fetchAll();
+        $eRows = $pdo->query('SELECT * FROM exams ORDER BY created_at DESC')->fetchAll();
+    } else {
+        $cStmt = $pdo->prepare("SELECT * FROM courses WHERE owner_id = :uid OR owner_id = 'SYSTEM_DEMO' ORDER BY code ASC");
+        $cStmt->execute([':uid' => $actorId]);
+        $cRows = $cStmt->fetchAll();
+
+        $qStmt = $pdo->prepare("SELECT * FROM questions WHERE owner_id = :uid OR owner_id = 'SYSTEM_DEMO'");
+        $qStmt->execute([':uid' => $actorId]);
+        $qRows = $qStmt->fetchAll();
+
+        $eStmt = $pdo->prepare("SELECT * FROM exams WHERE owner_id = :uid OR owner_id = 'SYSTEM_DEMO' ORDER BY created_at DESC");
+        $eStmt->execute([':uid' => $actorId]);
+        $eRows = $eStmt->fetchAll();
+    }
+
+    return [
+        'courses' => array_map('formatCourseRow', $cRows),
+        'questions' => array_map(static fn ($r) => formatQuestionRow($r, false), $qRows),
+        'exams' => array_map(static fn ($r) => formatExamRow($r, false), $eRows),
+    ];
 }
 
 if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) === __FILE__) {
@@ -227,40 +269,40 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
     }
 
     // All endpoints below require verified Admin HMAC Bearer token
-    requireAdminAuth();
+    $auth = requireAdminAuth();
 
     if ($action === 'bootstrap') {
-        $courses = array_map('formatCourseRow', $pdo->query('SELECT * FROM courses ORDER BY code ASC')->fetchAll());
-        $questions = array_map(static fn ($r) => formatQuestionRow($r, false), $pdo->query('SELECT * FROM questions')->fetchAll());
-        $exams = array_map(static fn ($r) => formatExamRow($r, false), $pdo->query('SELECT * FROM exams ORDER BY created_at DESC')->fetchAll());
+        $scoped = fetchScopedData($pdo, $auth);
         $emails = $pdo->query('SELECT id, recipient, subject, kind, status, summary, csv_filename AS csvAttachmentName, sent_at AS sentAt, created_at FROM email_queue ORDER BY created_at DESC LIMIT 200')->fetchAll();
 
         jsonResponse([
             'ok' => true,
-            'courses' => $courses,
-            'questions' => $questions,
-            'exams' => $exams,
+            'courses' => $scoped['courses'],
+            'questions' => $scoped['questions'],
+            'exams' => $scoped['exams'],
             'emailLogs' => $emails,
         ]);
     }
 
     if ($action === 'reset_demo') {
         seedDefaultEconomicsData($pdo, true);
-        $courses = array_map('formatCourseRow', $pdo->query('SELECT * FROM courses ORDER BY code ASC')->fetchAll());
-        $questions = array_map(static fn ($r) => formatQuestionRow($r, false), $pdo->query('SELECT * FROM questions')->fetchAll());
-        $exams = array_map(static fn ($r) => formatExamRow($r, false), $pdo->query('SELECT * FROM exams ORDER BY created_at DESC')->fetchAll());
+        $scoped = fetchScopedData($pdo, $auth);
 
         jsonResponse([
             'ok' => true,
-            'courses' => $courses,
-            'questions' => $questions,
-            'exams' => $exams,
+            'courses' => $scoped['courses'],
+            'questions' => $scoped['questions'],
+            'exams' => $scoped['exams'],
         ]);
     }
 
     $body = $method === 'GET' ? [] : readJsonBody();
 
     if ($action === 'save_course') {
+        $official = requireOfficialInstructor();
+        $actorId = (string) $official['instructorId'];
+        $isMaster = ($actorId === 'MASTER_ADMIN');
+
         $id = trim((string) ($body['id'] ?? '')) ?: generateId('crs');
         $code = strtoupper(trim((string) ($body['code'] ?? '')));
         $name = trim((string) ($body['name'] ?? ''));
@@ -271,36 +313,60 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             jsonError('Mã học phần và tên học phần không được để trống.', 400);
         }
 
-        $exists = $pdo->prepare('SELECT COUNT(*) FROM courses WHERE id = :id');
+        $exists = $pdo->prepare('SELECT owner_id FROM courses WHERE id = :id LIMIT 1');
         $exists->execute([':id' => $id]);
-        if ((int) $exists->fetchColumn() > 0) {
+        $existingOwner = $exists->fetchColumn();
+        if ($existingOwner !== false) {
+            if (!$isMaster && (string) $existingOwner !== $actorId) {
+                jsonError('Bạn chỉ được chỉnh sửa học phần do mình tạo.', 403);
+            }
             $stmt = $pdo->prepare('UPDATE courses SET code = :code, name = :name, semester = :semester, credits = :credits WHERE id = :id');
+            $stmt->execute([
+                ':id' => $id,
+                ':code' => $code,
+                ':name' => $name,
+                ':semester' => $semester,
+                ':credits' => $credits,
+            ]);
         } else {
-            $stmt = $pdo->prepare('INSERT INTO courses (id, code, name, semester, credits) VALUES (:id, :code, :name, :semester, :credits)');
+            $stmt = $pdo->prepare('INSERT INTO courses (id, code, name, semester, credits, owner_id) VALUES (:id, :code, :name, :semester, :credits, :owner_id)');
+            $stmt->execute([
+                ':id' => $id,
+                ':code' => $code,
+                ':name' => $name,
+                ':semester' => $semester,
+                ':credits' => $credits,
+                ':owner_id' => $actorId,
+            ]);
         }
-        $stmt->execute([
-            ':id' => $id,
-            ':code' => $code,
-            ':name' => $name,
-            ':semester' => $semester,
-            ':credits' => $credits,
-        ]);
 
-        jsonResponse(['ok' => true, 'course' => ['id' => $id, 'code' => $code, 'name' => $name, 'semester' => $semester, 'credits' => $credits]]);
+        jsonResponse(['ok' => true, 'course' => ['id' => $id, 'code' => $code, 'name' => $name, 'semester' => $semester, 'credits' => $credits, 'ownerId' => $existingOwner !== false ? (string) $existingOwner : $actorId]]);
     }
 
     if ($action === 'delete_course') {
+        $official = requireOfficialInstructor();
+        $actorId = (string) $official['instructorId'];
+        $isMaster = ($actorId === 'MASTER_ADMIN');
         $id = (string) ($_GET['id'] ?? ($body['id'] ?? ''));
         if ($id === '') {
             jsonError('Thiếu id học phần.', 400);
+        }
+        $chk = $pdo->prepare('SELECT owner_id FROM courses WHERE id = :id LIMIT 1');
+        $chk->execute([':id' => $id]);
+        $owner = $chk->fetchColumn();
+        if ($owner !== false && !$isMaster && (string) $owner !== $actorId) {
+            jsonError('Không thể xóa học phần mẫu hoặc học phần của giảng viên khác.', 403);
         }
         $pdo->prepare('DELETE FROM courses WHERE id = :id')->execute([':id' => $id]);
         jsonResponse(['ok' => true]);
     }
 
     if ($action === 'save_question') {
+        $official = requireOfficialInstructor();
+        $actorId = (string) $official['instructorId'];
+        $isMaster = ($actorId === 'MASTER_ADMIN');
         try {
-            $res = upsertQuestionRow($pdo, $body);
+            $res = upsertQuestionRow($pdo, $body, $actorId, $isMaster);
         } catch (InvalidArgumentException $e) {
             jsonError($e->getMessage(), 400);
         }
@@ -311,6 +377,9 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
     }
 
     if ($action === 'import_questions_bulk') {
+        $official = requireOfficialInstructor();
+        $actorId = (string) $official['instructorId'];
+        $isMaster = ($actorId === 'MASTER_ADMIN');
         $items = $body['questions'] ?? [];
         $mode = strtoupper(trim((string) ($body['mode'] ?? 'UPSERT')));
         $courseId = trim((string) ($body['courseId'] ?? ''));
@@ -321,7 +390,11 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         $pdo->beginTransaction();
         try {
             if ($mode === 'REPLACE_COURSE' && $courseId !== '') {
-                $pdo->prepare('DELETE FROM questions WHERE course_id = :cid')->execute([':cid' => $courseId]);
+                if ($isMaster) {
+                    $pdo->prepare('DELETE FROM questions WHERE course_id = :cid')->execute([':cid' => $courseId]);
+                } else {
+                    $pdo->prepare('DELETE FROM questions WHERE course_id = :cid AND owner_id = :uid')->execute([':cid' => $courseId, ':uid' => $actorId]);
+                }
             }
 
             $added = 0;
@@ -336,7 +409,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
                 if ($courseId !== '' && empty($item['courseId'])) {
                     $item['courseId'] = $courseId;
                 }
-                $res = upsertQuestionRow($pdo, $item);
+                $res = upsertQuestionRow($pdo, $item, $actorId, $isMaster);
                 if ($res['op'] === 'updated') {
                     $updated++;
                 } else {
@@ -359,15 +432,27 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
     }
 
     if ($action === 'delete_question') {
+        $official = requireOfficialInstructor();
+        $actorId = (string) $official['instructorId'];
+        $isMaster = ($actorId === 'MASTER_ADMIN');
         $id = (string) ($_GET['id'] ?? ($body['id'] ?? ''));
         if ($id === '') {
             jsonError('Thiếu id câu hỏi.', 400);
+        }
+        $chk = $pdo->prepare('SELECT owner_id FROM questions WHERE id = :id LIMIT 1');
+        $chk->execute([':id' => $id]);
+        $owner = $chk->fetchColumn();
+        if ($owner !== false && !$isMaster && (string) $owner !== $actorId) {
+            jsonError('Không thể xóa câu hỏi mẫu hoặc câu hỏi của giảng viên khác.', 403);
         }
         $pdo->prepare('DELETE FROM questions WHERE id = :id')->execute([':id' => $id]);
         jsonResponse(['ok' => true]);
     }
 
     if ($action === 'save_exam') {
+        $official = requireOfficialInstructor();
+        $actorId = (string) $official['instructorId'];
+        $isMaster = ($actorId === 'MASTER_ADMIN');
         $id = trim((string) ($body['id'] ?? '')) ?: generateId('exm');
         $courseId = trim((string) ($body['courseId'] ?? ''));
         $title = trim((string) ($body['title'] ?? ''));
@@ -383,9 +468,19 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             jsonError("Mã phòng thi '$roomPin' đã được sử dụng cho một kỳ thi khác.", 409);
         }
 
-        $exists = $pdo->prepare('SELECT COUNT(*) FROM exams WHERE id = :id');
+        $exists = $pdo->prepare('SELECT owner_id FROM exams WHERE id = :id LIMIT 1');
         $exists->execute([':id' => $id]);
-        $isUpdate = (int) $exists->fetchColumn() > 0;
+        $existingOwner = $exists->fetchColumn();
+        $isUpdate = ($existingOwner !== false);
+
+        if ($isUpdate && !$isMaster && (string) $existingOwner !== $actorId) {
+            jsonError('Bạn không thể chỉnh sửa trực tiếp đề thi mẫu hoặc đề của giảng viên khác. Hãy dùng "Nhân bản ca (Clone Ca)" hoặc "Tạo Đề thi mới".', 403);
+        }
+
+        $instEmail = trim((string) ($body['instructorEmail'] ?? ''));
+        if ($instEmail === '') {
+            $instEmail = (string) ($official['email'] ?? '');
+        }
 
         $params = [
             ':id' => $id,
@@ -393,7 +488,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             ':title' => $title,
             ':room_pin' => $roomPin,
             ':unlock_pin' => trim((string) ($body['unlockPin'] ?? '8888')),
-            ':instructor_email' => trim((string) ($body['instructorEmail'] ?? '')),
+            ':instructor_email' => $instEmail,
             ':duration_minutes' => max(1, (int) ($body['durationMinutes'] ?? 45)),
             ':chapter_matrix_json' => json_encode($body['chapterMatrix'] ?? [], JSON_UNESCAPED_UNICODE),
             ':pinned_question_ids_json' => json_encode($body['pinnedQuestionIds'] ?? [], JSON_UNESCAPED_UNICODE),
@@ -414,10 +509,11 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         if ($isUpdate) {
             $sql = 'UPDATE exams SET course_id=:course_id, title=:title, room_pin=:room_pin, unlock_pin=:unlock_pin, instructor_email=:instructor_email, duration_minutes=:duration_minutes, chapter_matrix_json=:chapter_matrix_json, pinned_question_ids_json=:pinned_question_ids_json, shuffle_questions=:shuffle_questions, shuffle_mode=:shuffle_mode, shuffle_options=:shuffle_options, max_leave_count=:max_leave_count, max_away_seconds=:max_away_seconds, grace_period_ms=:grace_period_ms, one_way_mode=:one_way_mode, per_question_seconds=:per_question_seconds, canvas_anti_ocr=:canvas_anti_ocr, email_delivery_mode=:email_delivery_mode, roster_whitelist_json=:roster_whitelist_json, status=:status WHERE id=:id';
         } else {
+            $params[':owner_id'] = $actorId;
             $params[':report_sent_status'] = 'PENDING';
             $params[':created_at'] = nowIso();
-            $sql = 'INSERT INTO exams (id, course_id, title, room_pin, unlock_pin, instructor_email, duration_minutes, chapter_matrix_json, pinned_question_ids_json, shuffle_questions, shuffle_mode, shuffle_options, max_leave_count, max_away_seconds, grace_period_ms, one_way_mode, per_question_seconds, canvas_anti_ocr, email_delivery_mode, roster_whitelist_json, status, report_sent_status, created_at)
-                    VALUES (:id, :course_id, :title, :room_pin, :unlock_pin, :instructor_email, :duration_minutes, :chapter_matrix_json, :pinned_question_ids_json, :shuffle_questions, :shuffle_mode, :shuffle_options, :max_leave_count, :max_away_seconds, :grace_period_ms, :one_way_mode, :per_question_seconds, :canvas_anti_ocr, :email_delivery_mode, :roster_whitelist_json, :status, :report_sent_status, :created_at)';
+            $sql = 'INSERT INTO exams (id, course_id, owner_id, title, room_pin, unlock_pin, instructor_email, duration_minutes, chapter_matrix_json, pinned_question_ids_json, shuffle_questions, shuffle_mode, shuffle_options, max_leave_count, max_away_seconds, grace_period_ms, one_way_mode, per_question_seconds, canvas_anti_ocr, email_delivery_mode, roster_whitelist_json, status, report_sent_status, created_at)
+                    VALUES (:id, :course_id, :owner_id, :title, :room_pin, :unlock_pin, :instructor_email, :duration_minutes, :chapter_matrix_json, :pinned_question_ids_json, :shuffle_questions, :shuffle_mode, :shuffle_options, :max_leave_count, :max_away_seconds, :grace_period_ms, :one_way_mode, :per_question_seconds, :canvas_anti_ocr, :email_delivery_mode, :roster_whitelist_json, :status, :report_sent_status, :created_at)';
         }
         $pdo->prepare($sql)->execute($params);
 
@@ -427,6 +523,8 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
     }
 
     if ($action === 'clone_exam') {
+        $official = requireOfficialInstructor();
+        $actorId = (string) $official['instructorId'];
         $sourceId = trim((string) ($body['examId'] ?? ''));
         $stmt = $pdo->prepare('SELECT * FROM exams WHERE id = :id LIMIT 1');
         $stmt->execute([':id' => $sourceId]);
@@ -438,16 +536,18 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         $newId = generateId('exm');
         $newPin = (string) random_int(100000, 999999);
         $newTitle = $src['title'] . ' (Bản sao)';
+        $instEmail = (string) ($official['email'] ?: $src['instructor_email']);
 
-        $ins = $pdo->prepare('INSERT INTO exams (id, course_id, title, room_pin, unlock_pin, instructor_email, duration_minutes, chapter_matrix_json, pinned_question_ids_json, shuffle_questions, shuffle_mode, shuffle_options, max_leave_count, max_away_seconds, grace_period_ms, one_way_mode, per_question_seconds, canvas_anti_ocr, email_delivery_mode, roster_whitelist_json, status, report_sent_status, created_at)
-            VALUES (:id, :course_id, :title, :room_pin, :unlock_pin, :instructor_email, :duration_minutes, :chapter_matrix_json, :pinned_question_ids_json, :shuffle_questions, :shuffle_mode, :shuffle_options, :max_leave_count, :max_away_seconds, :grace_period_ms, :one_way_mode, :per_question_seconds, :canvas_anti_ocr, :email_delivery_mode, :roster_whitelist_json, :status, :report_sent_status, :created_at)');
+        $ins = $pdo->prepare('INSERT INTO exams (id, course_id, owner_id, title, room_pin, unlock_pin, instructor_email, duration_minutes, chapter_matrix_json, pinned_question_ids_json, shuffle_questions, shuffle_mode, shuffle_options, max_leave_count, max_away_seconds, grace_period_ms, one_way_mode, per_question_seconds, canvas_anti_ocr, email_delivery_mode, roster_whitelist_json, status, report_sent_status, created_at)
+            VALUES (:id, :course_id, :owner_id, :title, :room_pin, :unlock_pin, :instructor_email, :duration_minutes, :chapter_matrix_json, :pinned_question_ids_json, :shuffle_questions, :shuffle_mode, :shuffle_options, :max_leave_count, :max_away_seconds, :grace_period_ms, :one_way_mode, :per_question_seconds, :canvas_anti_ocr, :email_delivery_mode, :roster_whitelist_json, :status, :report_sent_status, :created_at)');
         $ins->execute([
             ':id' => $newId,
             ':course_id' => $src['course_id'],
+            ':owner_id' => $actorId,
             ':title' => $newTitle,
             ':room_pin' => $newPin,
             ':unlock_pin' => $src['unlock_pin'],
-            ':instructor_email' => $src['instructor_email'],
+            ':instructor_email' => $instEmail,
             ':duration_minutes' => $src['duration_minutes'],
             ':chapter_matrix_json' => $src['chapter_matrix_json'],
             ':pinned_question_ids_json' => $src['pinned_question_ids_json'],
@@ -575,9 +675,18 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
     }
 
     if ($action === 'delete_exam') {
+        $official = requireOfficialInstructor();
+        $actorId = (string) $official['instructorId'];
+        $isMaster = ($actorId === 'MASTER_ADMIN');
         $id = (string) ($_GET['id'] ?? ($body['id'] ?? ''));
         if ($id === '') {
             jsonError('Thiếu id kỳ thi.', 400);
+        }
+        $chk = $pdo->prepare('SELECT owner_id FROM exams WHERE id = :id LIMIT 1');
+        $chk->execute([':id' => $id]);
+        $owner = $chk->fetchColumn();
+        if ($owner !== false && !$isMaster && (string) $owner !== $actorId) {
+            jsonError('Không thể xóa đề thi mẫu hoặc đề của giảng viên khác.', 403);
         }
         $pdo->prepare('DELETE FROM exams WHERE id = :id')->execute([':id' => $id]);
         jsonResponse(['ok' => true]);

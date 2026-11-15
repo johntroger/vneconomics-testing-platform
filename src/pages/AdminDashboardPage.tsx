@@ -11,7 +11,6 @@ import {
   FileJson,
   FileSpreadsheet,
   Layers,
-  Lock,
   LogOut,
   Mail,
   Plus,
@@ -25,6 +24,7 @@ import {
 } from 'lucide-react';
 import { EssayGradingModal } from '../components/admin/EssayGradingModal';
 import { ExcelQuestionBankModal } from '../components/admin/ExcelQuestionBankModal';
+import { GoogleSignInButton } from '../components/admin/GoogleSignInButton';
 import { LiveProctorTable } from '../components/admin/LiveProctorTable';
 import { QuestionEditorModal } from '../components/admin/QuestionEditorModal';
 import { useExamPlatform } from '../context/ExamContext';
@@ -68,7 +68,12 @@ export const AdminDashboardPage: React.FC = () => {
     attempts,
     emailLogs,
     isAdminAuthenticated,
+    instructorUser,
+    googleClientId,
     adminLogin,
+    instructorLogin,
+    instructorRegister,
+    instructorGoogleLogin,
     adminLogout,
     proctorDecision,
     resetAttemptDevice,
@@ -88,13 +93,28 @@ export const AdminDashboardPage: React.FC = () => {
   } = useExamPlatform();
 
   const [searchParams, setSearchParams] = useSearchParams();
+  const [authTab, setAuthTab] = useState<'LOGIN' | 'REGISTER'>('LOGIN');
+  const [authFullName, setAuthFullName] = useState('');
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [showPasscodeBox, setShowPasscodeBox] = useState(false);
   const [passcode, setPasscode] = useState('');
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
   const demoAutoLoginTriedRef = useRef(false);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [createExamModalOpen, setCreateExamModalOpen] = useState(false);
+  const [newExamTitle, setNewExamTitle] = useState('');
+  const [newExamCourseId, setNewExamCourseId] = useState('');
+  const [newExamPin, setNewExamPin] = useState(() =>
+    String(Math.floor(100000 + Math.random() * 900000)),
+  );
+  const [newExamDuration, setNewExamDuration] = useState(45);
+  const [newExamStatus, setNewExamStatus] = useState<'OPEN' | 'DRAFT'>('OPEN');
   const [selectedExamId, setSelectedExamId] = useState(exams[0]?.id ?? '');
   const [activeTab, setActiveTab] = useState<AdminTab>('LIVE');
   const [toast, setToast] = useState<string | null>(null);
+  const toastTimerRef = useRef<number | null>(null);
 
   const [questionModalOpen, setQuestionModalOpen] = useState(false);
   const [editingQuestion, setEditingQuestion] = useState<Question | undefined>(
@@ -129,8 +149,14 @@ export const AdminDashboardPage: React.FC = () => {
   };
 
   const showToast = (msg: string) => {
+    if (toastTimerRef.current !== null) {
+      window.clearTimeout(toastTimerRef.current);
+    }
     setToast(msg);
-    window.setTimeout(() => setToast(null), 3500);
+    toastTimerRef.current = window.setTimeout(() => {
+      setToast(null);
+      toastTimerRef.current = null;
+    }, 2200);
   };
 
   useEffect(() => {
@@ -240,7 +266,40 @@ export const AdminDashboardPage: React.FC = () => {
     [attempts, essayModalAttemptId],
   );
 
+  const isDemoMode = instructorUser?.role !== 'OFFICIAL';
+
+  const requireOfficialOrPrompt = (): boolean => {
+    if (!isDemoMode) return true;
+    setAuthError('');
+    setUpgradeModalOpen(true);
+    return false;
+  };
+
   if (!isAdminAuthenticated) {
+    const handleEmailAuth = async (e: React.FormEvent) => {
+      e.preventDefault();
+      setAuthError('');
+      setAuthLoading(true);
+      const res =
+        authTab === 'REGISTER'
+          ? await instructorRegister(authFullName, authEmail, authPassword)
+          : await instructorLogin(authEmail, authPassword);
+      setAuthLoading(false);
+      if (!res.ok) {
+        setAuthError(res.error ?? 'Không thể xác thực tài khoản giảng viên.');
+      }
+    };
+
+    const handleGoogleCredential = async (credential: string) => {
+      setAuthError('');
+      setAuthLoading(true);
+      const res = await instructorGoogleLogin(credential);
+      setAuthLoading(false);
+      if (!res.ok) {
+        setAuthError(res.error ?? 'Đăng nhập Google thất bại.');
+      }
+    };
+
     const handleAuth = async (e: React.FormEvent) => {
       e.preventDefault();
       setAuthError('');
@@ -263,55 +322,92 @@ export const AdminDashboardPage: React.FC = () => {
     };
 
     return (
-      <div className="min-h-screen bg-surface-100 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-surface-100 flex items-center justify-center p-4 py-8">
         <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-card p-6 space-y-4">
           <div className="w-12 h-12 rounded-2xl bg-brand-600 text-white flex items-center justify-center mx-auto">
-            <Lock className="w-6 h-6" />
+            <ShieldCheck className="w-6 h-6" />
           </div>
           <div className="text-center">
             <h1 className="text-lg font-extrabold text-ink-900">
-              Cổng Quản trị Giảng viên (/admin)
+              Cổng Giảng viên (/admin)
             </h1>
             <p className="text-xs text-ink-500 mt-1">
-              Bảo vệ bằng HMAC-SHA256 Bearer Auth
+              Đăng ký / Đăng nhập tài khoản để tạo &amp; quản lý đề thi chính thức
             </p>
           </div>
 
-          {/* 1-Tap Public Demo Instructor Box */}
-          <div className="rounded-xl border border-brand-200 bg-brand-50/70 p-3.5 space-y-2.5">
-            <div>
-              <p className="text-xs font-extrabold text-brand-900">
-                Trải nghiệm nhanh (Tài khoản Giảng viên Demo)
-              </p>
-              <p className="text-[11px] text-ink-600 mt-1 leading-relaxed">
-                Mã công khai <span className="font-mono font-bold text-brand-700">vne2026</span> cho phép test Ngân hàng câu hỏi, Ma trận Đề, Giám sát Live &amp; Chấm Rubric. Có nút <strong>Khôi phục mẫu</strong> ở góc trên để reset 3 phòng <span className="font-mono">101202</span>, <span className="font-mono">202303</span>, <span className="font-mono">303404</span> bất kỳ lúc nào.
-              </p>
-            </div>
+          {/* Official Instructor Auth Tabs */}
+          <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl text-xs font-bold">
             <button
               type="button"
-              disabled={authLoading}
-              onClick={() => void handleDemoLogin()}
-              className="w-full h-10 rounded-xl bg-support-600 hover:bg-support-700 disabled:opacity-60 text-white text-xs font-bold shadow-sm transition"
+              onClick={() => {
+                setAuthTab('LOGIN');
+                setAuthError('');
+              }}
+              className={`py-2 rounded-lg transition ${
+                authTab === 'LOGIN'
+                  ? 'bg-white text-brand-700 shadow-2xs'
+                  : 'text-ink-600 hover:text-ink-900'
+              }`}
             >
-              {authLoading
-                ? 'Đang mở Dashboard Demo...'
-                : 'Vào ngay bằng Tài khoản Giảng viên Demo (vne2026)'}
+              Đăng nhập Giảng viên
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setAuthTab('REGISTER');
+                setAuthError('');
+              }}
+              className={`py-2 rounded-lg transition ${
+                authTab === 'REGISTER'
+                  ? 'bg-white text-brand-700 shadow-2xs'
+                  : 'text-ink-600 hover:text-ink-900'
+              }`}
+            >
+              Đăng ký tài khoản mới
             </button>
           </div>
 
+          {/* Google Sign-In */}
+          <GoogleSignInButton
+            googleClientId={googleClientId}
+            disabled={authLoading}
+            onCredential={handleGoogleCredential}
+          />
+
           <div className="flex items-center gap-2 text-[11px] text-ink-400">
             <div className="h-px bg-slate-200 flex-1" />
-            <span>Hoặc nhập mã khóa Giảng viên</span>
+            <span>Hoặc dùng Email &amp; Mật khẩu</span>
             <div className="h-px bg-slate-200 flex-1" />
           </div>
 
-          <form onSubmit={handleAuth} className="space-y-3">
+          <form onSubmit={handleEmailAuth} className="space-y-2.5">
+            {authTab === 'REGISTER' && (
+              <input
+                type="text"
+                required
+                value={authFullName}
+                onChange={(e) => setAuthFullName(e.target.value)}
+                placeholder="Họ và tên giảng viên (VD: TS. Nguyễn Văn A)"
+                className="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-sm"
+              />
+            )}
+            <input
+              type="email"
+              required
+              value={authEmail}
+              onChange={(e) => setAuthEmail(e.target.value)}
+              placeholder="Email giảng viên (@vneconomics.com, @gmail.com...)"
+              className="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-sm"
+            />
             <input
               type="password"
-              value={passcode}
-              onChange={(e) => setPasscode(e.target.value)}
-              placeholder="Nhập mã khóa Giảng viên (mẫu: vne2026)"
-              className="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-sm font-mono"
+              required
+              minLength={6}
+              value={authPassword}
+              onChange={(e) => setAuthPassword(e.target.value)}
+              placeholder="Mật khẩu (tối thiểu 6 ký tự)"
+              className="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-sm"
             />
             {authError && (
               <p className="text-xs text-rose-600 font-semibold">{authError}</p>
@@ -321,13 +417,66 @@ export const AdminDashboardPage: React.FC = () => {
               disabled={authLoading}
               className="w-full h-11 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white text-xs font-bold"
             >
-              Xác thực &amp; Mở Dashboard
+              {authLoading
+                ? 'Đang xử lý...'
+                : authTab === 'REGISTER'
+                  ? 'Đăng ký & Vào tạo đề chính thức'
+                  : 'Đăng nhập Giảng viên'}
             </button>
           </form>
-          <div className="text-center pt-1">
-            <Link to="/" className="text-xs font-semibold text-brand-600 hover:underline">
-              ← Quay lại Cổng thi Sinh viên
-            </Link>
+
+          {/* 1-Tap Public Demo Instructor Box */}
+          <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3.5 space-y-2">
+            <div>
+              <p className="text-xs font-extrabold text-amber-900">
+                Chỉ muốn xem thử? Dùng Tài khoản Demo (vne2026)
+              </p>
+              <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
+                Chế độ Demo chỉ cho phép trải nghiệm 3 phòng mẫu (<span className="font-mono">101202</span>, <span className="font-mono">202303</span>, <span className="font-mono">303404</span>) và không được tạo đề thi chính thức mới.
+              </p>
+            </div>
+            <button
+              type="button"
+              disabled={authLoading}
+              onClick={() => void handleDemoLogin()}
+              className="w-full h-9 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white text-xs font-bold shadow-xs transition"
+            >
+              Vào trải nghiệm Chế độ Demo (vne2026)
+            </button>
+          </div>
+
+          <div className="space-y-2 pt-1">
+            <div className="flex items-center justify-between text-xs">
+              <Link to="/" className="font-semibold text-brand-600 hover:underline">
+                ← Cổng thi Sinh viên
+              </Link>
+              <button
+                type="button"
+                onClick={() => setShowPasscodeBox((prev) => !prev)}
+                className="font-semibold text-ink-500 hover:text-ink-800"
+              >
+                {showPasscodeBox ? 'Ẩn mã khóa riêng' : 'Dùng mã khóa quản trị'}
+              </button>
+            </div>
+
+            {showPasscodeBox && (
+              <form onSubmit={handleAuth} className="flex gap-2 pt-1">
+                <input
+                  type="password"
+                  value={passcode}
+                  onChange={(e) => setPasscode(e.target.value)}
+                  placeholder="Nhập mã khóa..."
+                  className="flex-1 h-9 px-3 rounded-lg border border-slate-300 text-xs font-mono"
+                />
+                <button
+                  type="submit"
+                  disabled={authLoading}
+                  className="h-9 px-3 rounded-lg bg-slate-800 text-white text-xs font-bold"
+                >
+                  Vào
+                </button>
+              </form>
+            )}
           </div>
         </div>
       </div>
@@ -342,6 +491,7 @@ export const AdminDashboardPage: React.FC = () => {
     chapterCategory: string,
     patch: Partial<ChapterQuotaRule>,
   ) => {
+    if (!requireOfficialOrPrompt()) return;
     const existing = selectedExam.chapterMatrix.find(
       (r) => r.chapterCategory === chapterCategory,
     );
@@ -371,6 +521,7 @@ export const AdminDashboardPage: React.FC = () => {
   );
 
   const handleDuplicateQuestion = (q: Question) => {
+    if (!requireOfficialOrPrompt()) return;
     const cloned: Question = {
       ...q,
       id: `q_copy_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 5)}`,
@@ -381,29 +532,44 @@ export const AdminDashboardPage: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-surface-100 pb-10">
+    <div className="min-h-screen bg-surface-100 pb-12 safe-bottom">
       {/* Top Admin Navbar */}
-      <header className="bg-white border-b border-slate-200 sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-brand-600 text-white flex items-center justify-center font-bold">
-              <ShieldCheck className="w-5 h-5" />
+      <header className="bg-white border-b border-slate-200 sticky top-0 z-40 safe-top">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2.5 flex flex-col md:flex-row md:items-center md:justify-between gap-2.5">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-brand-600 text-white flex items-center justify-center font-bold shrink-0">
+              <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
             </div>
-            <div>
-              <h1 className="text-sm font-extrabold text-ink-900">
-                VNEconomics Instructor Control Center
-              </h1>
-              <p className="text-[11px] text-ink-500">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-xs sm:text-sm font-extrabold text-ink-900 truncate">
+                  VNEconomics Instructor Control Center
+                </h1>
+                {isDemoMode ? (
+                  <button
+                    type="button"
+                    onClick={() => setUpgradeModalOpen(true)}
+                    className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-[10px] font-extrabold hover:bg-amber-200 transition"
+                  >
+                    CHẾ ĐỘ DEMO • Bấm để đăng ký tạo đề thật
+                  </button>
+                ) : (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-support-100 text-support-800 border border-support-300 text-[10px] font-extrabold">
+                    GV: {instructorUser?.name || instructorUser?.email}
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-ink-500 truncate">
                 Ma trận Chương • Chấm Rubric &lt; 1ms • Live Proctoring
               </p>
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pb-0.5 md:pb-0 md:flex-wrap">
             <select
               value={selectedExam.id}
               onChange={(e) => setSelectedExamId(e.target.value)}
-              className="h-9 px-3 rounded-xl border border-slate-300 bg-slate-50 text-xs font-bold text-ink-900 max-w-[260px]"
+              className="h-9 px-2.5 sm:px-3 rounded-xl border border-slate-300 bg-slate-50 text-xs font-bold text-ink-900 min-w-[165px] max-w-[220px] sm:max-w-[260px] shrink-0"
             >
               {exams.map((ex) => (
                 <option key={ex.id} value={ex.id}>
@@ -414,8 +580,22 @@ export const AdminDashboardPage: React.FC = () => {
 
             <button
               type="button"
+              onClick={() => {
+                if (!requireOfficialOrPrompt()) return;
+                setNewExamCourseId(selectedExam.courseId || courses[0]?.id || '');
+                setNewExamPin(String(Math.floor(100000 + Math.random() * 900000)));
+                setNewExamTitle('');
+                setCreateExamModalOpen(true);
+              }}
+              className="h-9 px-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5 shrink-0 whitespace-nowrap shadow-2xs"
+            >
+              <Plus className="w-3.5 h-3.5" /> Tạo Đề thi mới
+            </button>
+
+            <button
+              type="button"
               onClick={() => setPreviewOpen(true)}
-              className="h-9 px-3 rounded-xl border border-brand-200 bg-brand-50 text-brand-700 text-xs font-bold flex items-center gap-1.5"
+              className="h-9 px-3 rounded-xl border border-brand-200 bg-brand-50 text-brand-700 text-xs font-bold flex items-center gap-1.5 shrink-0 whitespace-nowrap"
             >
               <Eye className="w-3.5 h-3.5" /> Preview Mobile
             </button>
@@ -423,7 +603,7 @@ export const AdminDashboardPage: React.FC = () => {
             <button
               type="button"
               onClick={() => setExcelModalOpen(true)}
-              className="h-9 px-3 rounded-xl border border-support-200 bg-support-50 text-support-800 hover:bg-support-100 text-xs font-bold flex items-center gap-1.5"
+              className="h-9 px-3 rounded-xl border border-support-200 bg-support-50 text-support-800 hover:bg-support-100 text-xs font-bold flex items-center gap-1.5 shrink-0 whitespace-nowrap"
             >
               <FileSpreadsheet className="w-3.5 h-3.5" /> Mẫu / Import Excel
             </button>
@@ -434,7 +614,7 @@ export const AdminDashboardPage: React.FC = () => {
                 sendTestMailer(selectedExam.instructorEmail);
                 showToast(`Đã gửi Email thử nghiệm tới ${selectedExam.instructorEmail}`);
               }}
-              className="h-9 px-3 rounded-xl border border-slate-200 bg-white text-ink-700 text-xs font-bold flex items-center gap-1.5 hover:border-brand-300"
+              className="h-9 px-3 rounded-xl border border-slate-200 bg-white text-ink-700 text-xs font-bold flex items-center gap-1.5 hover:border-brand-300 shrink-0 whitespace-nowrap"
             >
               <Mail className="w-3.5 h-3.5" /> Test Mailer
             </button>
@@ -442,13 +622,14 @@ export const AdminDashboardPage: React.FC = () => {
             <button
               type="button"
               onClick={() => {
+                if (!requireOfficialOrPrompt()) return;
                 const copy = cloneExam(selectedExam.id);
                 if (copy) {
                   setSelectedExamId(copy.id);
                   showToast(`Đã nhân bản ca thi với PIN mới: ${copy.roomPin}`);
                 }
               }}
-              className="h-9 px-3 rounded-xl border border-slate-200 bg-white text-ink-700 text-xs font-bold flex items-center gap-1.5 hover:border-brand-300"
+              className="h-9 px-3 rounded-xl border border-slate-200 bg-white text-ink-700 text-xs font-bold flex items-center gap-1.5 hover:border-brand-300 shrink-0 whitespace-nowrap"
             >
               <Copy className="w-3.5 h-3.5" /> Clone Ca
             </button>
@@ -460,7 +641,7 @@ export const AdminDashboardPage: React.FC = () => {
                 showToast('Đã khôi phục 3 phòng thi và ngân hàng câu hỏi mẫu Demo.');
               }}
               title="Khôi phục dữ liệu mẫu Demo (101202, 202303, 303404)"
-              className="h-9 px-3 rounded-xl border border-slate-200 bg-white text-ink-700 text-xs font-bold flex items-center gap-1.5 hover:bg-slate-50 hover:border-brand-300"
+              className="h-9 px-3 rounded-xl border border-slate-200 bg-white text-ink-700 text-xs font-bold flex items-center gap-1.5 hover:bg-slate-50 hover:border-brand-300 shrink-0 whitespace-nowrap"
             >
               <RefreshCw className="w-3.5 h-3.5" />
               <span className="hidden sm:inline">Khôi phục mẫu</span>
@@ -470,7 +651,7 @@ export const AdminDashboardPage: React.FC = () => {
               type="button"
               onClick={adminLogout}
               title="Đăng xuất"
-              className="h-9 w-9 rounded-xl border border-slate-200 bg-white text-rose-600 flex items-center justify-center hover:bg-rose-50"
+              className="h-9 w-9 rounded-xl border border-slate-200 bg-white text-rose-600 flex items-center justify-center hover:bg-rose-50 shrink-0"
             >
               <LogOut className="w-3.5 h-3.5" />
             </button>
@@ -478,7 +659,7 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
 
         {/* Navigation Tabs */}
-        <div className="max-w-7xl mx-auto px-4 flex gap-1 overflow-x-auto border-t border-slate-100">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 flex gap-1 overflow-x-auto no-scrollbar border-t border-slate-100">
           {[
             { id: 'LIVE' as const, label: 'Giám sát Live & Duyệt', icon: Activity },
             { id: 'BANK_MATRIX' as const, label: 'Ngân hàng Chương & Ma trận Đề', icon: Layers },
@@ -492,7 +673,7 @@ export const AdminDashboardPage: React.FC = () => {
                 key={tab.id}
                 type="button"
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-1.5 whitespace-nowrap transition ${
+                className={`px-3 sm:px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-1.5 whitespace-nowrap shrink-0 transition ${
                   active
                     ? 'border-brand-600 text-brand-700'
                     : 'border-transparent text-ink-500 hover:text-ink-800'
@@ -506,11 +687,21 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-4 pt-5 space-y-5">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 pt-4 sm:pt-5 space-y-5">
         {toast && (
-          <div className="bg-support-600 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span>{toast}</span>
+          <div className="bg-support-600 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2 min-w-0">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span className="truncate">{toast}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setToast(null)}
+              className="p-0.5 rounded hover:bg-white/20 shrink-0"
+              aria-label="Đóng thông báo"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
 
@@ -819,7 +1010,10 @@ export const AdminDashboardPage: React.FC = () => {
                   <div className="flex flex-wrap gap-2 text-xs">
                     <button
                       type="button"
-                      onClick={() => setNewCourseOpen((o) => !o)}
+                      onClick={() => {
+                        if (!requireOfficialOrPrompt()) return;
+                        setNewCourseOpen((o) => !o);
+                      }}
                       className="px-3 py-1.5 rounded-xl border border-slate-200 font-bold hover:bg-slate-50"
                     >
                       + Học phần
@@ -880,6 +1074,7 @@ export const AdminDashboardPage: React.FC = () => {
                     <button
                       type="button"
                       onClick={() => {
+                        if (!requireOfficialOrPrompt()) return;
                         setEditingQuestion(undefined);
                         setQuestionModalOpen(true);
                       }}
@@ -1334,27 +1529,27 @@ export const AdminDashboardPage: React.FC = () => {
 
       {/* Preview Mode Simulator Modal */}
       {previewOpen && (
-        <div className="fixed inset-0 z-[95] bg-ink-900/70 flex items-center justify-center p-4">
-          <div className="w-full max-w-sm bg-white rounded-[28px] border-4 border-ink-900 shadow-2xl overflow-hidden flex flex-col max-h-[88vh]">
-            <div className="bg-ink-900 text-white px-4 py-3 flex items-center justify-between text-xs">
-              <span className="font-bold flex items-center gap-1.5">
-                <Smartphone className="w-4 h-4 text-support-500" />
+        <div className="fixed inset-0 z-[95] bg-ink-900/70 flex items-center justify-center p-3 sm:p-4">
+          <div className="w-full max-w-sm bg-white rounded-[28px] border-4 border-ink-900 shadow-2xl overflow-hidden flex flex-col max-h-[88dvh]">
+            <div className="bg-ink-900 text-white px-4 py-3 flex items-center justify-between gap-2 text-xs shrink-0">
+              <span className="font-bold flex items-center gap-1.5 truncate">
+                <Smartphone className="w-4 h-4 text-support-500 shrink-0" />
                 Preview Đề Mobile ({previewAssigned.length} câu)
               </span>
               <button
                 type="button"
                 onClick={() => setPreviewOpen(false)}
-                className="p-1 rounded hover:bg-white/10"
+                className="p-1 rounded hover:bg-white/10 shrink-0"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <div className="p-3 bg-slate-50 border-b flex items-center gap-2 text-xs">
-              <span className="font-bold">Test Seed MSSV:</span>
+            <div className="p-3 bg-slate-50 border-b flex items-center gap-2 text-xs shrink-0">
+              <span className="font-bold shrink-0">Test Seed MSSV:</span>
               <input
                 value={previewStudentCode}
                 onChange={(e) => setPreviewStudentCode(e.target.value)}
-                className="flex-1 px-2 py-1 border rounded font-mono"
+                className="flex-1 min-w-0 px-2 py-1 border rounded font-mono"
               />
             </div>
             <div className="p-4 overflow-y-auto space-y-3 text-xs">
@@ -1376,6 +1571,286 @@ export const AdminDashboardPage: React.FC = () => {
                 </div>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Create Official Exam */}
+      {createExamModalOpen && (
+        <div className="fixed inset-0 z-[100] bg-ink-900/60 flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-extrabold text-ink-900">
+                Tạo Đề thi Chính thức Mới
+              </h2>
+              <button
+                type="button"
+                onClick={() => setCreateExamModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-slate-100"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!newExamTitle.trim() || !/^\d{6}$/.test(newExamPin.trim())) {
+                  showToast('Vui lòng nhập tiêu đề và mã phòng 6 chữ số hợp lệ.');
+                  return;
+                }
+                const chosenCourseId = newExamCourseId || courses[0]?.id || 'course_micro_101';
+                const newId = `exm_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+                const courseChapters = Array.from(
+                  new Set(
+                    questions
+                      .filter((q) => q.courseId === chosenCourseId)
+                      .map((q) => q.chapterCategory),
+                  ),
+                );
+                const createdExam = {
+                  ...selectedExam,
+                  id: newId,
+                  courseId: chosenCourseId,
+                  ownerId: instructorUser?.id,
+                  title: newExamTitle.trim(),
+                  roomPin: newExamPin.trim(),
+                  instructorEmail:
+                    instructorUser?.email && instructorUser.email !== 'demo@vneconomics.com'
+                      ? instructorUser.email
+                      : selectedExam.instructorEmail,
+                  durationMinutes: Math.max(5, newExamDuration),
+                  chapterMatrix: courseChapters.map((ch) => ({
+                    chapterCategory: ch,
+                    questionCount: 1,
+                    percent: 0,
+                    pointsPerQuestion: 1,
+                  })),
+                  pinnedQuestionIds: [],
+                  status: newExamStatus,
+                  reportSentStatus: 'PENDING' as const,
+                  createdAt: new Date().toISOString(),
+                };
+                upsertExam(createdExam);
+                setSelectedExamId(newId);
+                setCreateExamModalOpen(false);
+                showToast(`Đã tạo đề thi chính thức [${createdExam.roomPin}]!`);
+              }}
+              className="space-y-3 text-xs"
+            >
+              <div>
+                <label className="block font-bold text-ink-700 mb-1">Học phần</label>
+                <select
+                  value={newExamCourseId || courses[0]?.id || ''}
+                  onChange={(e) => setNewExamCourseId(e.target.value)}
+                  className="w-full h-10 px-3 rounded-xl border border-slate-300 bg-white font-semibold"
+                >
+                  {courses.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.code} — {c.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold text-ink-700 mb-1">Tên kỳ thi / ca thi</label>
+                <input
+                  type="text"
+                  required
+                  value={newExamTitle}
+                  onChange={(e) => setNewExamTitle(e.target.value)}
+                  placeholder="VD: Kiểm tra Giữa kỳ Kinh tế Vi mô — Nhóm 02"
+                  className="w-full h-10 px-3 rounded-xl border border-slate-300"
+                />
+              </div>
+              <div className="grid grid-cols-3 gap-2.5">
+                <div>
+                  <label className="block font-bold text-ink-700 mb-1">Mã PIN (6 số)</label>
+                  <input
+                    type="text"
+                    required
+                    maxLength={6}
+                    value={newExamPin}
+                    onChange={(e) => setNewExamPin(e.target.value.replace(/\D/g, ''))}
+                    className="w-full h-10 px-3 rounded-xl border border-slate-300 font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-ink-700 mb-1">Phút làm bài</label>
+                  <input
+                    type="number"
+                    min={5}
+                    max={240}
+                    value={newExamDuration}
+                    onChange={(e) => setNewExamDuration(Number(e.target.value))}
+                    className="w-full h-10 px-3 rounded-xl border border-slate-300 font-mono font-bold"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-ink-700 mb-1">Trạng thái</label>
+                  <select
+                    value={newExamStatus}
+                    onChange={(e) => setNewExamStatus(e.target.value as 'OPEN' | 'DRAFT')}
+                    className="w-full h-10 px-2.5 rounded-xl border border-slate-300 font-bold"
+                  >
+                    <option value="OPEN">ĐANG MỞ</option>
+                    <option value="DRAFT">NHÁP</option>
+                  </select>
+                </div>
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setCreateExamModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-slate-200 font-bold text-ink-700"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold"
+                >
+                  Tạo Đề Chính Thức
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal: Upgrade from Demo to Official Instructor Account */}
+      {upgradeModalOpen && (
+        <div className="fixed inset-0 z-[110] bg-ink-900/65 flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-2xl p-5 sm:p-6 space-y-4">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <span className="inline-flex items-center px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-900 text-[10px] font-extrabold">
+                  YÊU CẦU TÀI KHOẢN GIẢNG VIÊN
+                </span>
+                <h2 className="text-base font-extrabold text-ink-900 mt-1.5">
+                  Đăng ký / Đăng nhập để tạo Đề thi Chính thức
+                </h2>
+                <p className="text-xs text-ink-600 mt-1">
+                  Bạn đang ở chế độ <strong>Demo (vne2026)</strong>. Hãy đăng nhập bằng Google hoặc đăng ký tài khoản Giảng viên riêng để tạo học phần và phòng thi chính thức.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setUpgradeModalOpen(false)}
+                className="p-1 rounded-lg hover:bg-slate-100 shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl text-xs font-bold">
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthTab('REGISTER');
+                  setAuthError('');
+                }}
+                className={`py-1.5 rounded-lg transition ${
+                  authTab === 'REGISTER'
+                    ? 'bg-white text-brand-700 shadow-2xs'
+                    : 'text-ink-600'
+                }`}
+              >
+                Đăng ký mới
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthTab('LOGIN');
+                  setAuthError('');
+                }}
+                className={`py-1.5 rounded-lg transition ${
+                  authTab === 'LOGIN'
+                    ? 'bg-white text-brand-700 shadow-2xs'
+                    : 'text-ink-600'
+                }`}
+              >
+                Đã có tài khoản
+              </button>
+            </div>
+
+            <GoogleSignInButton
+              googleClientId={googleClientId}
+              disabled={authLoading}
+              onCredential={async (credential) => {
+                setAuthError('');
+                setAuthLoading(true);
+                const res = await instructorGoogleLogin(credential);
+                setAuthLoading(false);
+                if (res.ok) {
+                  setUpgradeModalOpen(false);
+                  showToast('Đã đăng nhập bằng Google — có thể tạo đề thi chính thức!');
+                } else {
+                  setAuthError(res.error ?? 'Đăng nhập Google thất bại.');
+                }
+              }}
+            />
+
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                setAuthError('');
+                setAuthLoading(true);
+                const res =
+                  authTab === 'REGISTER'
+                    ? await instructorRegister(authFullName, authEmail, authPassword)
+                    : await instructorLogin(authEmail, authPassword);
+                setAuthLoading(false);
+                if (res.ok) {
+                  setUpgradeModalOpen(false);
+                  showToast('Đã kích hoạt phiên Giảng viên chính thức!');
+                } else {
+                  setAuthError(res.error ?? 'Không thể xác thực tài khoản.');
+                }
+              }}
+              className="space-y-2.5 text-xs"
+            >
+              {authTab === 'REGISTER' && (
+                <input
+                  type="text"
+                  required
+                  value={authFullName}
+                  onChange={(e) => setAuthFullName(e.target.value)}
+                  placeholder="Họ và tên giảng viên"
+                  className="w-full h-10 px-3 rounded-xl border border-slate-300"
+                />
+              )}
+              <input
+                type="email"
+                required
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                placeholder="Email giảng viên"
+                className="w-full h-10 px-3 rounded-xl border border-slate-300"
+              />
+              <input
+                type="password"
+                required
+                minLength={6}
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+                placeholder="Mật khẩu (tối thiểu 6 ký tự)"
+                className="w-full h-10 px-3 rounded-xl border border-slate-300"
+              />
+              {authError && (
+                <p className="text-xs text-rose-600 font-semibold">{authError}</p>
+              )}
+              <button
+                type="submit"
+                disabled={authLoading}
+                className="w-full h-10 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white font-bold"
+              >
+                {authLoading
+                  ? 'Đang xác thực...'
+                  : authTab === 'REGISTER'
+                    ? 'Đăng ký & Mở khóa tạo đề chính thức'
+                    : 'Đăng nhập & Mở khóa'}
+              </button>
+            </form>
           </div>
         </div>
       )}

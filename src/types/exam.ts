@@ -18,12 +18,24 @@ export type AttemptStatus =
   | 'SUBMITTED'
   | 'AUTO_SUBMITTED';
 
+export type InstructorRole = 'DEMO' | 'OFFICIAL';
+
+export interface InstructorUser {
+  id: string;
+  email: string;
+  name: string;
+  role: InstructorRole;
+  authProvider?: string;
+  avatarUrl?: string;
+}
+
 export interface Course {
   id: string;
   code: string;
   name: string;
   semester: string;
   credits: number;
+  ownerId?: string;
 }
 
 export interface QuestionOption {
@@ -60,6 +72,7 @@ export interface RubricSlot {
 export interface Question {
   id: string;
   courseId: string;
+  ownerId?: string;
   chapterCategory: string;
   difficulty: DifficultyLevel;
   type: QuestionType;
@@ -91,6 +104,7 @@ export interface ChapterQuotaRule {
 export interface Exam {
   id: string;
   courseId: string;
+  ownerId?: string;
   title: string;
   roomPin: string;
   unlockPin: string;
