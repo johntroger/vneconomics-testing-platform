@@ -177,15 +177,15 @@ function fetchScopedData(PDO $pdo, array $auth): array
         $qRows = $pdo->query('SELECT * FROM questions')->fetchAll();
         $eRows = $pdo->query('SELECT * FROM exams ORDER BY created_at DESC')->fetchAll();
     } else {
-        $cStmt = $pdo->prepare("SELECT * FROM courses WHERE owner_id = :uid OR owner_id = 'SYSTEM_DEMO' ORDER BY code ASC");
+        $cStmt = $pdo->prepare('SELECT * FROM courses WHERE owner_id = :uid ORDER BY code ASC');
         $cStmt->execute([':uid' => $actorId]);
         $cRows = $cStmt->fetchAll();
 
-        $qStmt = $pdo->prepare("SELECT * FROM questions WHERE owner_id = :uid OR owner_id = 'SYSTEM_DEMO'");
+        $qStmt = $pdo->prepare('SELECT * FROM questions WHERE owner_id = :uid');
         $qStmt->execute([':uid' => $actorId]);
         $qRows = $qStmt->fetchAll();
 
-        $eStmt = $pdo->prepare("SELECT * FROM exams WHERE owner_id = :uid OR owner_id = 'SYSTEM_DEMO' ORDER BY created_at DESC");
+        $eStmt = $pdo->prepare('SELECT * FROM exams WHERE owner_id = :uid ORDER BY created_at DESC');
         $eStmt->execute([':uid' => $actorId]);
         $eRows = $eStmt->fetchAll();
     }

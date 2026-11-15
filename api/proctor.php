@@ -164,7 +164,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         $examId = trim((string) ($_GET['examId'] ?? ''));
         $scopeWhere = $authRole !== 'OFFICIAL'
             ? "e.owner_id = 'SYSTEM_DEMO'"
-            : ($authActorId === 'MASTER_ADMIN' ? '1=1' : "(e.owner_id = :uid OR e.owner_id = 'SYSTEM_DEMO')");
+            : ($authActorId === 'MASTER_ADMIN' ? '1=1' : 'e.owner_id = :uid');
 
         if ($examId !== '') {
             $stmt = $pdo->prepare("SELECT a.* FROM exam_attempts a JOIN exams e ON e.id = a.exam_id WHERE a.exam_id = :eid AND ($scopeWhere) ORDER BY a.started_at DESC");
