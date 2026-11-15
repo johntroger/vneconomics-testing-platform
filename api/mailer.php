@@ -387,13 +387,6 @@ function buildStudentScoreEmailHtml(array $exam, array $attempt, array $answers)
 
 function buildInstructorCsvAttachment(array $exam, array $attempts): string
 {
-    $headers = [
-        'MSSV', 'Họ tên', 'Email', 'Lớp',
-        'Điểm Trắc nghiệm/Số', 'Điểm Tự luận', 'Tổng điểm gốc', 'Điểm Hệ 10',
-        'Số lần rời màn hình', 'Tổng giây vắng', 'Điểm Tin Cậy (%)',
-        'Cờ AI', 'Trạng thái', 'Trạng thái Email',
-    ];
-
     $esc = static function (mixed $v): string {
         $s = $v === null ? '' : (string) $v;
         if (preg_match('/[",\n\r]/', $s) === 1) {
@@ -401,6 +394,44 @@ function buildInstructorCsvAttachment(array $exam, array $attempts): string
         }
         return $s;
     };
+
+    $rosterEntries = json_decode((string) ($exam['roster_entries_json'] ?? '[]'), true);
+    if (is_array($rosterEntries) && count($rosterEntries) > 0) {
+        $attemptByCode = [];
+        foreach ($attempts as $a) {
+            $code = strtoupper(trim((string) ($a['student_code'] ?? '')));
+            if ($code !== '') {
+                $attemptByCode[$code] = $a;
+            }
+        }
+        $headers = ['STT', 'Mã sinh viên', 'Họ đệm', 'Tên', 'Giới tính', 'Ngày sinh', 'Điểm'];
+        $lines = [implode(',', array_map($esc, $headers))];
+        foreach ($rosterEntries as $idx => $entry) {
+            $code = strtoupper(trim((string) ($entry['studentCode'] ?? '')));
+            $matched = $attemptByCode[$code] ?? null;
+            $scoreCell = $matched !== null
+                ? number_format((float) ($matched['scale10_score'] ?? 0), 2)
+                : 'Vắng';
+            $row = [
+                $idx + 1,
+                (string) ($entry['studentCode'] ?? ''),
+                (string) ($entry['lastName'] ?? ''),
+                (string) ($entry['firstName'] ?? ''),
+                (string) ($entry['gender'] ?? ''),
+                (string) ($entry['dob'] ?? ''),
+                $scoreCell,
+            ];
+            $lines[] = implode(',', array_map($esc, $row));
+        }
+        return "\xEF\xBB\xBF" . implode("\r\n", $lines);
+    }
+
+    $headers = [
+        'MSSV', 'Họ tên', 'Email', 'Lớp',
+        'Điểm Trắc nghiệm/Số', 'Điểm Tự luận', 'Tổng điểm gốc', 'Điểm Hệ 10',
+        'Số lần rời màn hình', 'Tổng giây vắng', 'Điểm Tin Cậy (%)',
+        'Cờ AI', 'Trạng thái', 'Trạng thái Email',
+    ];
 
     $lines = [implode(',', array_map($esc, $headers))];
     foreach ($attempts as $a) {

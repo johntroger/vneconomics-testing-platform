@@ -775,7 +775,96 @@ export const AdminDashboardPage: React.FC = () => {
 
         {/* TAB 4: LIVE PROCTORING */}
         {selectedExam && activeTab === 'LIVE' && (
-          <LiveProctorTable
+          <div className="space-y-4">
+            {/* Shift Switcher & Create Separate Shift Bar */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-4 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2.5">
+                <div>
+                  <h2 className="text-sm font-extrabold text-ink-900">
+                    Chọn Ca thi để Giám sát &amp; Nhập danh sách Sinh viên riêng
+                  </h2>
+                  <p className="text-[11px] text-ink-500">
+                    Mỗi ca thi có mã PIN, danh sách sinh viên và bảng điểm tổng hợp gửi Email giảng viên riêng biệt.
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {selectedExam.status === 'DRAFT' && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (!requireOfficialOrPrompt()) return;
+                        upsertExam({ ...selectedExam, status: 'OPEN' });
+                        showToast(`Đã mở phòng thi ${selectedExam.title} (PIN ${selectedExam.roomPin}).`);
+                      }}
+                      className="h-9 px-3 rounded-xl bg-support-600 hover:bg-support-700 text-white text-xs font-bold"
+                    >
+                      Mở phòng thi ngay
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!requireOfficialOrPrompt()) return;
+                      const sameCourseCount = exams.filter((e) => e.courseId === selectedExam.courseId).length;
+                      const defaultName = `${selectedExam.title.replace(/\s*\(Ca.*\)$/i, '')} - Ca ${sameCourseCount + 1}`;
+                      const entered = window.prompt('Nhập tên Ca thi mới (giữ nguyên cấu trúc đề, danh sách SV riêng):', defaultName);
+                      if (entered === null) return;
+                      const copy = cloneExam(selectedExam.id, entered.trim() || defaultName);
+                      if (copy) {
+                        setSelectedExamId(copy.id);
+                        showToast(`Đã tạo "${copy.title}" (PIN ${copy.roomPin}) với danh sách sinh viên riêng.`);
+                      }
+                    }}
+                    className="h-9 px-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5"
+                  >
+                    <Plus className="w-3.5 h-3.5" /> Tạo Ca thi mới
+                  </button>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                {exams
+                  .filter((ex) => ex.courseId === selectedExam.courseId)
+                  .map((ex) => {
+                    const active = ex.id === selectedExam.id;
+                    const rosterCount = ex.rosterEntries?.length ?? 0;
+                    return (
+                      <button
+                        key={ex.id}
+                        type="button"
+                        onClick={() => setSelectedExamId(ex.id)}
+                        className={`px-3 py-2 rounded-xl border text-left text-xs transition ${
+                          active
+                            ? 'bg-brand-600 text-white border-brand-600 shadow-xs'
+                            : 'bg-slate-50 text-ink-800 border-slate-200 hover:border-brand-300'
+                        }`}
+                      >
+                        <div className="font-bold flex items-center gap-1.5">
+                          <span>{ex.title}</span>
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              active
+                                ? 'bg-white/20 text-white'
+                                : ex.status === 'OPEN'
+                                  ? 'bg-support-100 text-support-700'
+                                  : ex.status === 'CLOSED'
+                                    ? 'bg-slate-200 text-ink-600'
+                                    : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {ex.status === 'OPEN' ? 'MỞ' : ex.status === 'CLOSED' ? 'ĐÓNG' : 'NHÁP'}
+                          </span>
+                        </div>
+                        <div className={`text-[11px] mt-0.5 font-mono ${active ? 'text-brand-100' : 'text-ink-500'}`}>
+                          PIN {ex.roomPin} • {rosterCount > 0 ? `${rosterCount} SV` : 'Chưa import DS'}
+                        </div>
+                      </button>
+                    );
+                  })}
+              </div>
+            </div>
+
+            <LiveProctorTable
             exam={selectedExam}
             attempts={attempts}
             onProctorDecision={(id, dec, sec) => {
@@ -820,6 +909,7 @@ export const AdminDashboardPage: React.FC = () => {
               );
             }}
           />
+          </div>
         )}
 
         {/* TAB 3: EXAM CREATION, ALLOCATION MATRIX & ROOM SETTINGS */}

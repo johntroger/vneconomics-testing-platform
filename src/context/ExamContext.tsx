@@ -150,7 +150,7 @@ interface ExamContextValue extends ExamPlatformState {
   ) => { addedCount: number; updatedCount: number; syncedChapters: number };
   upsertExam: (exam: Exam) => Promise<{ ok: boolean; error?: string }>;
   deleteExam: (examId: string) => Promise<{ ok: boolean; error?: string }>;
-  cloneExam: (examId: string) => Exam | null;
+  cloneExam: (examId: string, customTitle?: string) => Exam | null;
   resendStudentScoreEmail: (attemptId: string, editedEmail?: string) => void;
   sendTestMailer: (recipient: string) => EmailLogEntry;
   resetDemoData: () => void;
@@ -2331,15 +2331,18 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const cloneExam = useCallback(
-    (examId: string): Exam | null => {
+    (examId: string, customTitle?: string): Exam | null => {
       const source = state.exams.find((e) => e.id === examId);
       if (!source) return null;
       const randomPin = String(Math.floor(100000 + Math.random() * 900000));
       const cloned: Exam = {
         ...source,
         id: `exam_${Date.now().toString(36)}`,
-        title: `${source.title} (Bản sao)`,
+        title: customTitle?.trim() || `${source.title} (Ca mới)`,
         roomPin: randomPin,
+        rosterWhitelist: [],
+        rosterEntries: [],
+        requiresRosterVerification: false,
         status: 'DRAFT',
         reportSentStatus: 'PENDING',
         reportSentAt: undefined,

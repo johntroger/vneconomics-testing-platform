@@ -14,6 +14,31 @@ export function buildExamCsvContent(
   chapterStats: ChapterMasteryStat[],
 ): string {
   const examAttempts = attempts.filter((a) => a.examId === exam.id);
+  if (exam.rosterEntries && exam.rosterEntries.length > 0) {
+    const attemptByCode = new Map(
+      examAttempts.map((a) => [a.studentCode.trim().toUpperCase(), a]),
+    );
+    const headers = ['STT', 'Mã sinh viên', 'Họ đệm', 'Tên', 'Giới tính', 'Ngày sinh', 'Điểm'];
+    const rows = exam.rosterEntries.map((entry, idx) => {
+      const matched = attemptByCode.get(entry.studentCode.trim().toUpperCase());
+      const scoreCell = matched ? matched.scale10Score.toFixed(2) : 'Vắng';
+      return [
+        idx + 1,
+        entry.studentCode,
+        entry.lastName,
+        entry.firstName,
+        entry.gender,
+        entry.dob,
+        scoreCell,
+      ];
+    });
+    const csvLines = [
+      headers.map(escapeCsvCell).join(','),
+      ...rows.map((r) => r.map(escapeCsvCell).join(',')),
+    ];
+    return '\uFEFF' + csvLines.join('\r\n');
+  }
+
   const headers = [
     'MSSV',
     'Họ tên',
