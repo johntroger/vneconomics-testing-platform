@@ -191,6 +191,90 @@ function verifyGoogleIdToken(string $idToken, string $expectedClientId): array
     ];
 }
 
+function createSignedCaptchaChallenge(array $cfg): array
+{
+    $secret = (string) $cfg['hmac_secret'];
+    $a = random_int(11, 39);
+    $b = random_int(2, 9);
+    $usePlus = random_int(0, 1) === 1;
+    $answer = $usePlus ? ($a + $b) : ($a - $b);
+    $expr = $usePlus ? "{$a} + {$b} = ?" : "{$a} - {$b} = ?";
+
+    $nonce = bin2hex(random_bytes(12));
+    $exp = time() + 300;
+    $ansHash = hash_hmac('sha256', (string) $answer, $secret);
+    $payload = [
+        'nonce' => $nonce,
+        'ansHash' => $ansHash,
+        'exp' => $exp,
+    ];
+    $payloadB64 = base64UrlEncode((string) json_encode($payload));
+    $sig = base64UrlEncode(hash_hmac('sha256', $payloadB64, $secret, true));
+    $token = $payloadB64 . '.' . $sig;
+
+    $deg1 = random_int(-6, 6);
+    $deg2 = random_int(-5, 5);
+    $y1 = random_int(8, 28);
+    $y2 = random_int(12, 32);
+    $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="150" height="42" viewBox="0 0 150 42">'
+        . '<rect width="150" height="42" rx="8" fill="#f1f5f9"/>'
+        . '<path d="M4 ' . $y1 . ' Q 50 ' . $y2 . ', 95 ' . $y1 . ' T 146 ' . $y2 . '" stroke="#94a3b8" stroke-width="1.4" fill="none" opacity="0.55"/>'
+        . '<path d="M6 ' . (40 - $y1) . ' Q 65 ' . (40 - $y2) . ', 144 ' . (40 - $y1) . '" stroke="#cbd5e1" stroke-width="1.2" fill="none" opacity="0.7"/>'
+        . '<text x="75" y="28" text-anchor="middle" font-family="monospace, sans-serif" font-size="20" font-weight="800" fill="#0f172a" transform="rotate(' . $deg1 . ' 75 22) skewX(' . $deg2 . ')">'
+        . htmlspecialchars($expr, ENT_QUOTES, 'UTF-8')
+        . '</text></svg>';
+
+    return [
+        'ok' => true,
+        'captchaToken' => $token,
+        'imageDataUri' => 'data:image/svg+xml;base64,' . base64_encode($svg),
+        'expiresIn' => 300,
+    ];
+}
+
+function verifyAndConsumeCaptcha(PDO $pdo, array $cfg, string $token, string $answer): void
+{
+    $cleanToken = trim($token);
+    $cleanAnswer = trim($answer);
+    if ($cleanToken === '' || !str_contains($cleanToken, '.') || $cleanAnswer === '') {
+        jsonError('Vui lòng nhập kết quả mã xác nhận CAPTCHA.', 400);
+    }
+
+    [$payloadB64, $sigB64] = explode('.', $cleanToken, 2);
+    $secret = (string) $cfg['hmac_secret'];
+    $expectedSig = base64UrlEncode(hash_hmac('sha256', $payloadB64, $secret, true));
+    if (!hash_equals($expectedSig, $sigB64)) {
+        jsonError('Mã CAPTCHA không hợp lệ. Vui lòng bấm làm mới và thử lại.', 400);
+    }
+
+    $payloadJson = base64UrlDecode($payloadB64);
+    $payload = is_string($payloadJson) ? json_decode($payloadJson, true) : null;
+    if (!is_array($payload) || empty($payload['nonce']) || empty($payload['ansHash'])) {
+        jsonError('Mã CAPTCHA không hợp lệ. Vui lòng bấm làm mới và thử lại.', 400);
+    }
+
+    if ((int) ($payload['exp'] ?? 0) < time()) {
+        jsonError('Mã CAPTCHA đã hết hạn. Vui lòng bấm làm mới và nhập lại.', 400);
+    }
+
+    $nonce = (string) $payload['nonce'];
+    $chk = $pdo->prepare('SELECT nonce FROM used_captcha_nonces WHERE nonce = :n LIMIT 1');
+    $chk->execute([':n' => $nonce]);
+    if ($chk->fetch()) {
+        jsonError('Mã CAPTCHA này đã được sử dụng. Vui lòng bấm làm mới và nhập lại.', 400);
+    }
+
+    $providedHash = hash_hmac('sha256', $cleanAnswer, $secret);
+    if (!hash_equals((string) $payload['ansHash'], $providedHash)) {
+        jsonError('Kết quả CAPTCHA chưa đúng. Vui lòng tính lại hoặc bấm làm mới.', 400);
+    }
+
+    $pdo->prepare('INSERT INTO used_captcha_nonces (nonce, used_at) VALUES (:n, :t)')
+        ->execute([':n' => $nonce, ':t' => time()]);
+    $pdo->prepare('DELETE FROM used_captcha_nonces WHERE used_at < :cutoff')
+        ->execute([':cutoff' => time() - 3600]);
+}
+
 // Direct HTTP endpoint handling
 if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) === __FILE__) {
     applyCorsHeaders();
@@ -205,6 +289,11 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             'googleClientId' => $clientId,
             'googleEnabled' => $clientId !== '',
         ]);
+    }
+
+    if ($method === 'GET' && $action === 'captcha') {
+        $cfg = getAppConfig();
+        jsonResponse(createSignedCaptchaChallenge($cfg));
     }
 
     if ($method === 'GET') {
@@ -235,6 +324,13 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             }
 
             $pdo = getDb();
+            verifyAndConsumeCaptcha(
+                $pdo,
+                $cfg,
+                (string) ($body['captchaToken'] ?? ''),
+                (string) ($body['captchaAnswer'] ?? '')
+            );
+
             $chk = $pdo->prepare('SELECT id FROM instructors WHERE LOWER(email) = :email LIMIT 1');
             $chk->execute([':email' => $email]);
             if ($chk->fetch()) {
@@ -284,6 +380,13 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             }
 
             $pdo = getDb();
+            verifyAndConsumeCaptcha(
+                $pdo,
+                $cfg,
+                (string) ($body['captchaToken'] ?? ''),
+                (string) ($body['captchaAnswer'] ?? '')
+            );
+
             $stmt = $pdo->prepare('SELECT * FROM instructors WHERE LOWER(email) = :email LIMIT 1');
             $stmt->execute([':email' => $email]);
             $row = $stmt->fetch();
@@ -402,6 +505,16 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         $passcode = trim((string) ($body['passcode'] ?? ''));
         if ($passcode === '') {
             jsonError('Vui lòng nhập mật mã giảng viên hoặc đăng nhập bằng Email / Google.', 400);
+        }
+
+        if ($passcode !== 'vne2026') {
+            $pdo = getDb();
+            verifyAndConsumeCaptcha(
+                $pdo,
+                $cfg,
+                (string) ($body['captchaToken'] ?? ''),
+                (string) ($body['captchaAnswer'] ?? '')
+            );
         }
 
         $validPasscodes = $cfg['admin_passcodes'] ?? ['vne2026'];

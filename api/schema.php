@@ -23,6 +23,7 @@ function ensureExamSchema(PDO $pdo, string $driver): void
         $pdo->query('SELECT grading_rubric_json, numerical_formula FROM questions LIMIT 1');
         $pdo->query('SELECT status FROM email_queue LIMIT 1');
         $pdo->query('SELECT id FROM demo_mailer_quota LIMIT 1');
+        $pdo->query('SELECT nonce FROM used_captcha_nonces LIMIT 1');
         if ($driver === 'mysql') {
             $uIdx = $pdo->query("SHOW INDEX FROM exams WHERE Column_name = 'room_pin' AND Non_unique = 0")->fetch();
             if ($uIdx) {
@@ -228,6 +229,12 @@ function ensureExamSchema(PDO $pdo, string $driver): void
                 INDEX idx_demo_mailer_ip_date (ip_address, test_date),
                 INDEX idx_demo_mailer_recipient_date (recipient, test_date)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+            "CREATE TABLE IF NOT EXISTS used_captcha_nonces (
+                nonce VARCHAR(64) PRIMARY KEY,
+                used_at INT NOT NULL,
+                INDEX idx_captcha_used_at (used_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
         ];
     } else {
         $statements = [
@@ -385,6 +392,11 @@ function ensureExamSchema(PDO $pdo, string $driver): void
             "CREATE INDEX IF NOT EXISTS idx_demo_mailer_browser_date ON demo_mailer_quota(browser_id, test_date)",
             "CREATE INDEX IF NOT EXISTS idx_demo_mailer_ip_date ON demo_mailer_quota(ip_address, test_date)",
             "CREATE INDEX IF NOT EXISTS idx_demo_mailer_recipient_date ON demo_mailer_quota(recipient, test_date)",
+            "CREATE TABLE IF NOT EXISTS used_captcha_nonces (
+                nonce TEXT PRIMARY KEY,
+                used_at INTEGER NOT NULL
+            )",
+            "CREATE INDEX IF NOT EXISTS idx_captcha_used_at ON used_captcha_nonces(used_at)",
         ];
     }
 

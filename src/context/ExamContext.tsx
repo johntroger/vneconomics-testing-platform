@@ -98,9 +98,20 @@ interface ExamContextValue extends ExamPlatformState {
   isAdminAuthenticated: boolean;
   instructorUser: InstructorUser | null;
   googleClientId: string;
-  adminLogin: (passcode: string) => Promise<boolean>;
-  instructorLogin: (email: string, password: string) => Promise<AuthActionResult>;
-  instructorRegister: (fullName: string, email: string, password: string) => Promise<AuthActionResult>;
+  adminLogin: (passcode: string, captchaToken?: string, captchaAnswer?: string) => Promise<boolean>;
+  instructorLogin: (
+    email: string,
+    password: string,
+    captchaToken?: string,
+    captchaAnswer?: string,
+  ) => Promise<AuthActionResult>;
+  instructorRegister: (
+    fullName: string,
+    email: string,
+    password: string,
+    captchaToken?: string,
+    captchaAnswer?: string,
+  ) => Promise<AuthActionResult>;
   instructorGoogleLogin: (credential: string) => Promise<AuthActionResult>;
   adminLogout: () => void;
   startOrResumeAttempt: (input: StartAttemptInput) => Promise<StartAttemptResult>;
@@ -531,15 +542,20 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
     setIsAdminAuthenticated(true);
   }, []);
 
-  const adminLogin = useCallback(async (passcode: string): Promise<boolean> => {
-    const res = await apiRequestDetailed<{
-      ok: boolean;
-      token?: string;
-      user?: InstructorUser;
-    }>('/api/admin_auth.php', {
-      method: 'POST',
-      body: JSON.stringify({ passcode }),
-    });
+  const adminLogin = useCallback(
+    async (
+      passcode: string,
+      captchaToken?: string,
+      captchaAnswer?: string,
+    ): Promise<boolean> => {
+      const res = await apiRequestDetailed<{
+        ok: boolean;
+        token?: string;
+        user?: InstructorUser;
+      }>('/api/admin_auth.php', {
+        method: 'POST',
+        body: JSON.stringify({ passcode, captchaToken, captchaAnswer }),
+      });
 
     if (res.reachedJson) {
       setBackendConnected(true);
@@ -581,7 +597,12 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [saveAuthSession]);
 
   const instructorLogin = useCallback(
-    async (email: string, password: string): Promise<AuthActionResult> => {
+    async (
+      email: string,
+      password: string,
+      captchaToken?: string,
+      captchaAnswer?: string,
+    ): Promise<AuthActionResult> => {
       const res = await apiRequestDetailed<{
         ok: boolean;
         token?: string;
@@ -589,7 +610,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         error?: string;
       }>('/api/admin_auth.php?action=login', {
         method: 'POST',
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, captchaToken, captchaAnswer }),
       });
 
       if (!res.reachedJson) {
@@ -606,7 +627,13 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const instructorRegister = useCallback(
-    async (fullName: string, email: string, password: string): Promise<AuthActionResult> => {
+    async (
+      fullName: string,
+      email: string,
+      password: string,
+      captchaToken?: string,
+      captchaAnswer?: string,
+    ): Promise<AuthActionResult> => {
       const res = await apiRequestDetailed<{
         ok: boolean;
         token?: string;
@@ -614,7 +641,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         error?: string;
       }>('/api/admin_auth.php?action=register', {
         method: 'POST',
-        body: JSON.stringify({ fullName, email, password }),
+        body: JSON.stringify({ fullName, email, password, captchaToken, captchaAnswer }),
       });
 
       if (!res.reachedJson) {

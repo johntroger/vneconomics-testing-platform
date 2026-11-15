@@ -29,6 +29,7 @@ import { ExcelQuestionBankModal } from '../components/admin/ExcelQuestionBankMod
 import { GoogleSignInButton } from '../components/admin/GoogleSignInButton';
 import { LiveProctorTable } from '../components/admin/LiveProctorTable';
 import { QuestionEditorModal } from '../components/admin/QuestionEditorModal';
+import { CaptchaField } from '../components/common/CaptchaField';
 import { InfoHint } from '../components/common/InfoHint';
 import { useExamPlatform } from '../context/ExamContext';
 import type {
@@ -116,6 +117,9 @@ export const AdminDashboardPage: React.FC = () => {
   const [passcode, setPasscode] = useState('');
   const [authError, setAuthError] = useState('');
   const [authLoading, setAuthLoading] = useState(false);
+  const [captchaToken, setCaptchaToken] = useState('');
+  const [captchaAnswer, setCaptchaAnswer] = useState('');
+  const [captchaRefreshKey, setCaptchaRefreshKey] = useState(0);
   const demoAutoLoginTriedRef = useRef(false);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [createExamModalOpen, setCreateExamModalOpen] = useState(false);
@@ -346,11 +350,18 @@ export const AdminDashboardPage: React.FC = () => {
       setAuthLoading(true);
       const res =
         authTab === 'REGISTER'
-          ? await instructorRegister(authFullName, authEmail, authPassword)
-          : await instructorLogin(authEmail, authPassword);
+          ? await instructorRegister(
+              authFullName,
+              authEmail,
+              authPassword,
+              captchaToken,
+              captchaAnswer,
+            )
+          : await instructorLogin(authEmail, authPassword, captchaToken, captchaAnswer);
       setAuthLoading(false);
       if (!res.ok) {
         setAuthError(res.error ?? 'Không thể xác thực tài khoản giảng viên.');
+        setCaptchaRefreshKey((k) => k + 1);
       }
     };
 
@@ -368,10 +379,11 @@ export const AdminDashboardPage: React.FC = () => {
       e.preventDefault();
       setAuthError('');
       setAuthLoading(true);
-      const ok = await adminLogin(passcode);
+      const ok = await adminLogin(passcode, captchaToken, captchaAnswer);
       setAuthLoading(false);
       if (!ok) {
-        setAuthError('Mã khóa không đúng. Mã Giảng viên Demo công khai: vne2026');
+        setAuthError('Mã khóa hoặc CAPTCHA chưa đúng. Mã Giảng viên Demo công khai: vne2026');
+        setCaptchaRefreshKey((k) => k + 1);
       }
     };
 
@@ -473,6 +485,13 @@ export const AdminDashboardPage: React.FC = () => {
               placeholder="Mật khẩu (tối thiểu 6 ký tự)"
               className="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-sm"
             />
+            <CaptchaField
+              answer={captchaAnswer}
+              onAnswerChange={setCaptchaAnswer}
+              onTokenChange={setCaptchaToken}
+              refreshKey={captchaRefreshKey}
+              disabled={authLoading}
+            />
             {authError && (
               <p className="text-xs text-rose-600 font-semibold">{authError}</p>
             )}
@@ -524,21 +543,32 @@ export const AdminDashboardPage: React.FC = () => {
             </div>
 
             {showPasscodeBox && (
-              <form onSubmit={handleAuth} className="flex gap-2 pt-1">
-                <input
-                  type="password"
-                  value={passcode}
-                  onChange={(e) => setPasscode(e.target.value)}
-                  placeholder="Nhập mã khóa..."
-                  className="flex-1 h-9 px-3 rounded-lg border border-slate-300 text-xs font-mono"
-                />
-                <button
-                  type="submit"
-                  disabled={authLoading}
-                  className="h-9 px-3 rounded-lg bg-slate-800 text-white text-xs font-bold"
-                >
-                  Vào
-                </button>
+              <form onSubmit={handleAuth} className="space-y-2 pt-1">
+                <div className="flex gap-2">
+                  <input
+                    type="password"
+                    value={passcode}
+                    onChange={(e) => setPasscode(e.target.value)}
+                    placeholder="Nhập mã khóa..."
+                    className="flex-1 h-9 px-3 rounded-lg border border-slate-300 text-xs font-mono"
+                  />
+                  <button
+                    type="submit"
+                    disabled={authLoading}
+                    className="h-9 px-3 rounded-lg bg-slate-800 text-white text-xs font-bold"
+                  >
+                    Vào
+                  </button>
+                </div>
+                {passcode.trim() !== 'vne2026' && (
+                  <CaptchaField
+                    answer={captchaAnswer}
+                    onAnswerChange={setCaptchaAnswer}
+                    onTokenChange={setCaptchaToken}
+                    refreshKey={captchaRefreshKey}
+                    disabled={authLoading}
+                  />
+                )}
               </form>
             )}
           </div>
@@ -2941,14 +2971,26 @@ export const AdminDashboardPage: React.FC = () => {
                 setAuthLoading(true);
                 const res =
                   authTab === 'REGISTER'
-                    ? await instructorRegister(authFullName, authEmail, authPassword)
-                    : await instructorLogin(authEmail, authPassword);
+                    ? await instructorRegister(
+                        authFullName,
+                        authEmail,
+                        authPassword,
+                        captchaToken,
+                        captchaAnswer,
+                      )
+                    : await instructorLogin(
+                        authEmail,
+                        authPassword,
+                        captchaToken,
+                        captchaAnswer,
+                      );
                 setAuthLoading(false);
                 if (res.ok) {
                   setUpgradeModalOpen(false);
                   showToast('Đã kích hoạt phiên Giảng viên chính thức!');
                 } else {
                   setAuthError(res.error ?? 'Không thể xác thực tài khoản.');
+                  setCaptchaRefreshKey((k) => k + 1);
                 }
               }}
               className="space-y-2.5 text-xs"
@@ -2979,6 +3021,13 @@ export const AdminDashboardPage: React.FC = () => {
                 onChange={(e) => setAuthPassword(e.target.value)}
                 placeholder="Mật khẩu (tối thiểu 6 ký tự)"
                 className="w-full h-10 px-3 rounded-xl border border-slate-300"
+              />
+              <CaptchaField
+                answer={captchaAnswer}
+                onAnswerChange={setCaptchaAnswer}
+                onTokenChange={setCaptchaToken}
+                refreshKey={captchaRefreshKey}
+                disabled={authLoading}
               />
               {authError && (
                 <p className="text-xs text-rose-600 font-semibold">{authError}</p>
