@@ -10,6 +10,7 @@ import {
   Eye,
   FileJson,
   FileSpreadsheet,
+  Gamepad2,
   Layers,
   LogOut,
   Mail,
@@ -23,6 +24,7 @@ import {
   X,
 } from 'lucide-react';
 import { CoursesTabPanel } from '../components/admin/CoursesTabPanel';
+import { CreateGameModal } from '../components/admin/CreateGameModal';
 import { EssayGradingModal } from '../components/admin/EssayGradingModal';
 import { ExamAnalyticsCharts } from '../components/admin/ExamAnalyticsCharts';
 import { ExcelQuestionBankModal } from '../components/admin/ExcelQuestionBankModal';
@@ -152,6 +154,11 @@ export const AdminDashboardPage: React.FC = () => {
     null,
   );
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [gameModalConfig, setGameModalConfig] = useState<{
+    title: string;
+    courseId?: string;
+    questions: Question[];
+  } | null>(null);
   const [previewStudentCode, setPreviewStudentCode] = useState('3122102099');
   const [excelModalOpen, setExcelModalOpen] = useState(false);
   const [bankSearch, setBankSearch] = useState('');
@@ -1063,6 +1070,21 @@ export const AdminDashboardPage: React.FC = () => {
                     }
                   />
                 </button>
+                <button
+                  type="button"
+                  disabled={!selectedExam}
+                  onClick={() => {
+                    if (!selectedExam) return;
+                    setGameModalConfig({
+                      title: `Live Game: ${selectedExam.title}`,
+                      courseId: selectedExam.courseId,
+                      questions: courseQuestions,
+                    });
+                  }}
+                  className="h-9 px-3 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm disabled:opacity-40"
+                >
+                  <Gamepad2 className="w-3.5 h-3.5" /> Mở Live Game (Kahoot)
+                </button>
                 {selectedExam && (
                   <button
                     type="button"
@@ -1651,6 +1673,23 @@ export const AdminDashboardPage: React.FC = () => {
                   </div>
 
                   <div className="flex flex-wrap gap-2 text-xs">
+                    <button
+                      type="button"
+                      disabled={courseQuestions.length === 0}
+                      onClick={() => {
+                        setGameModalConfig({
+                          title: `Ôn tập: ${selectedCourse.name}`,
+                          courseId: selectedCourse.id,
+                          questions:
+                            filteredCourseQuestions.length > 0
+                              ? filteredCourseQuestions
+                              : courseQuestions,
+                        });
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-bold flex items-center gap-1.5 shadow-sm disabled:opacity-40"
+                    >
+                      <Gamepad2 className="w-3.5 h-3.5" /> Mở Live Game
+                    </button>
                     <button
                       type="button"
                       onClick={() => {
@@ -3072,6 +3111,16 @@ export const AdminDashboardPage: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+
+      {gameModalConfig && (
+        <CreateGameModal
+          open={true}
+          onClose={() => setGameModalConfig(null)}
+          defaultTitle={gameModalConfig.title}
+          courseId={gameModalConfig.courseId}
+          sourceQuestions={gameModalConfig.questions}
+        />
       )}
     </div>
   );

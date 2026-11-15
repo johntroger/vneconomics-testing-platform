@@ -1340,3 +1340,142 @@ function seedDefaultEconomicsData(PDO $pdo, bool $forceReset = false): void
         error_log('[VNE_SEED_ERROR] ' . $e->getMessage());
     }
 }
+
+/**
+ * Ensure Kahoot-style Live Game tables exist (idempotent for MySQL 8+ & SQLite WAL).
+ * Kept separate from ensureExamSchema so fast game polling never runs DDL checks.
+ */
+function ensureGameSchema(PDO $pdo, string $driver): void
+{
+    static $checked = false;
+    if ($checked) {
+        return;
+    }
+
+    try {
+        $pdo->query('SELECT id, game_pin, state_version, double_final_question FROM game_sessions LIMIT 1');
+        $pdo->query('SELECT id, prev_rank, streak, is_kicked FROM game_players LIMIT 1');
+        $pdo->query('SELECT id, answer_payload_json, earned_ratio FROM game_answers LIMIT 1');
+        $checked = true;
+        return;
+    } catch (Throwable) {
+        // Proceed with DDL creation
+    }
+
+    if ($driver === 'mysql') {
+        $statements = [
+            "CREATE TABLE IF NOT EXISTS game_sessions (
+                id VARCHAR(64) PRIMARY KEY,
+                owner_id VARCHAR(64) NOT NULL DEFAULT 'DEMO_INSTRUCTOR',
+                course_id VARCHAR(64) NOT NULL DEFAULT '',
+                title VARCHAR(255) NOT NULL,
+                game_pin VARCHAR(16) NOT NULL,
+                show_question_on_player TINYINT(1) NOT NULL DEFAULT 0,
+                require_student_code TINYINT(1) NOT NULL DEFAULT 0,
+                is_locked TINYINT(1) NOT NULL DEFAULT 0,
+                double_final_question TINYINT(1) NOT NULL DEFAULT 1,
+                default_time_sec INT NOT NULL DEFAULT 20,
+                questions_snapshot_json LONGTEXT NOT NULL,
+                state VARCHAR(32) NOT NULL DEFAULT 'LOBBY',
+                current_q_index INT NOT NULL DEFAULT 0,
+                question_started_at_ms BIGINT NOT NULL DEFAULT 0,
+                question_ends_at_ms BIGINT NOT NULL DEFAULT 0,
+                state_version INT NOT NULL DEFAULT 1,
+                created_at VARCHAR(40) NOT NULL,
+                INDEX idx_game_pin (game_pin),
+                INDEX idx_game_owner (owner_id)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+            "CREATE TABLE IF NOT EXISTS game_players (
+                id VARCHAR(64) PRIMARY KEY,
+                session_id VARCHAR(64) NOT NULL,
+                nickname VARCHAR(100) NOT NULL,
+                student_code VARCHAR(64) NOT NULL DEFAULT '',
+                device_token VARCHAR(128) NOT NULL,
+                score INT NOT NULL DEFAULT 0,
+                prev_rank INT NOT NULL DEFAULT 0,
+                streak INT NOT NULL DEFAULT 0,
+                correct_count INT NOT NULL DEFAULT 0,
+                is_kicked TINYINT(1) NOT NULL DEFAULT 0,
+                joined_at VARCHAR(40) NOT NULL,
+                INDEX idx_gp_session (session_id),
+                INDEX idx_gp_device (session_id, device_token)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+            "CREATE TABLE IF NOT EXISTS game_answers (
+                id VARCHAR(64) PRIMARY KEY,
+                session_id VARCHAR(64) NOT NULL,
+                player_id VARCHAR(64) NOT NULL,
+                question_index INT NOT NULL,
+                answer_payload_json TEXT NOT NULL,
+                is_correct TINYINT(1) NOT NULL DEFAULT 0,
+                earned_ratio DOUBLE NOT NULL DEFAULT 0,
+                response_time_ms INT NOT NULL DEFAULT 0,
+                points_earned INT NOT NULL DEFAULT 0,
+                answered_at VARCHAR(40) NOT NULL,
+                UNIQUE KEY uq_game_ans (session_id, player_id, question_index),
+                INDEX idx_ga_session_q (session_id, question_index)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        ];
+    } else {
+        $statements = [
+            "CREATE TABLE IF NOT EXISTS game_sessions (
+                id TEXT PRIMARY KEY,
+                owner_id TEXT NOT NULL DEFAULT 'DEMO_INSTRUCTOR',
+                course_id TEXT NOT NULL DEFAULT '',
+                title TEXT NOT NULL,
+                game_pin TEXT NOT NULL,
+                show_question_on_player INTEGER NOT NULL DEFAULT 0,
+                require_student_code INTEGER NOT NULL DEFAULT 0,
+                is_locked INTEGER NOT NULL DEFAULT 0,
+                double_final_question INTEGER NOT NULL DEFAULT 1,
+                default_time_sec INTEGER NOT NULL DEFAULT 20,
+                questions_snapshot_json TEXT NOT NULL,
+                state TEXT NOT NULL DEFAULT 'LOBBY',
+                current_q_index INTEGER NOT NULL DEFAULT 0,
+                question_started_at_ms INTEGER NOT NULL DEFAULT 0,
+                question_ends_at_ms INTEGER NOT NULL DEFAULT 0,
+                state_version INTEGER NOT NULL DEFAULT 1,
+                created_at TEXT NOT NULL
+            )",
+            "CREATE INDEX IF NOT EXISTS idx_game_pin ON game_sessions(game_pin)",
+            "CREATE INDEX IF NOT EXISTS idx_game_owner ON game_sessions(owner_id)",
+
+            "CREATE TABLE IF NOT EXISTS game_players (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                nickname TEXT NOT NULL,
+                student_code TEXT NOT NULL DEFAULT '',
+                device_token TEXT NOT NULL,
+                score INTEGER NOT NULL DEFAULT 0,
+                prev_rank INTEGER NOT NULL DEFAULT 0,
+                streak INTEGER NOT NULL DEFAULT 0,
+                correct_count INTEGER NOT NULL DEFAULT 0,
+                is_kicked INTEGER NOT NULL DEFAULT 0,
+                joined_at TEXT NOT NULL
+            )",
+            "CREATE INDEX IF NOT EXISTS idx_gp_session ON game_players(session_id)",
+            "CREATE INDEX IF NOT EXISTS idx_gp_device ON game_players(session_id, device_token)",
+
+            "CREATE TABLE IF NOT EXISTS game_answers (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                player_id TEXT NOT NULL,
+                question_index INTEGER NOT NULL,
+                answer_payload_json TEXT NOT NULL,
+                is_correct INTEGER NOT NULL DEFAULT 0,
+                earned_ratio REAL NOT NULL DEFAULT 0,
+                response_time_ms INTEGER NOT NULL DEFAULT 0,
+                points_earned INTEGER NOT NULL DEFAULT 0,
+                answered_at TEXT NOT NULL,
+                UNIQUE(session_id, player_id, question_index)
+            )",
+            "CREATE INDEX IF NOT EXISTS idx_ga_session_q ON game_answers(session_id, question_index)",
+        ];
+    }
+
+    foreach ($statements as $sql) {
+        $pdo->exec($sql);
+    }
+    $checked = true;
+}
