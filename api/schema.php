@@ -540,6 +540,45 @@ function seedDefaultEconomicsData(PDO $pdo, bool $forceReset = false): void
     if (!$forceReset) {
         $count = (int) $pdo->query('SELECT COUNT(*) FROM courses')->fetchColumn();
         if ($count > 0) {
+            // Idempotent demo backfill for newly added FILL_IN_BLANK sample questions
+            try {
+                $hasDemoBlank = (bool) $pdo->query("SELECT 1 FROM questions WHERE id = 'q_micro_c1_4' LIMIT 1")->fetchColumn();
+                $hasMicroCourse = (bool) $pdo->query("SELECT 1 FROM courses WHERE id = 'course_micro_101' LIMIT 1")->fetchColumn();
+                if (!$hasDemoBlank && $hasMicroCourse) {
+                    $blankSlotsJson = json_encode([
+                        ['id' => 'blank_1', 'index' => 1, 'acceptedAnswers' => ['trượt', 'di chuyển'], 'caseSensitive' => false],
+                        ['id' => 'blank_2', 'index' => 2, 'acceptedAnswers' => ['dịch chuyển'], 'caseSensitive' => false],
+                    ], JSON_UNESCAPED_UNICODE);
+                    $pdo->prepare(
+                        "INSERT INTO questions (id, course_id, owner_id, chapter_category, difficulty, type, content, blank_slots_json, blank_all_or_nothing, tolerance, points)
+                         VALUES ('q_micro_c1_4', 'course_micro_101', 'SYSTEM_DEMO', 'Chương 1: Cung - Cầu & Cân bằng', 'MEDIUM', 'FILL_IN_BLANK', :content, :bs, 0, 0.01, 1.0)"
+                    )->execute([
+                        ':content' => 'Trong kinh tế học, khi giá hàng hóa tăng lên khiến lượng cầu giảm xuống (các yếu tố khác không đổi), hiện tượng này gọi là sự _____ dọc theo đường cầu, khác với sự _____ toàn bộ đường cầu do thay đổi thu nhập.',
+                        ':bs' => $blankSlotsJson,
+                    ]);
+
+                    $exRow = $pdo->query("SELECT chapter_matrix_json FROM exams WHERE id = 'exam_micro_midterm' LIMIT 1")->fetch();
+                    if ($exRow && !empty($exRow['chapter_matrix_json'])) {
+                        $matrix = json_decode((string) $exRow['chapter_matrix_json'], true);
+                        if (is_array($matrix)) {
+                            $changed = false;
+                            foreach ($matrix as &$mItem) {
+                                if (($mItem['chapterCategory'] ?? '') === 'Chương 1: Cung - Cầu & Cân bằng' && (int) ($mItem['questionCount'] ?? 0) === 3) {
+                                    $mItem['questionCount'] = 4;
+                                    $changed = true;
+                                }
+                            }
+                            unset($mItem);
+                            if ($changed) {
+                                $pdo->prepare("UPDATE exams SET chapter_matrix_json = :m WHERE id = 'exam_micro_midterm'")
+                                    ->execute([':m' => json_encode($matrix, JSON_UNESCAPED_UNICODE)]);
+                            }
+                        }
+                    }
+                }
+            } catch (Throwable) {
+                // Safe non-fatal backfill
+            }
             return;
         }
     }
@@ -1122,11 +1161,38 @@ function seedDefaultEconomicsData(PDO $pdo, bool $forceReset = false): void
                 'ai_honeypot_keyword' => null,
                 'points' => 1.0,
             ],
+            [
+                'id' => 'q_micro_c1_4',
+                'course_id' => 'course_micro_101',
+                'chapter_category' => 'Chương 1: Cung - Cầu & Cân bằng',
+                'difficulty' => 'MEDIUM',
+                'type' => 'FILL_IN_BLANK',
+                'content' => 'Trong kinh tế học, khi giá hàng hóa tăng lên khiến lượng cầu giảm xuống (các yếu tố khác không đổi), hiện tượng này gọi là sự _____ dọc theo đường cầu, khác với sự _____ toàn bộ đường cầu do thay đổi thu nhập.',
+                'options_json' => null,
+                'correct_option_ids_json' => null,
+                'true_false_items_json' => null,
+                'blank_slots_json' => json_encode([
+                    ['id' => 'blank_1', 'index' => 1, 'acceptedAnswers' => ['trượt', 'di chuyển'], 'caseSensitive' => false],
+                    ['id' => 'blank_2', 'index' => 2, 'acceptedAnswers' => ['dịch chuyển'], 'caseSensitive' => false],
+                ], JSON_UNESCAPED_UNICODE),
+                'blank_all_or_nothing' => 0,
+                'dynamic_vars_json' => null,
+                'numerical_formula' => null,
+                'numerical_unit' => null,
+                'tolerance' => 0.01,
+                'sample_answer' => null,
+                'grading_rubric_json' => null,
+                'max_chars' => null,
+                'ai_honeypot_text' => null,
+                'ai_honeypot_option_id' => null,
+                'ai_honeypot_keyword' => null,
+                'points' => 1.0,
+            ],
         ];
 
         $stmtQ = $pdo->prepare(
-            'INSERT INTO questions (id, course_id, chapter_category, difficulty, type, content, options_json, correct_option_ids_json, true_false_items_json, dynamic_vars_json, numerical_formula, numerical_unit, tolerance, sample_answer, grading_rubric_json, max_chars, ai_honeypot_text, ai_honeypot_option_id, ai_honeypot_keyword, points)
-             VALUES (:id, :course_id, :chapter_category, :difficulty, :type, :content, :options_json, :correct_option_ids_json, :true_false_items_json, :dynamic_vars_json, :numerical_formula, :numerical_unit, :tolerance, :sample_answer, :grading_rubric_json, :max_chars, :ai_honeypot_text, :ai_honeypot_option_id, :ai_honeypot_keyword, :points)'
+            'INSERT INTO questions (id, course_id, chapter_category, difficulty, type, content, options_json, correct_option_ids_json, true_false_items_json, blank_slots_json, blank_all_or_nothing, dynamic_vars_json, numerical_formula, numerical_unit, tolerance, sample_answer, grading_rubric_json, max_chars, ai_honeypot_text, ai_honeypot_option_id, ai_honeypot_keyword, points)
+             VALUES (:id, :course_id, :chapter_category, :difficulty, :type, :content, :options_json, :correct_option_ids_json, :true_false_items_json, :blank_slots_json, :blank_all_or_nothing, :dynamic_vars_json, :numerical_formula, :numerical_unit, :tolerance, :sample_answer, :grading_rubric_json, :max_chars, :ai_honeypot_text, :ai_honeypot_option_id, :ai_honeypot_keyword, :points)'
         );
         foreach ($questions as $q) {
             $stmtQ->execute([
@@ -1139,6 +1205,8 @@ function seedDefaultEconomicsData(PDO $pdo, bool $forceReset = false): void
                 ':options_json' => $q['options_json'],
                 ':correct_option_ids_json' => $q['correct_option_ids_json'],
                 ':true_false_items_json' => $q['true_false_items_json'],
+                ':blank_slots_json' => $q['blank_slots_json'] ?? null,
+                ':blank_all_or_nothing' => $q['blank_all_or_nothing'] ?? 0,
                 ':dynamic_vars_json' => $q['dynamic_vars_json'],
                 ':numerical_formula' => $q['numerical_formula'],
                 ':numerical_unit' => $q['numerical_unit'],
@@ -1163,7 +1231,7 @@ function seedDefaultEconomicsData(PDO $pdo, bool $forceReset = false): void
                 'instructor_email' => 'giangvien@vneconomics.com',
                 'duration_minutes' => 25,
                 'chapter_matrix' => [
-                    ['chapterCategory' => 'Chương 1: Cung - Cầu & Cân bằng', 'questionCount' => 3, 'percent' => 40, 'pointsPerQuestion' => 1.0],
+                    ['chapterCategory' => 'Chương 1: Cung - Cầu & Cân bằng', 'questionCount' => 4, 'percent' => 40, 'pointsPerQuestion' => 1.0],
                     ['chapterCategory' => 'Chương 2: Co giãn & Hành vi Tiêu dùng', 'questionCount' => 2, 'percent' => 25, 'pointsPerQuestion' => 1.0],
                     ['chapterCategory' => 'Chương 3: Chi phí & Cạnh tranh hoàn hảo', 'questionCount' => 2, 'percent' => 20, 'pointsPerQuestion' => 1.0],
                     ['chapterCategory' => 'Chương 4: Độc quyền & Thất bại Thị trường', 'questionCount' => 2, 'percent' => 15, 'pointsPerQuestion' => 1.0],

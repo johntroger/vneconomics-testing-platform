@@ -89,6 +89,31 @@ export const SEED_QUESTIONS: Question[] = [
     points: 1,
   },
   {
+    id: 'q_micro_c1_4',
+    courseId: 'course_micro_101',
+    chapterCategory: 'Chương 1: Cung - Cầu & Cân bằng',
+    difficulty: 'MEDIUM',
+    type: 'FILL_IN_BLANK',
+    content:
+      'Trong kinh tế học, khi giá hàng hóa tăng lên khiến lượng cầu giảm xuống (các yếu tố khác không đổi), hiện tượng này gọi là sự _____ dọc theo đường cầu, khác với sự _____ toàn bộ đường cầu do thay đổi thu nhập.',
+    blankSlots: [
+      {
+        id: 'blank_1',
+        index: 1,
+        acceptedAnswers: ['trượt', 'di chuyển'],
+        caseSensitive: false,
+      },
+      {
+        id: 'blank_2',
+        index: 2,
+        acceptedAnswers: ['dịch chuyển'],
+        caseSensitive: false,
+      },
+    ],
+    blankAllOrNothing: false,
+    points: 1,
+  },
+  {
     id: 'q_micro_c2_1',
     courseId: 'course_micro_101',
     chapterCategory: 'Chương 2: Co giãn & Hành vi Tiêu dùng',
@@ -381,7 +406,7 @@ export const SEED_EXAMS: Exam[] = [
     chapterMatrix: [
       {
         chapterCategory: 'Chương 1: Cung - Cầu & Cân bằng',
-        questionCount: 3,
+        questionCount: 4,
         percent: 40,
         pointsPerQuestion: 1,
       },
