@@ -36,8 +36,19 @@ import {
   recalculateAttemptScores,
 } from '../utils/dynamicQuestionEngine';
 
+export interface RoomMatchOption {
+  examId: string;
+  examTitle: string;
+  status: string;
+  durationMinutes: number;
+  courseId: string;
+  courseCode: string;
+  courseName: string;
+}
+
 interface StartAttemptInput {
   pin: string;
+  examId?: string;
   studentCode: string;
   studentName: string;
   className: string;
@@ -51,6 +62,8 @@ interface StartAttemptResult {
   examId?: string;
   resumed?: boolean;
   alreadySubmitted?: boolean;
+  needsExamChoice?: boolean;
+  matches?: RoomMatchOption[];
 }
 
 interface ExamPlatformState {
@@ -614,12 +627,17 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
       }
 
       if (alive) {
+        const roomUrl = `/api/exams.php?action=room&pin=${encodeURIComponent(normalizedPin)}${
+          input.examId ? `&examId=${encodeURIComponent(input.examId)}` : ''
+        }`;
         const roomRes = await apiRequestDetailed<{
           ok: boolean;
+          multipleMatches?: boolean;
+          matches?: RoomMatchOption[];
           exam?: Exam;
           course?: Course | null;
           questions?: Question[];
-        }>(`/api/exams.php?action=room&pin=${encodeURIComponent(normalizedPin)}`, {
+        }>(roomUrl, {
           method: 'GET',
         });
 
@@ -628,6 +646,20 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
             return {
               ok: false,
               error: roomRes.error ?? 'Không tìm thấy phòng thi với mã PIN này.',
+            };
+          }
+
+          if (
+            !input.examId &&
+            roomRes.data.multipleMatches &&
+            Array.isArray(roomRes.data.matches) &&
+            roomRes.data.matches.length > 1
+          ) {
+            return {
+              ok: false,
+              needsExamChoice: true,
+              matches: roomRes.data.matches,
+              error: 'Mã PIN này đang dùng cho nhiều học phần/bài kiểm tra. Vui lòng chọn đúng học phần và bài thi.',
             };
           }
 

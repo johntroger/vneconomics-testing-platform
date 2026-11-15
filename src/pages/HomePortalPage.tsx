@@ -14,7 +14,7 @@ import {
   Sparkles,
   UserCheck,
 } from 'lucide-react';
-import { useExamPlatform } from '../context/ExamContext';
+import { RoomMatchOption, useExamPlatform } from '../context/ExamContext';
 
 const DOMAIN_CHIPS = ['@gmail.com', '@st.ueh.edu.vn', '@edu.vn', '@icloud.com'];
 const COMMON_EMAIL_TYPOS = ['@gmai.com', '@gmial.com', '@gnail.com', '@yaho.com', '@gamil.com'];
@@ -30,6 +30,8 @@ export const HomePortalPage: React.FC = () => {
   const [studentName, setStudentName] = useState('');
   const [className, setClassName] = useState('');
   const [studentEmail, setStudentEmail] = useState('');
+  const [pinMatches, setPinMatches] = useState<RoomMatchOption[]>([]);
+  const [selectedExamId, setSelectedExamId] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -41,8 +43,10 @@ export const HomePortalPage: React.FC = () => {
   const [bypassWebViewNotice, setBypassWebViewNotice] = useState(false);
 
   const matchedExam = useMemo(
-    () => exams.find((e) => e.roomPin === pin.trim()),
-    [exams, pin],
+    () =>
+      (selectedExamId ? exams.find((e) => e.id === selectedExamId) : undefined) ??
+      exams.find((e) => e.roomPin === pin.trim()),
+    [exams, pin, selectedExamId],
   );
   const matchedCourse = useMemo(
     () => courses.find((c) => c.id === matchedExam?.courseId),
@@ -208,12 +212,19 @@ export const HomePortalPage: React.FC = () => {
     setLoading(true);
     const res = await startOrResumeAttempt({
       pin,
+      examId: selectedExamId || undefined,
       studentCode,
       studentName,
       className,
       studentEmail,
     });
     setLoading(false);
+
+    if (res.needsExamChoice && res.matches && res.matches.length > 1) {
+      setPinMatches(res.matches);
+      setError('Mã PIN này có nhiều bài thi. Hãy chọn đúng học phần & bài kiểm tra bên dưới rồi bấm vào thi.');
+      return;
+    }
 
     if (!res.ok || !res.attemptId || !res.examId) {
       setError(res.error ?? 'Không thể vào phòng thi.');
@@ -382,7 +393,11 @@ export const HomePortalPage: React.FC = () => {
                   inputMode="numeric"
                   maxLength={6}
                   value={pin}
-                  onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+                  onChange={(e) => {
+                    setPin(e.target.value.replace(/\D/g, ''));
+                    setPinMatches([]);
+                    setSelectedExamId('');
+                  }}
                   placeholder="Ví dụ: 101202"
                   className="w-full h-12 px-3.5 rounded-xl border border-slate-300 font-mono text-lg font-bold tracking-[0.2em] text-ink-900 placeholder:text-slate-300 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
@@ -406,7 +421,38 @@ export const HomePortalPage: React.FC = () => {
                       </button>
                     ))}
                 </div>
-                {matchedExam && (
+                {pinMatches.length > 1 && (
+                  <div className="mt-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 space-y-1.5">
+                    <div className="text-[11px] font-bold text-amber-900">
+                      Chọn đúng Học phần &amp; Bài kiểm tra cho mã PIN {pin}:
+                    </div>
+                    <div className="space-y-1">
+                      {pinMatches.map((m) => (
+                        <button
+                          key={m.examId}
+                          type="button"
+                          onClick={() => {
+                            setSelectedExamId(m.examId);
+                            setError('');
+                          }}
+                          className={`w-full text-left px-2.5 py-2 rounded-lg border text-xs transition ${
+                            selectedExamId === m.examId
+                              ? 'bg-brand-600 text-white border-brand-600 font-bold'
+                              : 'bg-white text-ink-800 border-amber-200 hover:border-brand-400'
+                          }`}
+                        >
+                          <div className="font-bold">
+                            {m.courseCode ? `${m.courseCode} — ${m.courseName}` : m.courseId}
+                          </div>
+                          <div className="text-[11px] opacity-90">
+                            {m.examTitle} ({m.durationMinutes} phút • {m.status === 'OPEN' ? 'Đang mở' : m.status})
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {matchedExam && pinMatches.length <= 1 && (
                   <div className="mt-2 px-3 py-2 rounded-xl bg-brand-50 border border-brand-200 text-xs text-brand-900">
                     <span className="font-bold">{matchedCourse?.code}:</span> {matchedExam.title} ({matchedExam.durationMinutes} phút)
                   </div>

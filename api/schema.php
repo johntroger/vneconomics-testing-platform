@@ -82,7 +82,7 @@ function ensureExamSchema(PDO $pdo, string $driver): void
                 id VARCHAR(64) PRIMARY KEY,
                 course_id VARCHAR(64) NOT NULL,
                 title VARCHAR(255) NOT NULL,
-                room_pin VARCHAR(32) NOT NULL UNIQUE,
+                room_pin VARCHAR(32) NOT NULL,
                 unlock_pin VARCHAR(32) NOT NULL DEFAULT '8888',
                 instructor_email VARCHAR(255) NOT NULL DEFAULT '',
                 duration_minutes INT NOT NULL DEFAULT 45,
@@ -227,7 +227,7 @@ function ensureExamSchema(PDO $pdo, string $driver): void
                 id TEXT PRIMARY KEY,
                 course_id TEXT NOT NULL,
                 title TEXT NOT NULL,
-                room_pin TEXT NOT NULL UNIQUE,
+                room_pin TEXT NOT NULL,
                 unlock_pin TEXT NOT NULL DEFAULT '8888',
                 instructor_email TEXT NOT NULL DEFAULT '',
                 duration_minutes INTEGER NOT NULL DEFAULT 45,
@@ -372,6 +372,79 @@ function ensureExamSchema(PDO $pdo, string $driver): void
             $pdo->exec($alterSql);
         } catch (Throwable) {
             // Column already exists
+        }
+    }
+
+    // Drop legacy UNIQUE index on exams.room_pin so multiple courses/exams may share a PIN
+    try {
+        if ($driver === 'mysql') {
+            $idxRows = $pdo->query("SHOW INDEX FROM exams WHERE Column_name = 'room_pin' AND Non_unique = 0")->fetchAll();
+            foreach ($idxRows as $idxRow) {
+                $keyName = preg_replace('/[^a-zA-Z0-9_]/', '', (string) ($idxRow['Key_name'] ?? ''));
+                if ($keyName !== '' && strtoupper($keyName) !== 'PRIMARY') {
+                    $pdo->exec("ALTER TABLE exams DROP INDEX `$keyName`");
+                }
+            }
+            $hasNonUnique = $pdo->query("SHOW INDEX FROM exams WHERE Key_name = 'idx_exams_pin'")->fetch();
+            if (!$hasNonUnique) {
+                $pdo->exec('CREATE INDEX idx_exams_pin ON exams(room_pin)');
+            }
+        } else {
+            $idxList = $pdo->query("PRAGMA index_list('exams')")->fetchAll();
+            $hasUniqueRoomPin = false;
+            foreach ($idxList as $idx) {
+                if ((int) ($idx['unique'] ?? 0) === 1) {
+                    $idxName = preg_replace('/[^a-zA-Z0-9_]/', '', (string) ($idx['name'] ?? ''));
+                    if ($idxName !== '') {
+                        $cols = $pdo->query("PRAGMA index_info('$idxName')")->fetchAll();
+                        foreach ($cols as $c) {
+                            if (($c['name'] ?? '') === 'room_pin') {
+                                $hasUniqueRoomPin = true;
+                            }
+                        }
+                    }
+                }
+            }
+            if ($hasUniqueRoomPin) {
+                $pdo->beginTransaction();
+                $pdo->exec("CREATE TABLE exams_new (
+                    id TEXT PRIMARY KEY,
+                    course_id TEXT NOT NULL,
+                    title TEXT NOT NULL,
+                    room_pin TEXT NOT NULL,
+                    unlock_pin TEXT NOT NULL DEFAULT '8888',
+                    instructor_email TEXT NOT NULL DEFAULT '',
+                    duration_minutes INTEGER NOT NULL DEFAULT 45,
+                    chapter_matrix_json TEXT NULL,
+                    pinned_question_ids_json TEXT NULL,
+                    shuffle_questions INTEGER NOT NULL DEFAULT 1,
+                    shuffle_mode TEXT NOT NULL DEFAULT 'BY_CHAPTER',
+                    shuffle_options INTEGER NOT NULL DEFAULT 1,
+                    max_leave_count INTEGER NOT NULL DEFAULT 3,
+                    max_away_seconds INTEGER NOT NULL DEFAULT 25,
+                    grace_period_ms INTEGER NOT NULL DEFAULT 2000,
+                    one_way_mode INTEGER NOT NULL DEFAULT 0,
+                    per_question_seconds INTEGER NOT NULL DEFAULT 0,
+                    canvas_anti_ocr INTEGER NOT NULL DEFAULT 1,
+                    email_delivery_mode TEXT NOT NULL DEFAULT 'IMMEDIATE',
+                    roster_whitelist_json TEXT NULL,
+                    status TEXT NOT NULL DEFAULT 'DRAFT',
+                    report_sent_status TEXT NOT NULL DEFAULT 'PENDING',
+                    report_sent_at TEXT NULL,
+                    created_at TEXT NOT NULL,
+                    owner_id TEXT NOT NULL DEFAULT 'SYSTEM_DEMO'
+                )");
+                $pdo->exec("INSERT INTO exams_new (id, course_id, title, room_pin, unlock_pin, instructor_email, duration_minutes, chapter_matrix_json, pinned_question_ids_json, shuffle_questions, shuffle_mode, shuffle_options, max_leave_count, max_away_seconds, grace_period_ms, one_way_mode, per_question_seconds, canvas_anti_ocr, email_delivery_mode, roster_whitelist_json, status, report_sent_status, report_sent_at, created_at, owner_id)
+                    SELECT id, course_id, title, room_pin, unlock_pin, instructor_email, duration_minutes, chapter_matrix_json, pinned_question_ids_json, shuffle_questions, shuffle_mode, shuffle_options, max_leave_count, max_away_seconds, grace_period_ms, one_way_mode, per_question_seconds, canvas_anti_ocr, email_delivery_mode, roster_whitelist_json, status, report_sent_status, report_sent_at, created_at, COALESCE(owner_id, 'SYSTEM_DEMO') FROM exams");
+                $pdo->exec('DROP TABLE exams');
+                $pdo->exec('ALTER TABLE exams_new RENAME TO exams');
+                $pdo->exec('CREATE INDEX IF NOT EXISTS idx_exams_pin ON exams(room_pin)');
+                $pdo->commit();
+            }
+        }
+    } catch (Throwable) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
         }
     }
 

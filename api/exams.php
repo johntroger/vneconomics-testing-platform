@@ -219,23 +219,32 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
 
     if ($action === 'room') {
         $pin = strtoupper(trim((string) ($_GET['pin'] ?? '')));
+        $requestedExamId = trim((string) ($_GET['examId'] ?? ''));
         if ($pin === '') {
             jsonError('Vui lòng nhập mã PIN phòng thi.', 400);
         }
         $demoPins = ['101202', '202303', '303404'];
-        $stmt = $pdo->prepare('SELECT * FROM exams WHERE UPPER(room_pin) = :pin LIMIT 1');
-        $stmt->execute([':pin' => $pin]);
-        $row = $stmt->fetch();
+        if ($requestedExamId !== '') {
+            $stmt = $pdo->prepare('SELECT e.*, c.code AS course_code, c.name AS course_name FROM exams e LEFT JOIN courses c ON c.id = e.course_id WHERE UPPER(e.room_pin) = :pin AND e.id = :eid LIMIT 1');
+            $stmt->execute([':pin' => $pin, ':eid' => $requestedExamId]);
+        } else {
+            $stmt = $pdo->prepare("SELECT e.*, c.code AS course_code, c.name AS course_name FROM exams e LEFT JOIN courses c ON c.id = e.course_id WHERE UPPER(e.room_pin) = :pin ORDER BY (CASE WHEN e.status = 'OPEN' THEN 0 ELSE 1 END), e.created_at DESC");
+            $stmt->execute([':pin' => $pin]);
+        }
+        $rows = $stmt->fetchAll();
+        $row = $rows[0] ?? false;
 
-        if (!$row && in_array($pin, $demoPins, true)) {
+        if (!$row && in_array($pin, $demoPins, true) && $requestedExamId === '') {
             seedDefaultEconomicsData($pdo, true);
             $stmt->execute([':pin' => $pin]);
-            $row = $stmt->fetch();
-        } elseif ($row && in_array($pin, $demoPins, true) && (string) ($row['status'] ?? '') !== 'OPEN') {
+            $rows = $stmt->fetchAll();
+            $row = $rows[0] ?? false;
+        } elseif ($row && in_array($pin, $demoPins, true) && (string) ($row['owner_id'] ?? '') === 'SYSTEM_DEMO' && (string) ($row['status'] ?? '') !== 'OPEN') {
             $pdo->prepare("UPDATE exams SET status = 'OPEN', report_sent_status = 'PENDING', report_sent_at = NULL WHERE id = :id")
                 ->execute([':id' => $row['id']]);
-            $stmt->execute([':pin' => $pin]);
-            $row = $stmt->fetch();
+            $stmt->execute($requestedExamId !== '' ? [':pin' => $pin, ':eid' => $requestedExamId] : [':pin' => $pin]);
+            $rows = $stmt->fetchAll();
+            $row = $rows[0] ?? false;
         }
 
         if (!$row) {
@@ -250,18 +259,33 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         $stmtQ->execute([':cid' => $row['course_id']]);
         $qRows = $stmtQ->fetchAll();
 
-        if (in_array($pin, $demoPins, true) && (!$courseRow || count($qRows) === 0)) {
+        if (in_array($pin, $demoPins, true) && (string) ($row['owner_id'] ?? '') === 'SYSTEM_DEMO' && (!$courseRow || count($qRows) === 0)) {
             seedDefaultEconomicsData($pdo, true);
-            $stmt->execute([':pin' => $pin]);
-            $row = $stmt->fetch() ?: $row;
+            $stmt->execute($requestedExamId !== '' ? [':pin' => $pin, ':eid' => $requestedExamId] : [':pin' => $pin]);
+            $rows = $stmt->fetchAll();
+            $row = $rows[0] ?: $row;
             $stmtC->execute([':cid' => $row['course_id']]);
             $courseRow = $stmtC->fetch();
             $stmtQ->execute([':cid' => $row['course_id']]);
             $qRows = $stmtQ->fetchAll();
         }
 
+        $matches = count($rows) > 1
+            ? array_map(static fn (array $r): array => [
+                'examId' => (string) $r['id'],
+                'examTitle' => (string) $r['title'],
+                'status' => (string) ($r['status'] ?? 'DRAFT'),
+                'durationMinutes' => (int) ($r['duration_minutes'] ?? 45),
+                'courseId' => (string) $r['course_id'],
+                'courseCode' => (string) ($r['course_code'] ?? ''),
+                'courseName' => (string) ($r['course_name'] ?? ''),
+            ], $rows)
+            : [];
+
         jsonResponse([
             'ok' => true,
+            'multipleMatches' => count($matches) > 1,
+            'matches' => $matches,
             'exam' => formatExamRow($row, true),
             'course' => $courseRow ? formatCourseRow($courseRow) : null,
             'questions' => array_map(static fn ($qr) => formatQuestionRow($qr, true), $qRows),
@@ -459,13 +483,6 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         $roomPin = strtoupper(trim((string) ($body['roomPin'] ?? '')));
         if ($courseId === '' || $title === '' || $roomPin === '') {
             jsonError('Thiếu courseId, tiêu đề kỳ thi hoặc roomPin.', 400);
-        }
-
-        // Prevent duplicate room_pin across different exams
-        $dupStmt = $pdo->prepare('SELECT id FROM exams WHERE UPPER(room_pin) = :pin AND id <> :id LIMIT 1');
-        $dupStmt->execute([':pin' => $roomPin, ':id' => $id]);
-        if ($dupStmt->fetch()) {
-            jsonError("Mã phòng thi '$roomPin' đã được sử dụng cho một kỳ thi khác.", 409);
         }
 
         $exists = $pdo->prepare('SELECT owner_id FROM exams WHERE id = :id LIMIT 1');
