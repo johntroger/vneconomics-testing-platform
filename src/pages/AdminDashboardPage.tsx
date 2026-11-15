@@ -1638,7 +1638,7 @@ export const AdminDashboardPage: React.FC = () => {
               </button>
             </div>
             <form
-              onSubmit={(e) => {
+              onSubmit={async (e) => {
                 e.preventDefault();
                 if (!newExamTitle.trim() || !/^\d{6}$/.test(newExamPin.trim())) {
                   showToast('Vui lòng nhập tiêu đề và mã phòng 6 chữ số hợp lệ.');
@@ -1692,7 +1692,11 @@ export const AdminDashboardPage: React.FC = () => {
                   reportSentStatus: 'PENDING' as const,
                   createdAt: new Date().toISOString(),
                 };
-                upsertExam(createdExam);
+                const saveRes = await upsertExam(createdExam);
+                if (!saveRes.ok) {
+                  showToast(saveRes.error || 'Không thể lưu đề thi lên máy chủ.');
+                  return;
+                }
                 setSelectedExamId(newId);
                 setCreateExamModalOpen(false);
                 showToast(`Đã tạo đề thi chính thức [${createdExam.roomPin}]!`);

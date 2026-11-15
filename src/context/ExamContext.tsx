@@ -128,7 +128,7 @@ interface ExamContextValue extends ExamPlatformState {
       syncExamId?: string;
     },
   ) => { addedCount: number; updatedCount: number; syncedChapters: number };
-  upsertExam: (exam: Exam) => void;
+  upsertExam: (exam: Exam) => Promise<{ ok: boolean; error?: string }>;
   cloneExam: (examId: string) => Exam | null;
   resendStudentScoreEmail: (attemptId: string, editedEmail?: string) => void;
   sendTestMailer: (recipient: string) => EmailLogEntry;
@@ -2096,7 +2096,8 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const upsertExam = useCallback(
-    (exam: Exam) => {
+    async (exam: Exam): Promise<{ ok: boolean; error?: string }> => {
+      const prevExam = stateRef.current.exams.find((e) => e.id === exam.id);
       updateState((prev) => {
         const exists = prev.exams.some((e) => e.id === exam.id);
         return {
@@ -2108,11 +2109,34 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
       });
 
       if (backendConnected) {
-        void apiRequest('/api/exams.php?action=save_exam', {
-          method: 'POST',
-          body: JSON.stringify(exam),
-        });
+        const res = await apiRequestDetailed<{ ok: boolean; exam?: Exam; error?: string }>(
+          '/api/exams.php?action=save_exam',
+          {
+            method: 'POST',
+            body: JSON.stringify(exam),
+          },
+        );
+        if (!res.ok || !res.data?.ok) {
+          updateState((prev) => ({
+            ...prev,
+            exams: prevExam
+              ? prev.exams.map((e) => (e.id === exam.id ? prevExam : e))
+              : prev.exams.filter((e) => e.id !== exam.id),
+          }));
+          return {
+            ok: false,
+            error: res.error || res.data?.error || 'Không thể lưu đề thi lên máy chủ.',
+          };
+        }
+        if (res.data.exam) {
+          const saved = normalizeServerExam(res.data.exam);
+          updateState((prev) => ({
+            ...prev,
+            exams: prev.exams.map((e) => (e.id === exam.id ? saved : e)),
+          }));
+        }
       }
+      return { ok: true };
     },
     [backendConnected, updateState],
   );
