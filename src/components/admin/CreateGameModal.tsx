@@ -76,12 +76,12 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl max-w-lg w-full shadow-2xl border border-slate-200 overflow-hidden">
-        <div className="px-6 py-4 bg-gradient-to-r from-indigo-600 to-violet-600 text-white flex items-center justify-between">
+    <div className="fixed inset-0 z-50 bg-slate-950/70 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+      <div className="bg-white rounded-3xl max-w-lg w-full max-h-[90dvh] flex flex-col shadow-2xl border border-slate-200 overflow-hidden">
+        <div className="shrink-0 px-5 py-3.5 bg-gradient-to-r from-indigo-600 to-violet-600 text-white flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <Gamepad2 className="w-6 h-6" />
-            <h3 className="font-black text-lg">Mở Phòng Live Game (Kahoot)</h3>
+            <Gamepad2 className="w-5 h-5" />
+            <h3 className="font-black text-base sm:text-lg">Mở Phòng Live Game (Kahoot)</h3>
           </div>
           <button
             type="button"
@@ -92,7 +92,8 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
           </button>
         </div>
 
-        <form onSubmit={handleLaunch} className="p-6 space-y-4 text-slate-800">
+        <form onSubmit={handleLaunch} className="flex flex-col flex-1 min-h-0 text-slate-800">
+          <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3.5">
           <div>
             <label className="block text-xs font-bold uppercase tracking-wider text-slate-500 mb-1">
               Tên trò chơi
@@ -245,19 +246,20 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
               {error}
             </div>
           )}
+          </div>
 
-          <div className="flex items-center justify-end gap-2 pt-2">
+          <div className="shrink-0 px-5 py-3.5 border-t border-slate-100 bg-slate-50/80 flex items-center justify-end gap-2">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2.5 rounded-xl font-bold text-sm text-slate-600 hover:bg-slate-100"
+              className="px-4 py-2 rounded-xl font-bold text-sm text-slate-600 hover:bg-slate-200/70 transition"
             >
               Hủy
             </button>
             <button
               type="submit"
               disabled={submitting || previewSnapshot.length === 0}
-              className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-black text-sm flex items-center gap-2 shadow-lg disabled:opacity-50"
+              className="px-6 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-black text-sm flex items-center gap-2 shadow-lg disabled:opacity-50 transition"
             >
               <Play className="w-4 h-4 fill-current" />
               {submitting ? 'Đang mở...' : 'Tạo phòng Game'}
