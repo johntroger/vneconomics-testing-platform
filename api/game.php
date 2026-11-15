@@ -480,6 +480,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
                 'playerId' => $existing['id'],
                 'nickname' => $existing['nickname'],
                 'studentCode' => $existing['student_code'],
+                'teamName' => (string) ($existing['team_name'] ?? ''),
             ]);
         }
 

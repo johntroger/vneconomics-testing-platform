@@ -41,6 +41,7 @@ export const GamePlayPage: React.FC = () => {
 
   const [view, setView] = useState<GamePlayerView | null>(null);
   const [error, setError] = useState('');
+  const [submitNotice, setSubmitNotice] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [submittedLocal, setSubmittedLocal] = useState(false);
@@ -71,6 +72,7 @@ export const GamePlayPage: React.FC = () => {
     if (res.data.session.currentQIndex !== lastQIndexRef.current) {
       lastQIndexRef.current = res.data.session.currentQIndex;
       setSubmittedLocal(false);
+      setSubmitNotice('');
       setMultiSelected([]);
       setTfSelected({});
       setTextAnswer('');
@@ -138,6 +140,7 @@ export const GamePlayPage: React.FC = () => {
     if (!sessionId || !playerId || !view || submitting || submittedLocal) return;
     setSubmitting(true);
     setSubmittedLocal(true);
+    setSubmitNotice('');
     const res = await submitGameAnswer({
       sessionId,
       playerId,
@@ -146,7 +149,10 @@ export const GamePlayPage: React.FC = () => {
     });
     setSubmitting(false);
     if (!res.ok) {
-      setError(res.error ?? 'Không gửi được đáp án.');
+      setSubmittedLocal(false);
+      setSubmitNotice(res.error ?? 'Không gửi được đáp án, đang đồng bộ lại...');
+      window.setTimeout(() => setSubmitNotice(''), 3000);
+      void loadPlayerView();
     } else {
       void loadPlayerView();
     }
@@ -253,6 +259,12 @@ export const GamePlayPage: React.FC = () => {
                 {remainingSec}s
               </span>
             </div>
+
+            {submitNotice && (
+              <div className="px-3 py-2 rounded-xl bg-rose-500/20 border border-rose-400/40 text-rose-200 text-xs font-bold text-center">
+                {submitNotice}
+              </div>
+            )}
 
             {submittedLocal ? (
               <div className="flex-1 flex flex-col items-center justify-center text-center gap-4 bg-slate-900/70 border border-slate-800 rounded-3xl p-6">
