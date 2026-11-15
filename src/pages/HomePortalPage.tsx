@@ -337,7 +337,7 @@ export const HomePortalPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-surface-100 to-slate-100 flex flex-col">
       {/* Top Header aligned to content container */}
-      <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-6 pt-[max(0.875rem,env(safe-area-inset-top))] pb-3.5">
+      <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-4">
         <div className="max-w-5xl mx-auto w-full flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-600 to-brand-700 text-white flex items-center justify-center font-bold shadow-sm shrink-0">
