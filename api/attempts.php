@@ -540,6 +540,27 @@ function fetchAttemptAnswersMapPhp(PDO $pdo, string $attemptId, bool $includeGra
     return $batch[$attemptId] ?? [];
 }
 
+function normalizeRosterTextPhp(string $val): string
+{
+    $collapsed = trim(preg_replace('/\s+/u', ' ', $val) ?? $val);
+    return function_exists('mb_strtolower') ? mb_strtolower($collapsed, 'UTF-8') : strtolower($collapsed);
+}
+
+function normalizeRosterDobPhp(string $val): string
+{
+    $s = trim($val);
+    if ($s === '') {
+        return '';
+    }
+    if (preg_match('/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/', $s, $m)) {
+        return sprintf('%02d-%02d-%04d', (int) $m[1], (int) $m[2], (int) $m[3]);
+    }
+    if (preg_match('/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/', $s, $m)) {
+        return sprintf('%02d-%02d-%04d', (int) $m[3], (int) $m[2], (int) $m[1]);
+    }
+    return normalizeRosterTextPhp($s);
+}
+
 if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) === __FILE__) {
     applyCorsHeaders();
     $pdo = getDb();
@@ -550,7 +571,14 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         $pin = strtoupper(trim((string) ($body['pin'] ?? '')));
         $examIdParam = trim((string) ($body['examId'] ?? ''));
         $studentCode = strtoupper(trim((string) ($body['studentCode'] ?? '')));
+        $lastName = trim((string) ($body['lastName'] ?? ''));
+        $firstName = trim((string) ($body['firstName'] ?? ''));
+        $gender = trim((string) ($body['gender'] ?? ''));
+        $dob = trim((string) ($body['dob'] ?? ''));
         $studentName = trim((string) ($body['studentName'] ?? ''));
+        if ($studentName === '' && ($lastName !== '' || $firstName !== '')) {
+            $studentName = trim($lastName . ' ' . $firstName);
+        }
         $studentEmail = strtolower(trim((string) ($body['studentEmail'] ?? '')));
         $className = trim((string) ($body['className'] ?? ''));
         $deviceToken = trim((string) ($body['deviceToken'] ?? generateId('dev')));
@@ -587,6 +615,36 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         $whitelist = array_map(static fn ($s) => strtoupper(trim((string) $s)), $exam['rosterWhitelist'] ?? []);
         if (count($whitelist) > 0 && !in_array($studentCode, $whitelist, true)) {
             jsonError("MSSV $studentCode không có tên trong danh sách ca thi này.", 403);
+        }
+
+        $rosterEntries = is_array($exam['rosterEntries'] ?? null) ? $exam['rosterEntries'] : [];
+        if (count($rosterEntries) > 0) {
+            $matchedRoster = null;
+            foreach ($rosterEntries as $entry) {
+                if (strtoupper(trim((string) ($entry['studentCode'] ?? ''))) === $studentCode) {
+                    $matchedRoster = $entry;
+                    break;
+                }
+            }
+            if (!$matchedRoster) {
+                jsonError("MSSV $studentCode không có tên trong danh sách sinh viên được phép thi ca này.", 403);
+            }
+            $mismatches = [];
+            if (normalizeRosterTextPhp($lastName) !== normalizeRosterTextPhp((string) ($matchedRoster['lastName'] ?? ''))) {
+                $mismatches[] = 'Họ đệm';
+            }
+            if (normalizeRosterTextPhp($firstName) !== normalizeRosterTextPhp((string) ($matchedRoster['firstName'] ?? ''))) {
+                $mismatches[] = 'Tên';
+            }
+            if (normalizeRosterTextPhp($gender) !== normalizeRosterTextPhp((string) ($matchedRoster['gender'] ?? ''))) {
+                $mismatches[] = 'Giới tính';
+            }
+            if (normalizeRosterDobPhp($dob) !== normalizeRosterDobPhp((string) ($matchedRoster['dob'] ?? ''))) {
+                $mismatches[] = 'Ngày sinh';
+            }
+            if (count($mismatches) > 0) {
+                jsonError('Thông tin sinh viên không khớp với danh sách ca thi (kiểm tra lại: ' . implode(', ', $mismatches) . ').', 403);
+            }
         }
 
         $existingStmt = $pdo->prepare('SELECT * FROM exam_attempts WHERE exam_id = :eid AND UPPER(student_code) = :sc LIMIT 1');

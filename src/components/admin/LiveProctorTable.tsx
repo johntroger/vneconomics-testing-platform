@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   AlertOctagon,
   CheckCircle2,
   Clock,
+  Download,
   FileText,
   Mail,
   Plus,
@@ -10,9 +11,16 @@ import {
   RotateCcw,
   ShieldAlert,
   StopCircle,
+  Trash2,
+  Upload,
+  Users,
   XCircle,
 } from 'lucide-react';
-import type { Exam, ExamAttempt } from '../../types/exam';
+import type { Exam, ExamAttempt, StudentRosterEntry } from '../../types/exam';
+import {
+  downloadStudentRosterTemplateXlsx,
+  parseStudentRosterXlsx,
+} from '../../utils/studentRosterXlsx';
 
 interface LiveProctorTableProps {
   exam: Exam;
@@ -27,6 +35,7 @@ interface LiveProctorTableProps {
   onCloseExamAndSweep: (examId: string) => void;
   onOpenEssayReview: (attemptId: string) => void;
   onResendEmail: (attemptId: string, editedEmail?: string) => void;
+  onUpdateRoster?: (examId: string, entries: StudentRosterEntry[]) => void;
 }
 
 export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
@@ -38,10 +47,42 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
   onCloseExamAndSweep,
   onOpenEssayReview,
   onResendEmail,
+  onUpdateRoster,
 }) => {
   const [tickNow, setTickNow] = useState(Date.now());
   const [editingEmailId, setEditingEmailId] = useState<string | null>(null);
   const [emailDraft, setEmailDraft] = useState('');
+  const [showRosterTable, setShowRosterTable] = useState(false);
+  const [rosterNotice, setRosterNotice] = useState<{
+    type: 'ok' | 'err';
+    text: string;
+  } | null>(null);
+  const rosterFileRef = useRef<HTMLInputElement | null>(null);
+
+  const rosterEntries = exam.rosterEntries ?? [];
+
+  const handleRosterFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    const { entries, errors } = await parseStudentRosterXlsx(file);
+    if (entries.length === 0) {
+      setRosterNotice({
+        type: 'err',
+        text: errors[0] || 'Không đọc được danh sách sinh viên hợp lệ từ file.',
+      });
+      return;
+    }
+    onUpdateRoster?.(exam.id, entries);
+    setShowRosterTable(true);
+    setRosterNotice({
+      type: 'ok',
+      text:
+        errors.length > 0
+          ? `Đã import ${entries.length} sinh viên (bỏ qua ${errors.length} dòng lỗi: ${errors[0]}).`
+          : `Đã import ${entries.length} sinh viên. Sinh viên vào phòng thi bắt buộc nhập đúng Mã SV, Họ đệm, Tên, Giới tính, Ngày sinh.`,
+    });
+  };
 
   useEffect(() => {
     const id = window.setInterval(() => setTickNow(Date.now()), 1000);
@@ -117,6 +158,118 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
             ? 'Ca thi đã đóng & Gửi Email tổng hợp'
             : 'Kết thúc Ca thi (Sweeper thu bài treo + Gửi Email Tổng hợp)'}
         </button>
+      </div>
+
+      {/* Student Roster Import & Verification Card */}
+      <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-soft">
+        <div className="flex flex-wrap items-center justify-between gap-2.5">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2 text-xs font-extrabold text-ink-900">
+              <Users className="w-4 h-4 text-brand-600" />
+              Danh sách Sinh viên Ca thi (Xác thực thông tin khi vào phòng)
+              {rosterEntries.length > 0 ? (
+                <span className="px-2 py-0.5 rounded-full bg-support-50 text-support-700 border border-support-200 text-[11px] font-bold">
+                  {rosterEntries.length} SV • Bắt buộc khớp
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full bg-slate-100 text-ink-600 text-[11px] font-semibold">
+                  Chưa import (tự do theo PIN)
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-ink-500">
+              Import file Excel/CSV theo đúng các cột: <strong>STT | Mã sinh viên | Họ đệm | Tên | Giới tính | Ngày sinh</strong>.
+              Khi đã import, sinh viên phải nhập chính xác các thông tin này mới được vào phòng thi.
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              ref={rosterFileRef}
+              type="file"
+              accept=".xlsx,.xls,.csv"
+              onChange={handleRosterFileChange}
+              className="hidden"
+            />
+            <button
+              type="button"
+              onClick={() => downloadStudentRosterTemplateXlsx(exam.title)}
+              className="h-8 px-3 rounded-lg border border-slate-200 bg-white hover:border-brand-300 text-ink-700 text-xs font-bold flex items-center gap-1.5"
+            >
+              <Download className="w-3.5 h-3.5" /> Tải mẫu Excel
+            </button>
+            <button
+              type="button"
+              onClick={() => rosterFileRef.current?.click()}
+              className="h-8 px-3 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5"
+            >
+              <Upload className="w-3.5 h-3.5" /> Import Danh sách SV
+            </button>
+            {rosterEntries.length > 0 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setShowRosterTable((v) => !v)}
+                  className="h-8 px-3 rounded-lg border border-brand-200 bg-brand-50 text-brand-700 text-xs font-bold"
+                >
+                  {showRosterTable ? 'Ẩn danh sách' : `Xem danh sách (${rosterEntries.length})`}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!window.confirm('Xóa toàn bộ danh sách sinh viên của ca thi này?')) return;
+                    onUpdateRoster?.(exam.id, []);
+                    setShowRosterTable(false);
+                    setRosterNotice({ type: 'ok', text: 'Đã xóa danh sách sinh viên của ca thi.' });
+                  }}
+                  className="h-8 px-2.5 rounded-lg border border-rose-200 bg-rose-50 text-rose-700 text-xs font-bold flex items-center gap-1"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Xóa
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {rosterNotice && (
+          <div
+            className={`px-3 py-2 rounded-lg text-xs font-semibold ${
+              rosterNotice.type === 'ok'
+                ? 'bg-support-50 text-support-800 border border-support-200'
+                : 'bg-rose-50 text-rose-700 border border-rose-200'
+            }`}
+          >
+            {rosterNotice.text}
+          </div>
+        )}
+
+        {showRosterTable && rosterEntries.length > 0 && (
+          <div className="max-h-60 overflow-auto border border-slate-200 rounded-xl">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-50 text-[11px] font-bold text-ink-600 sticky top-0 border-b border-slate-200">
+                <tr>
+                  <th className="px-3 py-2">STT</th>
+                  <th className="px-3 py-2">Mã sinh viên</th>
+                  <th className="px-3 py-2">Họ đệm</th>
+                  <th className="px-3 py-2">Tên</th>
+                  <th className="px-3 py-2">Giới tính</th>
+                  <th className="px-3 py-2">Ngày sinh</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {rosterEntries.map((st, idx) => (
+                  <tr key={st.studentCode} className="hover:bg-slate-50/70">
+                    <td className="px-3 py-1.5 text-ink-500">{idx + 1}</td>
+                    <td className="px-3 py-1.5 font-mono font-bold text-brand-700">{st.studentCode}</td>
+                    <td className="px-3 py-1.5 text-ink-800">{st.lastName}</td>
+                    <td className="px-3 py-1.5 font-semibold text-ink-900">{st.firstName}</td>
+                    <td className="px-3 py-1.5 text-ink-700">{st.gender}</td>
+                    <td className="px-3 py-1.5 font-mono text-ink-700">{st.dob}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
 
       {/* Prominent LOCKED Instructor Approval Queue */}

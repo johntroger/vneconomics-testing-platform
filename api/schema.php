@@ -118,6 +118,7 @@ function ensureExamSchema(PDO $pdo, string $driver): void
                 canvas_anti_ocr TINYINT(1) NOT NULL DEFAULT 1,
                 email_delivery_mode VARCHAR(32) NOT NULL DEFAULT 'IMMEDIATE',
                 roster_whitelist_json LONGTEXT NULL,
+                roster_entries_json LONGTEXT NULL,
                 status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
                 report_sent_status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
                 report_sent_at VARCHAR(40) NULL,
@@ -263,6 +264,7 @@ function ensureExamSchema(PDO $pdo, string $driver): void
                 canvas_anti_ocr INTEGER NOT NULL DEFAULT 1,
                 email_delivery_mode TEXT NOT NULL DEFAULT 'IMMEDIATE',
                 roster_whitelist_json TEXT NULL,
+                roster_entries_json TEXT NULL,
                 status TEXT NOT NULL DEFAULT 'DRAFT',
                 report_sent_status TEXT NOT NULL DEFAULT 'PENDING',
                 report_sent_at TEXT NULL,
@@ -380,11 +382,13 @@ function ensureExamSchema(PDO $pdo, string $driver): void
             "ALTER TABLE courses ADD COLUMN owner_id VARCHAR(64) NOT NULL DEFAULT 'SYSTEM_DEMO'",
             "ALTER TABLE questions ADD COLUMN owner_id VARCHAR(64) NOT NULL DEFAULT 'SYSTEM_DEMO'",
             "ALTER TABLE exams ADD COLUMN owner_id VARCHAR(64) NOT NULL DEFAULT 'SYSTEM_DEMO'",
+            "ALTER TABLE exams ADD COLUMN roster_entries_json LONGTEXT NULL",
         ]
         : [
             "ALTER TABLE courses ADD COLUMN owner_id TEXT NOT NULL DEFAULT 'SYSTEM_DEMO'",
             "ALTER TABLE questions ADD COLUMN owner_id TEXT NOT NULL DEFAULT 'SYSTEM_DEMO'",
             "ALTER TABLE exams ADD COLUMN owner_id TEXT NOT NULL DEFAULT 'SYSTEM_DEMO'",
+            "ALTER TABLE exams ADD COLUMN roster_entries_json TEXT NULL",
         ];
     foreach ($ownerMigrations as $alterSql) {
         try {

@@ -101,6 +101,14 @@ export interface ChapterQuotaRule {
   pointsPerQuestion?: number;
 }
 
+export interface StudentRosterEntry {
+  studentCode: string;
+  lastName: string;
+  firstName: string;
+  gender: string;
+  dob: string;
+}
+
 export interface Exam {
   id: string;
   courseId: string;
@@ -123,6 +131,8 @@ export interface Exam {
   canvasAntiOcr: boolean;
   emailDeliveryMode: EmailDeliveryMode;
   rosterWhitelist: string[];
+  rosterEntries?: StudentRosterEntry[];
+  requiresRosterVerification?: boolean;
   status: 'DRAFT' | 'OPEN' | 'CLOSED';
   reportSentStatus: 'PENDING' | 'SENT' | 'FAILED';
   reportSentAt?: string;

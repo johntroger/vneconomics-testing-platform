@@ -28,6 +28,7 @@ import type {
   ViolationEvent,
 } from '../types/exam';
 import { buildExamCsvContent } from '../utils/csvExport';
+import { normalizeRosterDob, normalizeRosterText } from '../utils/studentRosterXlsx';
 import {
   buildAssignedQuestions,
   computeChapterMastery,
@@ -51,6 +52,10 @@ interface StartAttemptInput {
   examId?: string;
   studentCode: string;
   studentName: string;
+  lastName?: string;
+  firstName?: string;
+  gender?: string;
+  dob?: string;
   className: string;
   studentEmail: string;
 }
@@ -165,6 +170,11 @@ function normalizeServerExam(raw: Exam): Exam {
     ...raw,
     unlockPin: raw.unlockPin ?? '',
     rosterWhitelist: Array.isArray(raw.rosterWhitelist) ? raw.rosterWhitelist : [],
+    rosterEntries: Array.isArray(raw.rosterEntries) ? raw.rosterEntries : [],
+    requiresRosterVerification: Boolean(
+      raw.requiresRosterVerification ||
+        (Array.isArray(raw.rosterEntries) && raw.rosterEntries.length > 0),
+    ),
     chapterMatrix: Array.isArray(raw.chapterMatrix) ? raw.chapterMatrix : [],
     pinnedQuestionIds: Array.isArray(raw.pinnedQuestionIds) ? raw.pinnedQuestionIds : [],
   };
@@ -693,6 +703,15 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
                     serverExam.rosterWhitelist.length > 0
                       ? serverExam.rosterWhitelist
                       : existingExam.rosterWhitelist,
+                  rosterEntries:
+                    (serverExam.rosterEntries?.length ?? 0) > 0
+                      ? serverExam.rosterEntries
+                      : existingExam.rosterEntries,
+                  requiresRosterVerification: Boolean(
+                    serverExam.requiresRosterVerification ||
+                      (serverExam.rosterEntries?.length ?? 0) > 0 ||
+                      (existingExam.rosterEntries?.length ?? 0) > 0,
+                  ),
                 }
               : serverExam;
 
@@ -762,6 +781,10 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
               examId: serverExam.id,
               studentCode: normalizedCode,
               studentName: input.studentName.trim(),
+              lastName: input.lastName?.trim() ?? '',
+              firstName: input.firstName?.trim() ?? '',
+              gender: input.gender?.trim() ?? '',
+              dob: input.dob?.trim() ?? '',
               studentEmail: normalizedEmail,
               className: input.className.trim(),
               deviceToken: myDeviceToken,
@@ -925,6 +948,36 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
           ok: false,
           error: `MSSV ${normalizedCode} không nằm trong danh sách lớp được phép thi ca này.`,
         };
+      }
+      if (exam.rosterEntries && exam.rosterEntries.length > 0) {
+        const matchedRoster = exam.rosterEntries.find(
+          (entry) => entry.studentCode.trim().toUpperCase() === normalizedCode,
+        );
+        if (!matchedRoster) {
+          return {
+            ok: false,
+            error: `MSSV ${normalizedCode} không có tên trong danh sách sinh viên được phép thi ca này.`,
+          };
+        }
+        const mismatches: string[] = [];
+        if (normalizeRosterText(input.lastName ?? '') !== normalizeRosterText(matchedRoster.lastName)) {
+          mismatches.push('Họ đệm');
+        }
+        if (normalizeRosterText(input.firstName ?? '') !== normalizeRosterText(matchedRoster.firstName)) {
+          mismatches.push('Tên');
+        }
+        if (normalizeRosterText(input.gender ?? '') !== normalizeRosterText(matchedRoster.gender)) {
+          mismatches.push('Giới tính');
+        }
+        if (normalizeRosterDob(input.dob ?? '') !== normalizeRosterDob(matchedRoster.dob)) {
+          mismatches.push('Ngày sinh');
+        }
+        if (mismatches.length > 0) {
+          return {
+            ok: false,
+            error: `Thông tin sinh viên không khớp với danh sách ca thi (kiểm tra lại: ${mismatches.join(', ')}).`,
+          };
+        }
       }
 
       const existing = currentState.attempts.find(

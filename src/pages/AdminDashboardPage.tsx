@@ -805,6 +805,20 @@ export const AdminDashboardPage: React.FC = () => {
               resendStudentScoreEmail(attId, newMail);
               showToast('Đã cập nhật & gửi lại Email điểm cho sinh viên.');
             }}
+            onUpdateRoster={(_eid, entries) => {
+              if (!requireOfficialOrPrompt() || !selectedExam) return;
+              upsertExam({
+                ...selectedExam,
+                rosterEntries: entries,
+                rosterWhitelist: entries.map((item) => item.studentCode),
+                requiresRosterVerification: entries.length > 0,
+              });
+              showToast(
+                entries.length > 0
+                  ? `Đã cập nhật danh sách ${entries.length} sinh viên cho ca thi.`
+                  : 'Đã xóa danh sách sinh viên của ca thi.',
+              );
+            }}
           />
         )}
 

@@ -28,6 +28,10 @@ export const HomePortalPage: React.FC = () => {
   const [pin, setPin] = useState(initialPin);
   const [studentCode, setStudentCode] = useState('');
   const [studentName, setStudentName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [gender, setGender] = useState('Nam');
+  const [dob, setDob] = useState('');
   const [className, setClassName] = useState('');
   const [studentEmail, setStudentEmail] = useState('');
   const [pinMatches, setPinMatches] = useState<RoomMatchOption[]>([]);
@@ -51,6 +55,10 @@ export const HomePortalPage: React.FC = () => {
   const matchedCourse = useMemo(
     () => courses.find((c) => c.id === matchedExam?.courseId),
     [courses, matchedExam],
+  );
+  const requiresRosterVerification = Boolean(
+    matchedExam?.requiresRosterVerification ||
+      (matchedExam?.rosterEntries && matchedExam.rosterEntries.length > 0),
   );
 
   const typoWarning = useMemo(() => {
@@ -200,7 +208,16 @@ export const HomePortalPage: React.FC = () => {
       setError('Vui lòng nhập Mã số sinh viên (MSSV) hợp lệ.');
       return;
     }
-    if (studentName.trim().length < 2 || className.trim().length < 2) {
+    if (requiresRosterVerification) {
+      if (!lastName.trim() || !firstName.trim()) {
+        setError('Vui lòng điền đầy đủ Họ đệm và Tên theo danh sách ca thi.');
+        return;
+      }
+      if (!gender.trim() || !dob.trim()) {
+        setError('Vui lòng điền đầy đủ Giới tính và Ngày sinh (DD-MM-YYYY).');
+        return;
+      }
+    } else if (studentName.trim().length < 2 || className.trim().length < 2) {
       setError('Vui lòng điền đầy đủ Họ tên và Lớp học phần.');
       return;
     }
@@ -209,13 +226,21 @@ export const HomePortalPage: React.FC = () => {
       return;
     }
 
+    const effectiveFullName = requiresRosterVerification
+      ? `${lastName.trim()} ${firstName.trim()}`
+      : studentName.trim();
+
     setLoading(true);
     const res = await startOrResumeAttempt({
       pin,
       examId: selectedExamId || undefined,
       studentCode,
-      studentName,
-      className,
+      studentName: effectiveFullName,
+      lastName: requiresRosterVerification ? lastName : undefined,
+      firstName: requiresRosterVerification ? firstName : undefined,
+      gender: requiresRosterVerification ? gender : undefined,
+      dob: requiresRosterVerification ? dob : undefined,
+      className: className.trim() || (requiresRosterVerification ? 'K48' : ''),
       studentEmail,
     });
     setLoading(false);
@@ -486,7 +511,7 @@ export const HomePortalPage: React.FC = () => {
                   </div>
                   <div className="min-w-0">
                     <label className="block text-xs font-semibold text-ink-700 mb-1">
-                      Lớp học phần
+                      {requiresRosterVerification ? 'Lớp học phần (tùy chọn)' : 'Lớp học phần'}
                     </label>
                     <input
                       type="text"
@@ -499,19 +524,81 @@ export const HomePortalPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Student Full Name */}
-              <div>
-                <label className="block text-xs font-semibold text-ink-700 mb-1">
-                  Họ và tên sinh viên
-                </label>
-                <input
-                  type="text"
-                  value={studentName}
-                  onChange={(e) => setStudentName(e.target.value)}
-                  placeholder="Nguyễn Văn An"
-                  className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm text-ink-900 placeholder:text-slate-300 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-brand-500"
-                />
-              </div>
+              {requiresRosterVerification ? (
+                <div className="p-3.5 rounded-xl bg-brand-50/70 border border-brand-200 space-y-3">
+                  <div className="text-[11px] font-bold text-brand-800 flex items-center gap-1.5">
+                    <ShieldCheck className="w-4 h-4 text-brand-600 shrink-0" />
+                    Ca thi yêu cầu xác thực đúng thông tin theo danh sách sinh viên
+                  </div>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="min-w-0">
+                      <label className="block text-xs font-semibold text-ink-700 mb-1">
+                        Họ đệm
+                      </label>
+                      <input
+                        type="text"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                        placeholder="Đặng Quốc"
+                        className="w-full min-w-0 h-11 px-3 rounded-xl border border-slate-300 bg-white text-sm text-ink-900 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <label className="block text-xs font-semibold text-ink-700 mb-1">
+                        Tên
+                      </label>
+                      <input
+                        type="text"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                        placeholder="An"
+                        className="w-full min-w-0 h-11 px-3 rounded-xl border border-slate-300 bg-white text-sm text-ink-900 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <div className="min-w-0">
+                      <label className="block text-xs font-semibold text-ink-700 mb-1">
+                        Giới tính
+                      </label>
+                      <select
+                        value={gender}
+                        onChange={(e) => setGender(e.target.value)}
+                        className="w-full min-w-0 h-11 px-3 rounded-xl border border-slate-300 bg-white text-sm text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      >
+                        <option value="Nam">Nam</option>
+                        <option value="Nữ">Nữ</option>
+                        <option value="Khác">Khác</option>
+                      </select>
+                    </div>
+                    <div className="min-w-0">
+                      <label className="block text-xs font-semibold text-ink-700 mb-1">
+                        Ngày sinh (DD-MM-YYYY)
+                      </label>
+                      <input
+                        type="text"
+                        value={dob}
+                        onChange={(e) => setDob(e.target.value)}
+                        placeholder="08-02-2005"
+                        className="w-full min-w-0 h-11 px-3 rounded-xl border border-slate-300 bg-white font-mono text-sm text-ink-900 placeholder:text-slate-300 placeholder:font-sans focus:outline-none focus:ring-2 focus:ring-brand-500"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-semibold text-ink-700 mb-1">
+                    Họ và tên sinh viên
+                  </label>
+                  <input
+                    type="text"
+                    value={studentName}
+                    onChange={(e) => setStudentName(e.target.value)}
+                    placeholder="Nguyễn Văn An"
+                    className="w-full h-11 px-3 rounded-xl border border-slate-300 text-sm text-ink-900 placeholder:text-slate-300 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-brand-500"
+                  />
+                </div>
+              )}
 
               {/* Email + 1-Tap Domain Chips */}
               <div>
