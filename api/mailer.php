@@ -227,6 +227,17 @@ function dispatchSingleEmail(
     return sendViaPhpMailFallback($fromEmail, $fromName, $toEmail, $subject, $bodyHtml, $csvAttachment, $csvFilename);
 }
 
+function isDemoExamRecord(array $exam): bool
+{
+    $ownerId = (string) ($exam['ownerId'] ?? ($exam['owner_id'] ?? ''));
+    $examId = (string) ($exam['id'] ?? '');
+    $roomPin = strtoupper(trim((string) ($exam['roomPin'] ?? ($exam['room_pin'] ?? ''))));
+    if ($ownerId === 'SYSTEM_DEMO' || str_starts_with($examId, 'exm_demo_')) {
+        return true;
+    }
+    return in_array($roomPin, ['101202', '202303', '303404'], true) && ($ownerId === '' || $ownerId === 'SYSTEM_DEMO');
+}
+
 function enqueueAndSendEmail(
     PDO $pdo,
     string $recipient,
@@ -236,7 +247,8 @@ function enqueueAndSendEmail(
     string $summary = '',
     ?string $csvAttachment = null,
     ?string $csvFilename = null,
-    bool $sendImmediately = true
+    bool $sendImmediately = true,
+    bool $demoSkip = false
 ): array {
     $id = generateId('mail');
     $now = nowIso();
@@ -244,7 +256,10 @@ function enqueueAndSendEmail(
     $err = null;
     $sentAt = null;
 
-    if ($sendImmediately) {
+    if ($demoSkip) {
+        $status = 'DEMO_SKIPPED';
+        $err = 'Chế độ Demo: không gửi email thực tế';
+    } elseif ($sendImmediately) {
         $res = dispatchSingleEmail($recipient, $subject, $bodyHtml, $csvAttachment, $csvFilename);
         if ($res['ok']) {
             $status = 'SENT';
@@ -646,6 +661,9 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
     }
 
     if ($action === 'retry') {
+        if ($isDemo) {
+            jsonResponse(['ok' => true, 'processed' => 0, 'sentCount' => 0, 'demoSkipped' => true]);
+        }
         $stmt = $pdo->query("SELECT * FROM email_queue WHERE status IN ('PENDING', 'FAILED') ORDER BY created_at ASC LIMIT 30");
         $pending = $stmt->fetchAll();
         $sentCount = 0;

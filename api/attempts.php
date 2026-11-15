@@ -460,8 +460,9 @@ function finalizeAndGradeAttempt(PDO $pdo, string $attemptId, bool $forcedByReje
     $scale10 = round(($totalScore / $maxTotal) * 10, 2);
     $now = nowIso();
     $status = $forcedByRejectOrSweep ? 'AUTO_SUBMITTED' : 'SUBMITTED';
+    $isDemoExam = isDemoExamRecord($exam);
     $isDelayed = ($exam['emailDeliveryMode'] ?? 'IMMEDIATE') === 'DELAYED_BATCH' && ($exam['status'] ?? 'OPEN') !== 'CLOSED';
-    $emailStatus = $isDelayed ? 'RECEIPT_SENT' : 'SENT';
+    $emailStatus = $isDemoExam ? 'DEMO_SKIPPED' : ($isDelayed ? 'RECEIPT_SENT' : 'SENT');
 
     $updAtt = $pdo->prepare(
         'UPDATE exam_attempts SET status=:st, locked_at=NULL, auto_score=:as, essay_score=:es, total_score=:ts, max_total_score=:mts, scale10_score=:s10, ai_flag=CASE WHEN ai_flag=1 OR :hp=1 THEN 1 ELSE 0 END, email_sent_status=:ess, email_sent_at=:esa, submitted_at=COALESCE(submitted_at, :sub) WHERE id=:id'
@@ -986,7 +987,8 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         echo $payloadOut;
 
         $recipient = (string) ($result['attempt']['studentEmail'] ?? '');
-        if (!$alreadySentEmail && $recipient !== '' && filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
+        $isDemoExam = isDemoExamRecord($result['exam']);
+        if (!$isDemoExam && !$alreadySentEmail && $recipient !== '' && filter_var($recipient, FILTER_VALIDATE_EMAIL)) {
             runAfterResponse(static function () use ($pdo, $result, $recipient): void {
                 $examTitle = (string) ($result['exam']['title'] ?? 'Bài thi');
                 if ($result['isDelayed']) {
@@ -1031,15 +1033,16 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             ->execute([':email' => $newEmail, ':id' => $attemptId]);
 
         $res = finalizeAndGradeAttempt($pdo, $attemptId, ($att['status'] ?? '') === 'AUTO_SUBMITTED');
+        $isDemoExam = isDemoExamRecord($res['exam']);
         $subj = '[VNEconomics] (Gửi lại) Kết quả bài thi: ' . ($res['exam']['title'] ?? '');
         $html = buildStudentScoreEmailHtml($res['exam'], $res['attempt'], $res['answers']);
-        enqueueAndSendEmail($pdo, $newEmail, $subj, $html, 'STUDENT_SCORE', 'Gửi lại sau đính chính email', null, null, true);
+        enqueueAndSendEmail($pdo, $newEmail, $subj, $html, 'STUDENT_SCORE', 'Gửi lại sau đính chính email', null, null, true, $isDemoExam);
 
-        jsonResponse(['ok' => true, 'email' => $newEmail]);
+        jsonResponse(['ok' => true, 'email' => $newEmail, 'demoSkipped' => $isDemoExam]);
     }
 
     if ($action === 'sweep') {
-        requireAdminAuth();
+        $auth = requireAdminAuth();
         $examId = trim((string) ($body['examId'] ?? ''));
         $examStmt = $pdo->prepare('SELECT * FROM exams WHERE id = :id LIMIT 1');
         $examStmt->execute([':id' => $examId]);
@@ -1047,6 +1050,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         if (!$examRow) {
             jsonError('Không tìm thấy kỳ thi.', 404);
         }
+        $isDemoContext = (($auth['role'] ?? 'DEMO') !== 'OFFICIAL') || isDemoExamRecord($examRow);
 
         $pdo->prepare("UPDATE exams SET status = 'CLOSED' WHERE id = :id")->execute([':id' => $examId]);
         $openStmt = $pdo->prepare("SELECT id FROM exam_attempts WHERE exam_id = :eid AND status IN ('IN_PROGRESS', 'PAUSED', 'LOCKED')");
@@ -1081,7 +1085,8 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             'ok' => true,
             'sweptCount' => count($openIds),
             'totalAttempts' => count($allAttempts),
-            'queuedEmails' => count($emailPayloads),
+            'queuedEmails' => $isDemoContext ? 0 : count($emailPayloads),
+            'demoSkipped' => $isDemoContext,
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
         if (function_exists('fastcgi_finish_request')) {
@@ -1094,32 +1099,37 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         @ignore_user_abort(true);
         @set_time_limit(0);
 
-        foreach ($emailPayloads as $ep) {
-            enqueueAndSendEmail($pdo, $ep['email'], $ep['subject'], $ep['html'], 'STUDENT_SCORE', 'Thu bài tự động (Sweeper)', null, null, true);
-        }
+        if (!$isDemoContext) {
+            foreach ($emailPayloads as $ep) {
+                enqueueAndSendEmail($pdo, $ep['email'], $ep['subject'], $ep['html'], 'STUDENT_SCORE', 'Thu bài tự động (Sweeper)', null, null, true);
+            }
 
-        if ($instEmail !== '' && filter_var($instEmail, FILTER_VALIDATE_EMAIL)) {
-            $csv = buildInstructorCsvAttachment($examRow, $allAttempts);
-            $csvFile = 'bao_cao_' . preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $examRow['room_pin']) . '_' . date('Ymd_Hi') . '.csv';
-            $html = '<h3>Báo cáo tổng hợp kết quả ca thi: ' . htmlspecialchars((string) $examRow['title'], ENT_QUOTES, 'UTF-8') . '</h3>'
-                . '<p>Tổng số thí sinh đã ghi nhận: <strong>' . count($allAttempts) . '</strong>. Đính kèm file CSV chuẩn UTF-8 BOM mở trực tiếp trong Excel.</p>';
-            $reportResult = enqueueAndSendEmail(
-                $pdo,
-                $instEmail,
-                '[VNEconomics] Báo cáo tổng hợp & CSV ca thi: ' . $examRow['title'],
-                $html,
-                'INSTRUCTOR_REPORT',
-                'Tổng hợp ' . count($allAttempts) . ' thí sinh (' . count($openIds) . ' bài sweep)',
-                $csv,
-                $csvFile,
-                true
-            );
-            $pdo->prepare("UPDATE exams SET report_sent_status = :rs, report_sent_at = :ra WHERE id = :id")
-                ->execute([
-                    ':rs' => ($reportResult['status'] === 'SENT' ? 'SENT' : 'FAILED'),
-                    ':ra' => nowIso(),
-                    ':id' => $examId,
-                ]);
+            if ($instEmail !== '' && filter_var($instEmail, FILTER_VALIDATE_EMAIL)) {
+                $csv = buildInstructorCsvAttachment($examRow, $allAttempts);
+                $csvFile = 'bao_cao_' . preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $examRow['room_pin']) . '_' . date('Ymd_Hi') . '.csv';
+                $html = '<h3>Báo cáo tổng hợp kết quả ca thi: ' . htmlspecialchars((string) $examRow['title'], ENT_QUOTES, 'UTF-8') . '</h3>'
+                    . '<p>Tổng số thí sinh đã ghi nhận: <strong>' . count($allAttempts) . '</strong>. Đính kèm file CSV chuẩn UTF-8 BOM mở trực tiếp trong Excel.</p>';
+                $reportResult = enqueueAndSendEmail(
+                    $pdo,
+                    $instEmail,
+                    '[VNEconomics] Báo cáo tổng hợp & CSV ca thi: ' . $examRow['title'],
+                    $html,
+                    'INSTRUCTOR_REPORT',
+                    'Tổng hợp ' . count($allAttempts) . ' thí sinh (' . count($openIds) . ' bài sweep)',
+                    $csv,
+                    $csvFile,
+                    true
+                );
+                $pdo->prepare("UPDATE exams SET report_sent_status = :rs, report_sent_at = :ra WHERE id = :id")
+                    ->execute([
+                        ':rs' => ($reportResult['status'] === 'SENT' ? 'SENT' : 'FAILED'),
+                        ':ra' => nowIso(),
+                        ':id' => $examId,
+                    ]);
+            }
+        } elseif ($instEmail !== '' && filter_var($instEmail, FILTER_VALIDATE_EMAIL)) {
+            $pdo->prepare("UPDATE exams SET report_sent_status = 'DEMO_SKIPPED', report_sent_at = :ra WHERE id = :id")
+                ->execute([':ra' => nowIso(), ':id' => $examId]);
         }
         exit;
     }

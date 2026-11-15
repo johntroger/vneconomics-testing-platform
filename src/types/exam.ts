@@ -241,7 +241,7 @@ export interface ExamAttempt {
   totalScore: number;
   maxTotalScore: number;
   scale10Score: number;
-  emailSentStatus: 'PENDING' | 'RECEIPT_SENT' | 'SENT' | 'FAILED';
+  emailSentStatus: 'PENDING' | 'RECEIPT_SENT' | 'SENT' | 'FAILED' | 'DEMO_SKIPPED';
   emailSentAt?: string;
   emailEditCount: number;
   startedAt: string;
@@ -262,7 +262,7 @@ export interface EmailLogEntry {
   recipient: string;
   subject: string;
   kind: 'STUDENT_RECEIPT' | 'STUDENT_SCORE' | 'INSTRUCTOR_REPORT' | 'TEST_MAIL';
-  status: 'SENT' | 'FAILED';
+  status: 'SENT' | 'FAILED' | 'DEMO_SKIPPED';
   summary: string;
   csvAttachmentName?: string;
   sentAt: string;

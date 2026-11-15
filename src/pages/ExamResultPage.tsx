@@ -133,11 +133,13 @@ export const ExamResultPage: React.FC = () => {
                   </p>
                   <p className="text-[11px] text-support-700 font-semibold mt-0.5">
                     Trạng thái:{' '}
-                    {attempt.emailSentStatus === 'RECEIPT_SENT'
-                      ? 'Đã gửi Email Biên nhận'
-                      : attempt.emailSentStatus === 'SENT'
-                        ? 'Đã gửi Email Điểm hoàn chỉnh'
-                        : 'Đang xếp hàng gửi...'}
+                    {attempt.emailSentStatus === 'DEMO_SKIPPED'
+                      ? 'Chế độ Demo — Hệ thống không gửi Email thực tế (chỉ Test Mailer trong trang Quản trị mới gửi thư thật)'
+                      : attempt.emailSentStatus === 'RECEIPT_SENT'
+                        ? 'Đã gửi Email Biên nhận'
+                        : attempt.emailSentStatus === 'SENT'
+                          ? 'Đã gửi Email Điểm hoàn chỉnh'
+                          : 'Đang xếp hàng gửi...'}
                   </p>
                 </div>
               </div>

@@ -213,12 +213,19 @@ function normalizeServerExam(raw: Exam): Exam {
 }
 
 function normalizeServerEmailLog(raw: Record<string, unknown>): EmailLogEntry {
+  const rawStatus = String(raw.status ?? 'SENT');
+  const status: EmailLogEntry['status'] =
+    rawStatus === 'FAILED'
+      ? 'FAILED'
+      : rawStatus === 'DEMO_SKIPPED'
+        ? 'DEMO_SKIPPED'
+        : 'SENT';
   return {
     id: String(raw.id ?? `mail_${Date.now().toString(36)}`),
     recipient: String(raw.recipient ?? ''),
     subject: String(raw.subject ?? ''),
     kind: (raw.kind as EmailLogEntry['kind']) ?? 'STUDENT_SCORE',
-    status: raw.status === 'FAILED' ? 'FAILED' : 'SENT',
+    status,
     summary: String(raw.summary ?? ''),
     csvAttachmentName:
       typeof raw.csvAttachmentName === 'string' && raw.csvAttachmentName
@@ -1539,6 +1546,14 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         }
       }
 
+      const isDemoExam =
+        finalized.emailSentStatus === 'DEMO_SKIPPED' ||
+        exam?.ownerId === 'SYSTEM_DEMO' ||
+        Boolean(exam?.id?.startsWith('exm_demo_'));
+      if (isDemoExam && finalized.emailSentStatus !== 'DEMO_SKIPPED') {
+        finalized = { ...finalized, emailSentStatus: 'DEMO_SKIPPED' };
+      }
+
       const mailLog: EmailLogEntry = {
         id: `mail_${Date.now().toString(36)}`,
         recipient: finalized.studentEmail,
@@ -1546,10 +1561,12 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
           ? `[VNEconomics Testing] Biên nhận nộp bài: ${exam?.title ?? ''}`
           : `[VNEconomics Testing] Kết quả bài thi: ${exam?.title ?? ''}`,
         kind: isDelayed ? 'STUDENT_RECEIPT' : 'STUDENT_SCORE',
-        status: 'SENT',
-        summary: isDelayed
-          ? `Biên nhận thu bài thành công (${finalized.studentCode}). Điểm chi tiết gửi sau khi đóng ca thi.`
-          : `Điểm quy đổi ${finalized.scale10Score.toFixed(2)}/10 (${finalized.totalScore}/${finalized.maxTotalScore}đ) | Tin cậy: ${finalized.integrityScore}%`,
+        status: isDemoExam ? 'DEMO_SKIPPED' : 'SENT',
+        summary: isDemoExam
+          ? `Chế độ Demo: không gửi email thực tế (${finalized.studentCode}).`
+          : isDelayed
+            ? `Biên nhận thu bài thành công (${finalized.studentCode}). Điểm chi tiết gửi sau khi đóng ca thi.`
+            : `Điểm quy đổi ${finalized.scale10Score.toFixed(2)}/10 (${finalized.totalScore}/${finalized.maxTotalScore}đ) | Tin cậy: ${finalized.integrityScore}%`,
         sentAt: nowIso,
       };
 
@@ -1709,34 +1726,41 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
       const nowIso = new Date().toISOString();
       const exam = state.exams.find((e) => e.id === att.examId);
 
-      updateState((prev) => ({
-        ...prev,
-        attempts: prev.attempts.map((a) =>
-          a.id === attemptId
-            ? {
-                ...a,
-                studentEmail: cleanEmail,
-                emailEditCount: a.emailEditCount + 1,
-                emailSentAt: nowIso,
-              }
-            : a,
-        ),
-        emailLogs: [
-          {
-            id: `mail_${Date.now().toString(36)}`,
-            recipient: cleanEmail,
-            subject: `[VNEconomics Testing] Gửi lại kết quả bài thi: ${exam?.title ?? ''}`,
-            kind:
-              exam?.emailDeliveryMode === 'DELAYED_BATCH' && exam.status !== 'CLOSED'
-                ? 'STUDENT_RECEIPT'
-                : 'STUDENT_SCORE',
-            status: 'SENT',
-            summary: `Sinh viên tự điều chỉnh email nhận kết quả (MSSV: ${att.studentCode}).`,
-            sentAt: nowIso,
-          },
-          ...prev.emailLogs,
-        ],
-      }));
+      updateState((prev) => {
+        const isDemoExam =
+          exam?.ownerId === 'SYSTEM_DEMO' || Boolean(exam?.id?.startsWith('exm_demo_'));
+        return {
+          ...prev,
+          attempts: prev.attempts.map((a) =>
+            a.id === attemptId
+              ? {
+                  ...a,
+                  studentEmail: cleanEmail,
+                  emailEditCount: a.emailEditCount + 1,
+                  emailSentStatus: isDemoExam ? 'DEMO_SKIPPED' : a.emailSentStatus,
+                  emailSentAt: nowIso,
+                }
+              : a,
+          ),
+          emailLogs: [
+            {
+              id: `mail_${Date.now().toString(36)}`,
+              recipient: cleanEmail,
+              subject: `[VNEconomics Testing] Gửi lại kết quả bài thi: ${exam?.title ?? ''}`,
+              kind:
+                exam?.emailDeliveryMode === 'DELAYED_BATCH' && exam.status !== 'CLOSED'
+                  ? 'STUDENT_RECEIPT'
+                  : 'STUDENT_SCORE',
+              status: isDemoExam ? 'DEMO_SKIPPED' : 'SENT',
+              summary: isDemoExam
+                ? `Chế độ Demo: không gửi email thực tế (MSSV: ${att.studentCode}).`
+                : `Sinh viên tự điều chỉnh email nhận kết quả (MSSV: ${att.studentCode}).`,
+              sentAt: nowIso,
+            },
+            ...prev.emailLogs,
+          ],
+        };
+      });
 
       if (backendConnected) {
         void apiRequest('/api/attempts.php?action=correct_email', {
@@ -1885,6 +1909,12 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         const exam = prev.exams.find((e) => e.id === examId);
         if (!exam) return prev;
 
+        const isDemoContext =
+          instructorUser?.role !== 'OFFICIAL' ||
+          exam.ownerId === 'SYSTEM_DEMO' ||
+          exam.id.startsWith('exm_demo_');
+        const mailStatus: EmailLogEntry['status'] = isDemoContext ? 'DEMO_SKIPPED' : 'SENT';
+
         const newMailLogs: EmailLogEntry[] = [];
         const updatedAttempts = prev.attempts.map((a) => {
           if (a.examId !== examId) return a;
@@ -1904,10 +1934,10 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
             };
           }
 
-          if (nextA.emailSentStatus !== 'SENT') {
+          if (nextA.emailSentStatus !== 'SENT' && nextA.emailSentStatus !== 'DEMO_SKIPPED') {
             nextA = {
               ...nextA,
-              emailSentStatus: 'SENT',
+              emailSentStatus: isDemoContext ? 'DEMO_SKIPPED' : 'SENT',
               emailSentAt: nowIso,
             };
             newMailLogs.push({
@@ -1915,8 +1945,10 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
               recipient: nextA.studentEmail,
               subject: `[VNEconomics Testing] Bảng điểm chính thức: ${exam.title}`,
               kind: 'STUDENT_SCORE',
-              status: 'SENT',
-              summary: `Điểm quy đổi ${nextA.scale10Score.toFixed(2)}/10 (${nextA.totalScore}/${nextA.maxTotalScore}đ) | Tin cậy: ${nextA.integrityScore}%`,
+              status: mailStatus,
+              summary: isDemoContext
+                ? `Chế độ Demo: không gửi email thực tế (${nextA.studentCode}).`
+                : `Điểm quy đổi ${nextA.scale10Score.toFixed(2)}/10 (${nextA.totalScore}/${nextA.maxTotalScore}đ) | Tin cậy: ${nextA.integrityScore}%`,
               sentAt: nowIso,
             });
           }
@@ -1932,8 +1964,10 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
           recipient: exam.instructorEmail,
           subject: `[VNEconomics Testing] Báo cáo Tổng hợp Ca thi (${exam.roomPin}): ${exam.title}`,
           kind: 'INSTRUCTOR_REPORT',
-          status: 'SENT',
-          summary: `Đã chốt ${updatedAttempts.filter((x) => x.examId === examId).length} bài thi (thu tự động ${sweptCount} bài treo) kèm thống kê theo Chương.`,
+          status: mailStatus,
+          summary: isDemoContext
+            ? `Chế độ Demo: đã chốt ${updatedAttempts.filter((x) => x.examId === examId).length} bài thi (không gửi email thực tế).`
+            : `Đã chốt ${updatedAttempts.filter((x) => x.examId === examId).length} bài thi (thu tự động ${sweptCount} bài treo) kèm thống kê theo Chương.`,
           csvAttachmentName: csvName,
           sentAt: nowIso,
         };
@@ -2475,6 +2509,10 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         const att = prev.attempts.find((a) => a.id === attemptId);
         if (!att) return prev;
         const exam = prev.exams.find((e) => e.id === att.examId);
+        const isDemoContext =
+          instructorUser?.role !== 'OFFICIAL' ||
+          exam?.ownerId === 'SYSTEM_DEMO' ||
+          Boolean(exam?.id?.startsWith('exm_demo_'));
         const finalEmail = editedEmail ? editedEmail.trim().toLowerCase() : att.studentEmail;
         return {
           ...prev,
@@ -2483,7 +2521,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
               ? {
                   ...a,
                   studentEmail: finalEmail,
-                  emailSentStatus: 'SENT',
+                  emailSentStatus: isDemoContext ? 'DEMO_SKIPPED' : 'SENT',
                   emailSentAt: nowIso,
                 }
               : a,
@@ -2494,8 +2532,10 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
               recipient: finalEmail,
               subject: `[VNEconomics Testing] Cập nhật & Gửi lại điểm: ${exam?.title ?? ''}`,
               kind: 'STUDENT_SCORE',
-              status: 'SENT',
-              summary: `Điểm quy đổi ${att.scale10Score.toFixed(2)}/10 (${att.totalScore}/${att.maxTotalScore}đ) | Gửi lại bởi Giảng viên.`,
+              status: isDemoContext ? 'DEMO_SKIPPED' : 'SENT',
+              summary: isDemoContext
+                ? `Chế độ Demo: không gửi email thực tế (${att.studentCode}).`
+                : `Điểm quy đổi ${att.scale10Score.toFixed(2)}/10 (${att.totalScore}/${att.maxTotalScore}đ) | Gửi lại bởi Giảng viên.`,
               sentAt: nowIso,
             },
             ...prev.emailLogs,

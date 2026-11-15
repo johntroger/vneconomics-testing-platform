@@ -960,13 +960,19 @@ export const AdminDashboardPage: React.FC = () => {
             onCloseExamAndSweep={(eid) => {
               const res = closeExamAndSweep(eid);
               showToast(
-                `Đã đóng ca thi, thu tự động ${res.sweptCount} bài còn treo & xuất Email tổng hợp cho ${selectedExam.instructorEmail}`,
+                isDemoMode
+                  ? `Đã đóng ca thi Demo & thu tự động ${res.sweptCount} bài còn treo (Chế độ Demo: không gửi email thực tế).`
+                  : `Đã đóng ca thi, thu tự động ${res.sweptCount} bài còn treo & xuất Email tổng hợp cho ${selectedExam.instructorEmail}`,
               );
             }}
             onOpenEssayReview={(attId) => setEssayModalAttemptId(attId)}
             onResendEmail={(attId, newMail) => {
               resendStudentScoreEmail(attId, newMail);
-              showToast('Đã cập nhật & gửi lại Email điểm cho sinh viên.');
+              showToast(
+                isDemoMode
+                  ? 'Đã cập nhật thông tin trên giao diện Demo (Chế độ Demo: không gửi email thực tế).'
+                  : 'Đã cập nhật & gửi lại Email điểm cho sinh viên.',
+              );
             }}
             onUpdateRoster={(_eid, entries) => {
               if (!requireOfficialOrPrompt() || !selectedExam) return;
@@ -2379,7 +2385,17 @@ export const AdminDashboardPage: React.FC = () => {
                     )}
                   </div>
                   <div className="text-right font-mono text-[11px] text-ink-500">
-                    <div className="font-bold text-support-700">{log.status}</div>
+                    <div
+                      className={`font-bold ${
+                        log.status === 'FAILED'
+                          ? 'text-danger-600'
+                          : log.status === 'DEMO_SKIPPED'
+                            ? 'text-amber-700'
+                            : 'text-support-700'
+                      }`}
+                    >
+                      {log.status === 'DEMO_SKIPPED' ? 'DEMO (Không gửi)' : log.status}
+                    </div>
                     <div>{new Date(log.sentAt).toLocaleString('vi-VN')}</div>
                   </div>
                 </div>

@@ -387,15 +387,22 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             jsonError('Địa chỉ email không hợp lệ.', 400);
         }
 
-        $pdo->prepare("UPDATE exam_attempts SET student_email = :em, email_sent_status = 'SENT', email_sent_at = :now WHERE id = :id")
-            ->execute([':em' => $targetEmail, ':now' => nowIso(), ':id' => $attemptId]);
-
         $res = finalizeAndGradeAttempt($pdo, $attemptId, ($att['status'] ?? '') === 'AUTO_SUBMITTED');
+        $isDemoContext = ($authRole !== 'OFFICIAL') || isDemoExamRecord($res['exam']);
+
+        $pdo->prepare("UPDATE exam_attempts SET student_email = :em, email_sent_status = :ess, email_sent_at = :now WHERE id = :id")
+            ->execute([
+                ':em' => $targetEmail,
+                ':ess' => $isDemoContext ? 'DEMO_SKIPPED' : 'SENT',
+                ':now' => nowIso(),
+                ':id' => $attemptId,
+            ]);
+
         $subj = '[VNEconomics] (Giảng viên gửi lại) Kết quả bài thi: ' . ($res['exam']['title'] ?? '');
         $html = buildStudentScoreEmailHtml($res['exam'], $res['attempt'], $res['answers']);
-        enqueueAndSendEmail($pdo, $targetEmail, $subj, $html, 'STUDENT_SCORE', 'Giảng viên cập nhật & gửi lại điểm', null, null, true);
+        enqueueAndSendEmail($pdo, $targetEmail, $subj, $html, 'STUDENT_SCORE', 'Giảng viên cập nhật & gửi lại điểm', null, null, true, $isDemoContext);
 
-        jsonResponse(['ok' => true, 'email' => $targetEmail]);
+        jsonResponse(['ok' => true, 'email' => $targetEmail, 'demoSkipped' => $isDemoContext]);
     }
 
     jsonError('Action proctor không hợp lệ.', 400);
