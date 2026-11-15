@@ -20,6 +20,7 @@ import {
   XCircle,
 } from 'lucide-react';
 import type { Exam, ExamAttempt, StudentRosterEntry } from '../../types/exam';
+import { InfoHint } from '../common/InfoHint';
 import {
   downloadStudentRosterTemplateXlsx,
   parseStudentRosterXlsx,
@@ -221,10 +222,21 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
 
       {/* Exam Control Bar */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 flex flex-wrap items-center justify-between gap-3 shadow-soft">
-        <div className="flex items-center gap-2 text-xs text-ink-700">
-          <RefreshCw className="w-4 h-4 text-support-600 animate-spin" />
-          <span>
-            Live Sync đang chạy • PIN phòng thi: <strong className="font-mono text-brand-700">{exam.roomPin}</strong> • PIN cứu hộ: <strong className="font-mono">{exam.unlockPin}</strong>
+        <div className="flex items-center gap-2 text-xs text-ink-700 flex-wrap">
+          <RefreshCw className="w-4 h-4 text-support-600 animate-spin shrink-0" />
+          <span className="inline-flex items-center gap-1 flex-wrap">
+            <span>Live Sync đang chạy • PIN phòng thi:</span>
+            <strong className="font-mono text-brand-700">{exam.roomPin}</strong>
+            <InfoHint
+              title="PIN phòng thi (6 số)"
+              text="Mã để phát cho sinh viên nhập khi vào phòng thi."
+            />
+            <span>• PIN cứu hộ:</span>
+            <strong className="font-mono">{exam.unlockPin}</strong>
+            <InfoHint
+              title="PIN cứu hộ (Mở khóa tại chỗ)"
+              text="Mã bí mật chỉ giảng viên giữ. Khi sinh viên bị khóa màn hình do rời tab quá số lần, giảng viên có thể đọc/nhập mã này ngay trên máy sinh viên để mở khóa thi tiếp."
+            />
           </span>
         </div>
         <button
@@ -242,9 +254,15 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
           className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
         >
           <StopCircle className="w-4 h-4" />
-          {exam.status === 'CLOSED'
-            ? 'Ca thi đã đóng & Gửi Email tổng hợp'
-            : 'Kết thúc Ca thi (Sweeper thu bài treo + Gửi Email Tổng hợp)'}
+          <span>
+            {exam.status === 'CLOSED'
+              ? 'Ca thi đã đóng & Gửi Email tổng hợp'
+              : 'Kết thúc Ca thi (Sweeper thu bài treo + Gửi Email Tổng hợp)'}
+          </span>
+          <InfoHint
+            title="Kết thúc Ca thi & Thu bài hàng loạt"
+            text="Đóng phòng thi, tự động thu toàn bộ bài sinh viên đang làm dở/bị khóa và gửi bảng điểm tổng hợp về Email giảng viên."
+          />
         </button>
       </div>
 
@@ -252,9 +270,13 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
       <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3 shadow-soft">
         <div className="flex flex-wrap items-center justify-between gap-2.5">
           <div className="space-y-0.5">
-            <div className="flex items-center gap-2 text-xs font-extrabold text-ink-900">
+            <div className="flex items-center gap-2 text-xs font-extrabold text-ink-900 flex-wrap">
               <Users className="w-4 h-4 text-brand-600" />
-              Danh sách Sinh viên Ca thi (Xác thực thông tin khi vào phòng)
+              <span>Danh sách Sinh viên Ca thi (Xác thực thông tin khi vào phòng)</span>
+              <InfoHint
+                title="Danh sách sinh viên riêng của ca thi"
+                text="Tải lên file Excel danh sách lớp để hệ thống kiểm tra đúng MSSV, Họ tên, Giới tính, Ngày sinh khi sinh viên đăng nhập vào phòng thi."
+              />
               {rosterEntries.length > 0 ? (
                 <span className="px-2 py-0.5 rounded-full bg-support-50 text-support-700 border border-support-200 text-[11px] font-bold">
                   {rosterEntries.length} SV • Bắt buộc khớp
@@ -604,12 +626,36 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
               <tr className="bg-slate-50 border-b border-slate-200 text-ink-600 font-bold">
                 <th className="py-3 px-3.5">Thí sinh</th>
                 <th className="py-3 px-3.5">Trạng thái</th>
-                <th className="py-3 px-3.5">Vị trí &amp; Thiết bị</th>
+                <th className="py-3 px-3.5">
+                  <span className="inline-flex items-center gap-1">
+                    <span>Vị trí &amp; Thiết bị</span>
+                    <InfoHint
+                      title="Giám sát Vị trí (GPS) & Thiết bị"
+                      text="Hiển thị tọa độ GPS lúc vào phòng và tên thiết bị/trình duyệt. Hệ thống tự cảnh báo màu đỏ nếu vị trí ở xa lớp học hoặc có dấu hiệu đăng nhập nhiều máy/trình duyệt."
+                    />
+                  </span>
+                </th>
                 <th className="py-3 px-3.5">Tiến độ</th>
-                <th className="py-3 px-3.5">Vi phạm / Tin cậy</th>
+                <th className="py-3 px-3.5">
+                  <span className="inline-flex items-center gap-1">
+                    <span>Vi phạm / Tin cậy</span>
+                    <InfoHint
+                      title="Số lần rời màn hình & Điểm tin cậy"
+                      text="Đếm số lần sinh viên thoát trình duyệt/chuyển tab và tổng số giây rời khỏi bài thi. Điểm tin cậy càng cao thì bài thi càng ít bất thường."
+                    />
+                  </span>
+                </th>
                 <th className="py-3 px-3.5">Điểm (Hệ 10)</th>
                 <th className="py-3 px-3.5">Email</th>
-                <th className="py-3 px-3.5 text-right">Điều khiển</th>
+                <th className="py-3 px-3.5 text-right">
+                  <span className="inline-flex items-center justify-end gap-1">
+                    <span>Điều khiển</span>
+                    <InfoHint
+                      title="Các nút thao tác nhanh"
+                      text="Từ trái sang phải: 1) Chấm/Rà soát Tự luận; 2) Reset thiết bị (cho phép SV đổi máy); 3) Cộng thêm +60 giây; 4) Sửa Email & gửi lại bảng điểm."
+                    />
+                  </span>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">

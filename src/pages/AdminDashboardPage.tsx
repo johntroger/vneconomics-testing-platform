@@ -28,6 +28,7 @@ import { ExcelQuestionBankModal } from '../components/admin/ExcelQuestionBankMod
 import { GoogleSignInButton } from '../components/admin/GoogleSignInButton';
 import { LiveProctorTable } from '../components/admin/LiveProctorTable';
 import { QuestionEditorModal } from '../components/admin/QuestionEditorModal';
+import { InfoHint } from '../components/common/InfoHint';
 import { useExamPlatform } from '../context/ExamContext';
 import type {
   ChapterQuotaRule,
@@ -780,8 +781,12 @@ export const AdminDashboardPage: React.FC = () => {
             <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-4 space-y-3">
               <div className="flex flex-wrap items-center justify-between gap-2.5">
                 <div>
-                  <h2 className="text-sm font-extrabold text-ink-900">
-                    Chọn Ca thi để Giám sát &amp; Nhập danh sách Sinh viên riêng
+                  <h2 className="text-sm font-extrabold text-ink-900 flex items-center gap-1.5">
+                    <span>Chọn Ca thi để Giám sát &amp; Nhập danh sách Sinh viên riêng</span>
+                    <InfoHint
+                      title="Quản lý nhiều Ca thi riêng biệt"
+                      text="Mỗi ca thi có mã PIN 6 số, danh sách sinh viên và bảng điểm riêng. Bấm 'Tạo Ca thi mới' để mở thêm ca khác (ví dụ Ca 2, Ca 3) dùng chung ma trận đề."
+                    />
                   </h2>
                   <p className="text-[11px] text-ink-500">
                     Mỗi ca thi có mã PIN, danh sách sinh viên và bảng điểm tổng hợp gửi Email giảng viên riêng biệt.
@@ -940,6 +945,10 @@ export const AdminDashboardPage: React.FC = () => {
                   className="h-9 px-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5"
                 >
                   <Plus className="w-3.5 h-3.5" /> Tạo Đề thi mới
+                  <InfoHint
+                    title="Tạo Đề thi mới"
+                    text="Tạo một phòng thi/đề thi mới gắn với học phần đang chọn, hệ thống sẽ tự cấp mã PIN 6 số riêng."
+                  />
                 </button>
                 <button
                   type="button"
@@ -957,6 +966,10 @@ export const AdminDashboardPage: React.FC = () => {
                   className="h-9 px-3 rounded-xl border border-slate-200 bg-white text-ink-700 text-xs font-bold flex items-center gap-1.5 hover:border-brand-300 disabled:opacity-40"
                 >
                   <Copy className="w-3.5 h-3.5" /> Nhân bản đề
+                  <InfoHint
+                    title="Nhân bản đề / Tạo ca thi mới"
+                    text="Sao chép toàn bộ ma trận câu hỏi và cài đặt của đề hiện tại sang một ca thi mới với mã PIN mới và danh sách sinh viên trống."
+                  />
                 </button>
                 <button
                   type="button"
@@ -965,6 +978,10 @@ export const AdminDashboardPage: React.FC = () => {
                   className="h-9 px-3 rounded-xl border border-brand-200 bg-brand-50 text-brand-700 text-xs font-bold flex items-center gap-1.5 disabled:opacity-40"
                 >
                   <Eye className="w-3.5 h-3.5" /> Preview Mobile
+                  <InfoHint
+                    title="Xem trước giao diện điện thoại"
+                    text="Mô phỏng giao diện làm bài thi trên màn hình điện thoại để giảng viên kiểm tra đề hiển thị có rõ ràng không trước khi mở phòng."
+                  />
                 </button>
                 {selectedExam && (
                   <button
@@ -1003,7 +1020,11 @@ export const AdminDashboardPage: React.FC = () => {
                     <div className="flex items-center justify-between">
                       <h2 className="text-sm font-extrabold text-ink-900 flex items-center gap-1.5">
                         <Layers className="w-4 h-4 text-brand-600" />
-                        Ma trận Phân bổ Câu hỏi theo Chương
+                        <span>Ma trận Phân bổ Câu hỏi theo Chương</span>
+                        <InfoHint
+                          title="Ma trận rút câu hỏi tự động"
+                          text="Quy định mỗi chương sẽ rút ngẫu nhiên bao nhiêu câu (tự cân bằng Dễ/Trung bình/Khó) và mỗi câu tính bao nhiêu điểm. Nếu đặt 0 câu thì chương đó sẽ không ra trong đề."
+                        />
                       </h2>
                       <span className="font-mono font-bold text-support-700 bg-support-50 px-2.5 py-1 rounded-full">
                         {totalMatrixQuestions} câu • {totalMatrixPoints.toFixed(1)}đ
@@ -1112,8 +1133,12 @@ export const AdminDashboardPage: React.FC = () => {
                   </h3>
                   <div className="grid grid-cols-2 gap-2.5">
                     <div>
-                      <label className="block font-semibold mb-1">
-                        Mã phòng thi (6 số)
+                      <label className="flex items-center gap-1.5 font-semibold mb-1">
+                        <span>Mã phòng thi (6 số)</span>
+                        <InfoHint
+                          title="Mã phòng thi (PIN 6 số)"
+                          text="Mã gồm 6 chữ số để giảng viên đọc hoặc chiếu lên bảng cho sinh viên nhập vào màn hình chính để vào đúng ca thi này."
+                        />
                       </label>
                       <input
                         type="text"
@@ -1131,8 +1156,12 @@ export const AdminDashboardPage: React.FC = () => {
                       />
                     </div>
                     <div>
-                      <label className="block font-semibold mb-1">
-                        Thời lượng làm bài (phút)
+                      <label className="flex items-center gap-1.5 font-semibold mb-1">
+                        <span>Thời lượng làm bài (phút)</span>
+                        <InfoHint
+                          title="Thời gian làm bài"
+                          text="Tổng số phút sinh viên được phép làm bài kể từ lúc bấm bắt đầu. Hết giờ hệ thống sẽ tự động lưu và thu bài."
+                        />
                       </label>
                       <input
                         type="number"
@@ -1151,7 +1180,13 @@ export const AdminDashboardPage: React.FC = () => {
                   </div>
                   <div className="grid grid-cols-2 gap-2.5">
                     <div>
-                      <label className="block font-semibold mb-1">Kiểu trộn thứ tự câu</label>
+                      <label className="flex items-center gap-1.5 font-semibold mb-1">
+                        <span>Kiểu trộn thứ tự câu</span>
+                        <InfoHint
+                          title="Kiểu trộn thứ tự câu hỏi"
+                          text="• Trộn toàn bộ đề: xáo ngẫu nhiên tất cả câu. • Trộn trong từng Chương: giữ nguyên thứ tự các chương, chỉ xáo câu bên trong. • Đưa Tự luận xuống cuối: gom câu tự luận ra cuối đề."
+                        />
+                      </label>
                       <select
                         value={selectedExam.shuffleMode}
                         onChange={(e) =>
@@ -1168,7 +1203,13 @@ export const AdminDashboardPage: React.FC = () => {
                       </select>
                     </div>
                     <div>
-                      <label className="block font-semibold mb-1">Chế độ gửi Email SV</label>
+                      <label className="flex items-center gap-1.5 font-semibold mb-1">
+                        <span>Chế độ gửi Email SV</span>
+                        <InfoHint
+                          title="Cách trả kết quả qua Email"
+                          text="• Gửi điểm ngay: sinh viên nộp xong sẽ nhận điểm chi tiết qua Email. • Biên nhận trước, điểm khi đóng ca: chỉ gửi biên nhận đã nộp, đợi giảng viên đóng ca thi mới gửi điểm."
+                        />
+                      </label>
                       <select
                         value={selectedExam.emailDeliveryMode}
                         onChange={(e) =>
@@ -1197,7 +1238,11 @@ export const AdminDashboardPage: React.FC = () => {
                           })
                         }
                       />
-                      Trộn A/B/C/D (ghim cuối)
+                      <span>Trộn A/B/C/D (ghim cuối)</span>
+                      <InfoHint
+                        title="Trộn đáp án A/B/C/D"
+                        text="Xáo trộn thứ tự các phương án A, B, C, D của mỗi sinh viên. Các đáp án có đánh dấu 'Ghim cuối' (như 'Tất cả đều đúng') vẫn được giữ ở cuối."
+                      />
                     </label>
                     <label className="flex items-center gap-2 font-semibold">
                       <input
@@ -1210,7 +1255,11 @@ export const AdminDashboardPage: React.FC = () => {
                           })
                         }
                       />
-                      Canvas Chống OCR
+                      <span>Canvas Chống OCR</span>
+                      <InfoHint
+                        title="Chống sao chép & quét chữ (Anti-OCR)"
+                        text="Hiển thị nội dung câu hỏi dạng hình ảnh bảo vệ để hạn chế sinh viên bôi đen copy hoặc dùng công cụ quét chữ tự động (OCR) để giải đề."
+                      />
                     </label>
                     <label className="flex items-center gap-2 font-semibold">
                       <input
@@ -1223,9 +1272,13 @@ export const AdminDashboardPage: React.FC = () => {
                           })
                         }
                       />
-                      Điều hướng 1 chiều
+                      <span>Điều hướng 1 chiều</span>
+                      <InfoHint
+                        title="Thi 1 chiều (Không quay lại câu trước)"
+                        text="Nếu bật, sinh viên chỉ được làm tiếp sang câu sau và không thể quay lại sửa các câu đã đi qua. Chỉ nên bật cho đề kiểm tra đặc thù."
+                      />
                     </label>
-                    <div>
+                    <div className="flex items-center gap-1.5">
                       <select
                         value={selectedExam.status}
                         onChange={(e) =>
@@ -1240,12 +1293,20 @@ export const AdminDashboardPage: React.FC = () => {
                         <option value="OPEN">Trạng thái: ĐANG MỞ</option>
                         <option value="CLOSED">Trạng thái: ĐÃ ĐÓNG</option>
                       </select>
+                      <InfoHint
+                        title="Trạng thái phòng thi"
+                        text="• NHÁP: sinh viên chưa vào được. • ĐANG MỞ: sinh viên nhập PIN vào thi bình thường. • ĐÃ ĐÓNG: khóa phòng, không cho thí sinh mới vào."
+                      />
                     </div>
                   </div>
 
                   <div>
-                    <label className="block font-semibold mb-1">
-                      Whitelist MSSV (tùy chọn, phân tách dấu phẩy/dòng; để trống = cho phép tự do)
+                    <label className="flex items-center gap-1.5 font-semibold mb-1">
+                      <span>Whitelist MSSV (tùy chọn, phân tách dấu phẩy/dòng; để trống = cho phép tự do)</span>
+                      <InfoHint
+                        title="Giới hạn danh sách MSSV được phép thi"
+                        text="Nếu nhập danh sách MSSV vào đây (hoặc import file Excel ở tab Giám sát thi), chỉ những sinh viên có mã trong danh sách mới được phép vào phòng thi."
+                      />
                     </label>
                     <textarea
                       rows={2}
@@ -1312,6 +1373,10 @@ export const AdminDashboardPage: React.FC = () => {
                       className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-ink-800 font-bold flex items-center gap-1 hover:border-brand-300"
                     >
                       <Plus className="w-3.5 h-3.5" /> Thêm Chương
+                      <InfoHint
+                        title="Thêm Chương mới"
+                        text="Tạo nhanh một Chương/Chuyên đề mới để phân loại câu hỏi. Chương tạo xong sẽ xuất hiện ngay trong Ma trận đề thi."
+                      />
                     </button>
                     <button
                       type="button"
@@ -1319,6 +1384,10 @@ export const AdminDashboardPage: React.FC = () => {
                       className="px-3 py-1.5 rounded-xl border border-brand-200 bg-brand-50 text-brand-800 font-bold flex items-center gap-1 hover:bg-brand-100"
                     >
                       <Download className="w-3.5 h-3.5" /> Chọn &amp; Tải Mẫu Excel
+                      <InfoHint
+                        title="Tải file Excel mẫu"
+                        text="Chọn dạng câu hỏi muốn soạn (Trắc nghiệm 1 đáp án, Nhiều đáp án, Điền khuyết, Tự luận...) rồi tải file Excel mẫu chuẩn để nhập liệu."
+                      />
                     </button>
                     <button
                       type="button"
@@ -1341,6 +1410,10 @@ export const AdminDashboardPage: React.FC = () => {
                       className="px-3 py-1.5 rounded-xl border border-support-200 bg-support-50 text-support-800 font-bold flex items-center gap-1 hover:bg-support-100 disabled:opacity-45"
                     >
                       <FileSpreadsheet className="w-3.5 h-3.5" /> Xuất Excel
+                      <InfoHint
+                        title="Xuất Ngân hàng ra Excel"
+                        text="Tải toàn bộ câu hỏi của học phần này về máy dưới dạng file .xlsx để lưu trữ, chỉnh sửa hàng loạt hoặc chia sẻ với đồng nghiệp."
+                      />
                     </button>
                     <button
                       type="button"
@@ -1348,6 +1421,10 @@ export const AdminDashboardPage: React.FC = () => {
                       className="px-3 py-1.5 rounded-xl bg-support-600 hover:bg-support-700 text-white font-bold flex items-center gap-1 shadow-xs"
                     >
                       <Upload className="w-3.5 h-3.5" /> Import Excel
+                      <InfoHint
+                        title="Nhập câu hỏi từ file Excel"
+                        text="Tải lên file Excel đã soạn theo mẫu để thêm nhanh hàng chục/hàng trăm câu hỏi vào ngân hàng cùng một lúc."
+                      />
                     </button>
                     <button
                       type="button"
@@ -1361,6 +1438,10 @@ export const AdminDashboardPage: React.FC = () => {
                       title="Sao lưu nhanh sang file .JSON"
                     >
                       <FileJson className="w-3.5 h-3.5" /> .JSON
+                      <InfoHint
+                        title="Sao lưu dữ liệu kỹ thuật (.JSON)"
+                        text="Xuất bản sao lưu nguyên vẹn dữ liệu câu hỏi dưới dạng file JSON."
+                      />
                     </button>
                     <button
                       type="button"
@@ -1373,6 +1454,10 @@ export const AdminDashboardPage: React.FC = () => {
                       className="px-3.5 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold flex items-center gap-1"
                     >
                       <Plus className="w-3.5 h-3.5" /> Thêm câu lẻ
+                      <InfoHint
+                        title="Soạn từng câu hỏi trực tiếp"
+                        text="Mở hộp thoại để tự gõ từng câu hỏi, chọn đáp án đúng và gán biến số động theo MSSV (nếu cần)."
+                      />
                     </button>
                   </div>
                 </div>
