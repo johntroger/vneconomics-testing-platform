@@ -131,6 +131,8 @@ interface ExamContextValue extends ExamPlatformState {
     newPhrase: string,
   ) => { updatedCount: number };
   addCourse: (course: Omit<Course, 'id'>) => Course;
+  updateCourse: (course: Course) => Promise<{ ok: boolean; error?: string }>;
+  deleteCourse: (courseId: string) => Promise<{ ok: boolean; error?: string }>;
   upsertQuestion: (question: Question) => void;
   deleteQuestion: (questionId: string) => void;
   importQuestionsBulk: (
@@ -142,6 +144,7 @@ interface ExamContextValue extends ExamPlatformState {
     },
   ) => { addedCount: number; updatedCount: number; syncedChapters: number };
   upsertExam: (exam: Exam) => Promise<{ ok: boolean; error?: string }>;
+  deleteExam: (examId: string) => Promise<{ ok: boolean; error?: string }>;
   cloneExam: (examId: string) => Exam | null;
   resendStudentScoreEmail: (attemptId: string, editedEmail?: string) => void;
   sendTestMailer: (recipient: string) => EmailLogEntry;
@@ -1975,6 +1978,75 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
     [backendConnected, instructorUser?.id, updateState],
   );
 
+  const updateCourse = useCallback(
+    async (course: Course): Promise<{ ok: boolean; error?: string }> => {
+      const prevCourse = stateRef.current.courses.find((c) => c.id === course.id);
+      updateState((prev) => ({
+        ...prev,
+        courses: prev.courses.map((c) => (c.id === course.id ? course : c)),
+      }));
+
+      if (backendConnected) {
+        const res = await apiRequestDetailed<{ ok: boolean; course?: Course; error?: string }>(
+          '/api/exams.php?action=save_course',
+          {
+            method: 'POST',
+            body: JSON.stringify(course),
+          },
+        );
+        if (!res.ok || !res.data?.ok) {
+          if (prevCourse) {
+            updateState((prev) => ({
+              ...prev,
+              courses: prev.courses.map((c) => (c.id === course.id ? prevCourse : c)),
+            }));
+          }
+          return {
+            ok: false,
+            error: res.error || res.data?.error || 'Không thể cập nhật học phần.',
+          };
+        }
+      }
+      return { ok: true };
+    },
+    [backendConnected, updateState],
+  );
+
+  const deleteCourse = useCallback(
+    async (courseId: string): Promise<{ ok: boolean; error?: string }> => {
+      const prevCourses = stateRef.current.courses;
+      const prevQuestions = stateRef.current.questions;
+      updateState((prev) => ({
+        ...prev,
+        courses: prev.courses.filter((c) => c.id !== courseId),
+        questions: prev.questions.filter((q) => q.courseId !== courseId),
+      }));
+
+      if (backendConnected) {
+        const res = await apiRequestDetailed<{ ok: boolean; error?: string }>(
+          '/api/exams.php?action=delete_course',
+          {
+            method: 'POST',
+            body: JSON.stringify({ id: courseId }),
+          },
+        );
+        if (!res.ok || !res.data?.ok) {
+          updateState((prev) => ({
+            ...prev,
+            courses: prevCourses,
+            questions: prevQuestions,
+          }));
+          return {
+            ok: false,
+            error: res.error || res.data?.error || 'Không thể xóa học phần.',
+          };
+        }
+      }
+      return { ok: true };
+    },
+    [backendConnected, updateState],
+  );
+
   const upsertQuestion = useCallback(
     (question: Question) => {
       updateState((prev) => {
@@ -2173,6 +2245,38 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
     [backendConnected, updateState],
   );
 
+  const deleteExam = useCallback(
+    async (examId: string): Promise<{ ok: boolean; error?: string }> => {
+      const prevExams = stateRef.current.exams;
+      updateState((prev) => ({
+        ...prev,
+        exams: prev.exams.filter((e) => e.id !== examId),
+      }));
+
+      if (backendConnected) {
+        const res = await apiRequestDetailed<{ ok: boolean; error?: string }>(
+          '/api/exams.php?action=delete_exam',
+          {
+            method: 'POST',
+            body: JSON.stringify({ id: examId }),
+          },
+        );
+        if (!res.ok || !res.data?.ok) {
+          updateState((prev) => ({
+            ...prev,
+            exams: prevExams,
+          }));
+          return {
+            ok: false,
+            error: res.error || res.data?.error || 'Không thể xóa đề thi.',
+          };
+        }
+      }
+      return { ok: true };
+    },
+    [backendConnected, updateState],
+  );
+
   const cloneExam = useCallback(
     (examId: string): Exam | null => {
       const source = state.exams.find((e) => e.id === examId);
@@ -2345,10 +2449,13 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         overrideEssayScore,
         enrichRubricAndRegradeExam,
         addCourse,
+        updateCourse,
+        deleteCourse,
         upsertQuestion,
         deleteQuestion,
         importQuestionsBulk,
         upsertExam,
+        deleteExam,
         cloneExam,
         resendStudentScoreEmail,
         sendTestMailer,

@@ -22,6 +22,7 @@ import {
   Upload,
   X,
 } from 'lucide-react';
+import { CoursesTabPanel } from '../components/admin/CoursesTabPanel';
 import { EssayGradingModal } from '../components/admin/EssayGradingModal';
 import { ExcelQuestionBankModal } from '../components/admin/ExcelQuestionBankModal';
 import { GoogleSignInButton } from '../components/admin/GoogleSignInButton';
@@ -50,7 +51,13 @@ import {
   exportCourseQuestionsToXlsx,
 } from '../utils/excelQuestionBank';
 
-type AdminTab = 'LIVE' | 'BANK_MATRIX' | 'ANALYTICS_ESSAY' | 'EMAILS';
+type AdminTab =
+  | 'COURSES'
+  | 'BANK'
+  | 'EXAMS'
+  | 'LIVE'
+  | 'ANALYTICS_ESSAY'
+  | 'EMAILS';
 
 const BANK_TEMPLATE_TYPE_OPTIONS: { type: QuestionType; label: string }[] = [
   { type: 'SINGLE_CHOICE', label: 'Trắc nghiệm 4 phương án (1 đáp án)' },
@@ -82,10 +89,13 @@ export const AdminDashboardPage: React.FC = () => {
     overrideEssayScore,
     enrichRubricAndRegradeExam,
     addCourse,
+    updateCourse,
+    deleteCourse,
     upsertQuestion,
     deleteQuestion,
     importQuestionsBulk,
     upsertExam,
+    deleteExam,
     cloneExam,
     resendStudentScoreEmail,
     sendTestMailer,
@@ -111,8 +121,12 @@ export const AdminDashboardPage: React.FC = () => {
   );
   const [newExamDuration, setNewExamDuration] = useState(45);
   const [newExamStatus, setNewExamStatus] = useState<'OPEN' | 'DRAFT'>('OPEN');
+  const [selectedCourseId, setSelectedCourseId] = useState(courses[0]?.id ?? '');
   const [selectedExamId, setSelectedExamId] = useState(exams[0]?.id ?? '');
-  const [activeTab, setActiveTab] = useState<AdminTab>('LIVE');
+  const [activeTab, setActiveTab] = useState<AdminTab>(() =>
+    exams.length > 0 ? 'LIVE' : 'COURSES',
+  );
+  const [templateBoxOpen, setTemplateBoxOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimerRef = useRef<number | null>(null);
 
@@ -189,13 +203,15 @@ export const AdminDashboardPage: React.FC = () => {
     [exams, selectedExamId],
   );
   const selectedCourse = useMemo(
-    () => courses.find((c) => c.id === selectedExam?.courseId),
-    [courses, selectedExam],
+    () =>
+      courses.find((c) => c.id === selectedCourseId) ??
+      courses.find((c) => c.id === selectedExam?.courseId) ??
+      courses[0],
+    [courses, selectedCourseId, selectedExam],
   );
   const courseQuestions = useMemo(
-    () =>
-      questions.filter((q) => q.courseId === selectedExam?.courseId),
-    [questions, selectedExam],
+    () => questions.filter((q) => q.courseId === selectedCourse?.id),
+    [questions, selectedCourse],
   );
 
   const chapterGroups = useMemo(() => {
@@ -565,11 +581,39 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar pb-0.5 md:pb-0 md:flex-wrap">
+            {courses.length > 0 && (
+              <select
+                value={selectedCourse?.id ?? ''}
+                onChange={(e) => {
+                  const cid = e.target.value;
+                  setSelectedCourseId(cid);
+                  const firstCourseExam = exams.find((ex) => ex.courseId === cid);
+                  if (firstCourseExam) {
+                    setSelectedExamId(firstCourseExam.id);
+                  }
+                }}
+                aria-label="Chọn học phần"
+                className="h-9 px-2.5 sm:px-3 rounded-xl border border-slate-300 bg-slate-50 text-xs font-bold text-ink-900 max-w-[190px] shrink-0"
+              >
+                {courses.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.code} — {c.name}
+                  </option>
+                ))}
+              </select>
+            )}
+
             <select
               value={selectedExam?.id ?? ''}
-              onChange={(e) => setSelectedExamId(e.target.value)}
+              onChange={(e) => {
+                const eid = e.target.value;
+                setSelectedExamId(eid);
+                const ex = exams.find((item) => item.id === eid);
+                if (ex) setSelectedCourseId(ex.courseId);
+              }}
               disabled={exams.length === 0}
-              className="h-9 px-2.5 sm:px-3 rounded-xl border border-slate-300 bg-slate-50 text-xs font-bold text-ink-900 min-w-[165px] max-w-[220px] sm:max-w-[260px] shrink-0 disabled:opacity-60"
+              aria-label="Chọn đề thi"
+              className="h-9 px-2.5 sm:px-3 rounded-xl border border-slate-300 bg-slate-50 text-xs font-bold text-ink-900 min-w-[165px] max-w-[240px] shrink-0 disabled:opacity-60"
             >
               {exams.length === 0 ? (
                 <option value="">Chưa có đề thi nào</option>
@@ -582,81 +626,20 @@ export const AdminDashboardPage: React.FC = () => {
               )}
             </select>
 
-            <button
-              type="button"
-              onClick={() => {
-                if (!requireOfficialOrPrompt()) return;
-                setNewExamCourseId(selectedExam?.courseId || courses[0]?.id || '');
-                setNewExamPin(String(Math.floor(100000 + Math.random() * 900000)));
-                setNewExamTitle('');
-                setModalCourseOpen(courses.length === 0);
-                setCreateExamModalOpen(true);
-              }}
-              className="h-9 px-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5 shrink-0 whitespace-nowrap shadow-2xs"
-            >
-              <Plus className="w-3.5 h-3.5" /> Tạo Đề thi mới
-            </button>
-
-            <button
-              type="button"
-              disabled={!selectedExam}
-              onClick={() => setPreviewOpen(true)}
-              className="h-9 px-3 rounded-xl border border-brand-200 bg-brand-50 text-brand-700 text-xs font-bold flex items-center gap-1.5 shrink-0 whitespace-nowrap disabled:opacity-40"
-            >
-              <Eye className="w-3.5 h-3.5" /> Preview Mobile
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setExcelModalOpen(true)}
-              className="h-9 px-3 rounded-xl border border-support-200 bg-support-50 text-support-800 hover:bg-support-100 text-xs font-bold flex items-center gap-1.5 shrink-0 whitespace-nowrap"
-            >
-              <FileSpreadsheet className="w-3.5 h-3.5" /> Mẫu / Import Excel
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                const targetEmail =
-                  selectedExam?.instructorEmail ||
-                  instructorUser?.email ||
-                  'giangvien@vneconomics.com';
-                sendTestMailer(targetEmail);
-                showToast(`Đã gửi Email thử nghiệm tới ${targetEmail}`);
-              }}
-              className="h-9 px-3 rounded-xl border border-slate-200 bg-white text-ink-700 text-xs font-bold flex items-center gap-1.5 hover:border-brand-300 shrink-0 whitespace-nowrap"
-            >
-              <Mail className="w-3.5 h-3.5" /> Test Mailer
-            </button>
-
-            <button
-              type="button"
-              disabled={!selectedExam}
-              onClick={() => {
-                if (!requireOfficialOrPrompt() || !selectedExam) return;
-                const copy = cloneExam(selectedExam.id);
-                if (copy) {
-                  setSelectedExamId(copy.id);
-                  showToast(`Đã nhân bản ca thi với PIN mới: ${copy.roomPin}`);
-                }
-              }}
-              className="h-9 px-3 rounded-xl border border-slate-200 bg-white text-ink-700 text-xs font-bold flex items-center gap-1.5 hover:border-brand-300 shrink-0 whitespace-nowrap disabled:opacity-40"
-            >
-              <Copy className="w-3.5 h-3.5" /> Clone Ca
-            </button>
-
-            <button
-              type="button"
-              onClick={() => {
-                resetDemoData();
-                showToast('Đã khôi phục 3 phòng thi và ngân hàng câu hỏi mẫu Demo.');
-              }}
-              title="Khôi phục dữ liệu mẫu Demo (101202, 202303, 303404)"
-              className="h-9 px-3 rounded-xl border border-slate-200 bg-white text-ink-700 text-xs font-bold flex items-center gap-1.5 hover:bg-slate-50 hover:border-brand-300 shrink-0 whitespace-nowrap"
-            >
-              <RefreshCw className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Khôi phục mẫu</span>
-            </button>
+            {isDemoMode && (
+              <button
+                type="button"
+                onClick={() => {
+                  resetDemoData();
+                  showToast('Đã khôi phục 3 phòng thi và ngân hàng câu hỏi mẫu Demo.');
+                }}
+                title="Khôi phục dữ liệu mẫu Demo (101202, 202303, 303404)"
+                className="h-9 px-3 rounded-xl border border-slate-200 bg-white text-ink-700 text-xs font-bold flex items-center gap-1.5 hover:bg-slate-50 hover:border-brand-300 shrink-0 whitespace-nowrap"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Khôi phục mẫu</span>
+              </button>
+            )}
 
             <button
               type="button"
@@ -672,10 +655,12 @@ export const AdminDashboardPage: React.FC = () => {
         {/* Navigation Tabs */}
         <div className="max-w-7xl mx-auto px-3 sm:px-4 flex gap-1 overflow-x-auto no-scrollbar border-t border-slate-100">
           {[
-            { id: 'LIVE' as const, label: 'Giám sát Live & Duyệt', icon: Activity },
-            { id: 'BANK_MATRIX' as const, label: 'Ngân hàng Chương & Ma trận Đề', icon: Layers },
-            { id: 'ANALYTICS_ESSAY' as const, label: 'Thống kê Chương & Tự luận Rubric', icon: BarChart3 },
-            { id: 'EMAILS' as const, label: `Nhật ký Email (${emailLogs.length})`, icon: Mail },
+            { id: 'COURSES' as const, label: `1. Học phần (${courses.length})`, icon: BookOpen },
+            { id: 'BANK' as const, label: `2. Ngân hàng câu hỏi (${courseQuestions.length})`, icon: Layers },
+            { id: 'EXAMS' as const, label: `3. Tạo & Cấu hình Đề thi (${exams.length})`, icon: FileSpreadsheet },
+            { id: 'LIVE' as const, label: '4. Giám sát Live & Duyệt', icon: Activity },
+            { id: 'ANALYTICS_ESSAY' as const, label: '5. Thống kê & Tự luận', icon: BarChart3 },
+            { id: 'EMAILS' as const, label: `6. Nhật ký Email (${emailLogs.length})`, icon: Mail },
           ].map((tab) => {
             const Icon = tab.icon;
             const active = activeTab === tab.id;
@@ -716,38 +701,60 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
         )}
 
-        {!selectedExam && activeTab !== 'EMAILS' && (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-10 text-center max-w-xl mx-auto my-6 space-y-4">
-            <div className="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mx-auto">
-              <Layers className="w-6 h-6" />
-            </div>
-            <div className="space-y-1.5">
-              <h2 className="text-lg font-extrabold text-ink-900">
-                Chào mừng {instructorUser?.name || instructorUser?.email || 'Giảng viên'}!
-              </h2>
-              <p className="text-xs sm:text-sm text-ink-600 leading-relaxed">
-                Tài khoản của bạn hiện chưa có học phần hoặc đề thi nào. Mọi học phần, ngân hàng câu hỏi và đề thi bạn tạo sẽ chỉ hiển thị riêng trong tài khoản của bạn.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
-              <button
-                type="button"
-                onClick={() => {
-                  setNewExamCourseId(courses[0]?.id || '');
-                  setNewExamPin(String(Math.floor(100000 + Math.random() * 900000)));
-                  setNewExamTitle('');
-                  setModalCourseOpen(courses.length === 0);
-                  setCreateExamModalOpen(true);
-                }}
-                className="h-10 px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs sm:text-sm font-bold inline-flex items-center gap-1.5 shadow-sm"
-              >
-                <Plus className="w-4 h-4" /> Tạo Học phần &amp; Đề thi đầu tiên
-              </button>
-            </div>
-          </div>
+        {/* TAB 1: COURSES */}
+        {activeTab === 'COURSES' && (
+          <CoursesTabPanel
+            courses={courses}
+            questions={questions}
+            exams={exams}
+            selectedCourseId={selectedCourse?.id ?? ''}
+            onSelectCourse={(cid) => setSelectedCourseId(cid)}
+            onGoToBank={(cid) => {
+              setSelectedCourseId(cid);
+              setActiveTab('BANK');
+            }}
+            onGoToExams={(cid) => {
+              setSelectedCourseId(cid);
+              const firstEx = exams.find((ex) => ex.courseId === cid);
+              if (firstEx) setSelectedExamId(firstEx.id);
+              setActiveTab('EXAMS');
+            }}
+            onAddCourse={addCourse}
+            onUpdateCourse={updateCourse}
+            onDeleteCourse={deleteCourse}
+            requireOfficialOrPrompt={requireOfficialOrPrompt}
+            showToast={showToast}
+          />
         )}
 
-        {/* TAB 1: LIVE PROCTORING */}
+        {/* Empty Exam Notice only for exam-dependent tabs */}
+        {!selectedExam &&
+          (activeTab === 'LIVE' || activeTab === 'ANALYTICS_ESSAY') && (
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6 sm:p-10 text-center max-w-xl mx-auto my-6 space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-brand-50 text-brand-600 flex items-center justify-center mx-auto">
+                <Layers className="w-6 h-6" />
+              </div>
+              <div className="space-y-1.5">
+                <h2 className="text-lg font-extrabold text-ink-900">
+                  Chưa có đề thi nào để theo dõi
+                </h2>
+                <p className="text-xs sm:text-sm text-ink-600 leading-relaxed">
+                  Hãy tạo Học phần, nhập Ngân hàng câu hỏi rồi sang tab <strong>3. Tạo &amp; Cấu hình Đề thi</strong> để mở phòng thi.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center justify-center gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('EXAMS')}
+                  className="h-10 px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs sm:text-sm font-bold inline-flex items-center gap-1.5 shadow-sm"
+                >
+                  <Plus className="w-4 h-4" /> Sang tab Tạo Đề thi
+                </button>
+              </div>
+            </div>
+          )}
+
+        {/* TAB 4: LIVE PROCTORING */}
         {selectedExam && activeTab === 'LIVE' && (
           <LiveProctorTable
             exam={selectedExam}
@@ -782,24 +789,116 @@ export const AdminDashboardPage: React.FC = () => {
           />
         )}
 
-        {/* TAB 2: QUESTION BANK BY CHAPTER + ALLOCATION MATRIX + EXAM SETTINGS */}
-        {selectedExam && activeTab === 'BANK_MATRIX' && (
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
-            {/* Left: Exam Matrix & Settings */}
-            <div className="lg:col-span-5 space-y-4">
-              <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-4 text-xs">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-sm font-extrabold text-ink-900 flex items-center gap-1.5">
-                    <Layers className="w-4 h-4 text-brand-600" />
-                    Ma trận Phân bổ Câu hỏi theo Chương
-                  </h2>
-                  <span className="font-mono font-bold text-support-700 bg-support-50 px-2.5 py-1 rounded-full">
-                    {totalMatrixQuestions} câu • {totalMatrixPoints.toFixed(1)}đ
-                  </span>
-                </div>
+        {/* TAB 3: EXAM CREATION, ALLOCATION MATRIX & ROOM SETTINGS */}
+        {activeTab === 'EXAMS' && (
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-2xs p-4 flex flex-wrap items-center justify-between gap-2.5">
+              <div>
+                <h2 className="text-sm font-extrabold text-ink-900">
+                  Quản lý Đề thi &amp; Ca thi ({exams.length})
+                </h2>
+                <p className="text-[11px] text-ink-500">
+                  Tạo đề theo học phần, cấu hình ma trận phân bổ Chương và thông số phòng thi.
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!requireOfficialOrPrompt()) return;
+                    setNewExamCourseId(selectedCourse?.id || selectedExam?.courseId || courses[0]?.id || '');
+                    setNewExamPin(String(Math.floor(100000 + Math.random() * 900000)));
+                    setNewExamTitle('');
+                    setModalCourseOpen(courses.length === 0);
+                    setCreateExamModalOpen(true);
+                  }}
+                  className="h-9 px-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Tạo Đề thi mới
+                </button>
+                <button
+                  type="button"
+                  disabled={!selectedExam}
+                  onClick={() => {
+                    if (!requireOfficialOrPrompt() || !selectedExam) return;
+                    const copy = cloneExam(selectedExam.id);
+                    if (copy) {
+                      setSelectedExamId(copy.id);
+                      showToast(`Đã nhân bản ca thi với PIN mới: ${copy.roomPin}`);
+                    }
+                  }}
+                  className="h-9 px-3 rounded-xl border border-slate-200 bg-white text-ink-700 text-xs font-bold flex items-center gap-1.5 hover:border-brand-300 disabled:opacity-40"
+                >
+                  <Copy className="w-3.5 h-3.5" /> Clone Ca
+                </button>
+                <button
+                  type="button"
+                  disabled={!selectedExam}
+                  onClick={() => setPreviewOpen(true)}
+                  className="h-9 px-3 rounded-xl border border-brand-200 bg-brand-50 text-brand-700 text-xs font-bold flex items-center gap-1.5 disabled:opacity-40"
+                >
+                  <Eye className="w-3.5 h-3.5" /> Preview Mobile
+                </button>
+                {selectedExam && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!requireOfficialOrPrompt()) return;
+                      if (!window.confirm(`Xóa đề thi "${selectedExam.title}" (PIN ${selectedExam.roomPin})?`)) return;
+                      void deleteExam(selectedExam.id).then((res) => {
+                        if (!res.ok) {
+                          showToast(res.error || 'Không thể xóa đề thi.');
+                        } else {
+                          showToast('Đã xóa đề thi.');
+                        }
+                      });
+                    }}
+                    className="h-9 px-3 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 text-xs font-bold flex items-center gap-1.5 hover:bg-rose-100"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" /> Xóa đề
+                  </button>
+                )}
+              </div>
+            </div>
 
-                <div className="space-y-2.5">
-                  {chapterGroups.map(([chapterName, qs]) => {
+            {!selectedExam ? (
+              <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-3">
+                <p className="text-sm font-bold text-ink-800">Chưa có đề thi nào</p>
+                <p className="text-xs text-ink-500">
+                  Bấm nút <strong>+ Tạo Đề thi mới</strong> ở trên để tạo đề thi đầu tiên cho học phần của bạn.
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                {/* Left: Exam Matrix */}
+                <div className="lg:col-span-5">
+                  <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-4 text-xs">
+                    <div className="flex items-center justify-between">
+                      <h2 className="text-sm font-extrabold text-ink-900 flex items-center gap-1.5">
+                        <Layers className="w-4 h-4 text-brand-600" />
+                        Ma trận Phân bổ Câu hỏi theo Chương
+                      </h2>
+                      <span className="font-mono font-bold text-support-700 bg-support-50 px-2.5 py-1 rounded-full">
+                        {totalMatrixQuestions} câu • {totalMatrixPoints.toFixed(1)}đ
+                      </span>
+                    </div>
+
+                    <div className="space-y-2.5">
+                      {chapterGroups.length === 0 ? (
+                        <div className="p-4 rounded-xl bg-slate-50 border border-dashed border-slate-200 text-center space-y-2">
+                          <p className="text-ink-600">
+                            Học phần <strong>{selectedCourse?.code}</strong> chưa có câu hỏi nào trong ngân hàng.
+                          </p>
+                          <button
+                            type="button"
+                            onClick={() => setActiveTab('BANK')}
+                            className="px-3 py-1.5 rounded-lg bg-brand-600 text-white font-bold"
+                          >
+                            Sang tab Ngân hàng câu hỏi
+                          </button>
+                        </div>
+                      ) : (
+                        chapterGroups.map(([chapterName, qs]) => {
                     const rule = selectedExam.chapterMatrix.find(
                       (r) => r.chapterCategory === chapterName,
                     );
@@ -870,9 +969,15 @@ export const AdminDashboardPage: React.FC = () => {
                         )}
                       </div>
                     );
-                  })}
+                  })
+                  )}
                 </div>
+              </div>
+            </div>
 
+            {/* Right: Exam Settings */}
+            <div className="lg:col-span-7">
+              <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-4 text-xs">
                 {/* Shuffle & Exam Policy */}
                 <div className="border-t border-slate-200 pt-3 space-y-3">
                   <h3 className="font-bold text-ink-900">
@@ -1034,15 +1139,35 @@ export const AdminDashboardPage: React.FC = () => {
                 </div>
               </div>
             </div>
+            </div>
+            )}
+          </div>
+        )}
 
-            {/* Right: Question Bank Grouped by Chapter */}
-            <div className="lg:col-span-7 space-y-4">
+        {/* TAB 2: QUESTION BANK (INDEPENDENT OF EXAM) */}
+        {activeTab === 'BANK' && (
+          <div className="space-y-4">
+            {!selectedCourse ? (
+              <div className="bg-white rounded-2xl border border-slate-200 p-8 text-center space-y-3">
+                <p className="text-sm font-bold text-ink-800">Chưa có học phần nào</p>
+                <p className="text-xs text-ink-500">
+                  Hãy tạo học phần trước ở tab <strong>1. Học phần</strong> để nhập ngân hàng câu hỏi.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('COURSES')}
+                  className="h-9 px-4 rounded-xl bg-brand-600 text-white text-xs font-bold"
+                >
+                  Đi tới tab 1. Học phần
+                </button>
+              </div>
+            ) : (
               <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-4">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <h2 className="text-sm font-extrabold text-ink-900 flex items-center gap-1.5">
                       <BookOpen className="w-4 h-4 text-brand-600" />
-                      Ngân hàng Câu hỏi: {selectedCourse?.code} — {selectedCourse?.name}
+                      Ngân hàng Câu hỏi: {selectedCourse.code} — {selectedCourse.name}
                     </h2>
                     <p className="text-[11px] text-ink-500">
                       Tổng {courseQuestions.length} câu thuộc {chapterGroups.length} Chương
@@ -1052,24 +1177,10 @@ export const AdminDashboardPage: React.FC = () => {
                   <div className="flex flex-wrap gap-2 text-xs">
                     <button
                       type="button"
-                      onClick={() => {
-                        if (!requireOfficialOrPrompt()) return;
-                        setNewCourseOpen((o) => !o);
-                      }}
-                      className="px-3 py-1.5 rounded-xl border border-slate-200 font-bold hover:bg-slate-50"
-                    >
-                      + Học phần
-                    </button>
-                    <button
-                      type="button"
-                      title="Tải file mẫu Excel theo các loại câu hỏi đã tick bên dưới (mặc định 4 phương án nếu không tick)"
-                      onClick={handleDownloadTemplateXlsx}
+                      onClick={() => setTemplateBoxOpen((o) => !o)}
                       className="px-3 py-1.5 rounded-xl border border-brand-200 bg-brand-50 text-brand-800 font-bold flex items-center gap-1 hover:bg-brand-100"
                     >
-                      <Download className="w-3.5 h-3.5" />{' '}
-                      {isDefaultFourOptionTemplate
-                        ? 'Tải Mẫu Excel (4 ĐA)'
-                        : `Tải Mẫu Excel (${effectiveBankTemplateTypes.length} loại)`}
+                      <Download className="w-3.5 h-3.5" /> Chọn &amp; Tải Mẫu Excel
                     </button>
                     <button
                       type="button"
@@ -1163,8 +1274,9 @@ export const AdminDashboardPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* Template Type Selector Box for Quick Excel Export */}
-                <div className="p-3.5 rounded-xl border border-brand-200 bg-brand-50/60 space-y-2.5 text-xs">
+                {/* Collapsible Template Type Selector Box for Quick Excel Export */}
+                {templateBoxOpen && (
+                  <div className="p-3.5 rounded-xl border border-brand-200 bg-brand-50/60 space-y-2.5 text-xs">
                   <div className="flex items-start justify-between flex-wrap gap-2">
                     <div>
                       <p className="font-extrabold text-brand-900">
@@ -1235,6 +1347,7 @@ export const AdminDashboardPage: React.FC = () => {
                     })}
                   </div>
                 </div>
+                )}
 
                 {/* Search + Chapter & Type Filter Bar */}
                 <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 space-y-2.5 text-xs">
@@ -1382,11 +1495,11 @@ export const AdminDashboardPage: React.FC = () => {
                   </div>
                 )}
               </div>
-            </div>
+            )}
           </div>
         )}
 
-        {/* TAB 3: CHAPTER MASTERY ANALYTICS & CSV EXPORT */}
+        {/* TAB 5: CHAPTER MASTERY ANALYTICS & CSV EXPORT */}
         {selectedExam && activeTab === 'ANALYTICS_ESSAY' && (
           <div className="space-y-5">
             <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-4">
@@ -1485,12 +1598,28 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
         )}
 
-        {/* TAB 4: EMAIL LOGS */}
+        {/* TAB 6: EMAIL LOGS */}
         {activeTab === 'EMAILS' && (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-3">
-            <h2 className="text-sm font-extrabold text-ink-900">
-              Nhật ký Email Tự động (api/mailer.php Dual-Transport Queue)
-            </h2>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm font-extrabold text-ink-900">
+                Nhật ký Email Tự động (api/mailer.php Dual-Transport Queue)
+              </h2>
+              <button
+                type="button"
+                onClick={() => {
+                  const targetEmail =
+                    selectedExam?.instructorEmail ||
+                    instructorUser?.email ||
+                    'giangvien@vneconomics.com';
+                  sendTestMailer(targetEmail);
+                  showToast(`Đã gửi Email thử nghiệm tới ${targetEmail}`);
+                }}
+                className="h-9 px-3 rounded-xl border border-brand-200 bg-brand-50 text-brand-800 text-xs font-bold flex items-center gap-1.5 hover:bg-brand-100"
+              >
+                <Mail className="w-3.5 h-3.5" /> Test Mailer
+              </button>
+            </div>
             <div className="divide-y divide-slate-100">
               {emailLogs.map((log) => (
                 <div key={log.id} className="py-3 text-xs flex flex-wrap justify-between gap-2">
@@ -1520,11 +1649,11 @@ export const AdminDashboardPage: React.FC = () => {
         )}
       </main>
 
-      {selectedExam && (
+      {selectedCourse && (
         <QuestionEditorModal
           key={editingQuestion?.id ?? 'new'}
           isOpen={questionModalOpen}
-          courseId={selectedExam.courseId}
+          courseId={selectedCourse.id}
           existingChapters={chapterGroups.map(([name]) => name)}
           initialQuestion={editingQuestion}
           onClose={() => setQuestionModalOpen(false)}
@@ -1535,20 +1664,20 @@ export const AdminDashboardPage: React.FC = () => {
         />
       )}
 
-      {selectedCourse && selectedExam && (
+      {selectedCourse && (
         <ExcelQuestionBankModal
           open={excelModalOpen}
           onClose={() => setExcelModalOpen(false)}
           course={selectedCourse}
           courseQuestions={courseQuestions}
-          examTitle={selectedExam.title}
+          examTitle={selectedExam?.title || selectedCourse.name}
           selectedTemplateTypes={bankTemplateTypes}
           onChangeSelectedTemplateTypes={setBankTemplateTypes}
           onConfirmImport={(imported, opts) => {
             const summary = importQuestionsBulk(imported, {
               mode: opts.mode,
               courseId: selectedCourse.id,
-              syncExamId: opts.syncChapters ? selectedExam.id : undefined,
+              syncExamId: opts.syncChapters ? selectedExam?.id : undefined,
             });
             showToast(
               `Đã thêm ${summary.addedCount} câu, cập nhật ${summary.updatedCount} câu${
