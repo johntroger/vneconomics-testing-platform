@@ -174,7 +174,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             }
             $stmt->execute($params);
         } else {
-            $stmt = $pdo->prepare("SELECT a.* FROM exam_attempts a JOIN exams e ON e.id = a.exam_id WHERE ($scopeWhere) ORDER BY a.started_at DESC LIMIT 200");
+            $stmt = $pdo->prepare("SELECT a.* FROM exam_attempts a JOIN exams e ON e.id = a.exam_id WHERE ($scopeWhere) ORDER BY a.started_at DESC LIMIT 1000");
             $params = [];
             if ($authRole === 'OFFICIAL' && $authActorId !== 'MASTER_ADMIN') {
                 $params[':uid'] = $authActorId;
@@ -183,20 +183,32 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         }
         $rows = $stmt->fetchAll();
 
-        $attOut = [];
-        $vStmt = $pdo->prepare('SELECT * FROM violation_logs WHERE attempt_id = :aid ORDER BY occurred_at ASC');
-        foreach ($rows as $r) {
-            $vStmt->execute([':aid' => $r['id']]);
-            $vios = array_map(static fn ($v) => [
-                'id' => $v['id'],
-                'severity' => $v['severity'],
-                'eventType' => $v['event_type'],
-                'durationSeconds' => (int) $v['duration_seconds'],
-                'detail' => $v['detail'],
-                'occurredAt' => $v['occurred_at'],
-            ], $vStmt->fetchAll());
+        $attemptIds = array_map(static fn (array $r): string => (string) $r['id'], $rows);
+        $viosByAttempt = [];
+        if (count($attemptIds) > 0) {
+            foreach (array_chunk($attemptIds, 200) as $chunk) {
+                $ph = implode(',', array_fill(0, count($chunk), '?'));
+                $vStmt = $pdo->prepare("SELECT * FROM violation_logs WHERE attempt_id IN ($ph) ORDER BY occurred_at ASC");
+                $vStmt->execute($chunk);
+                foreach ($vStmt->fetchAll() as $v) {
+                    $viosByAttempt[(string) $v['attempt_id']][] = [
+                        'id' => $v['id'],
+                        'severity' => $v['severity'],
+                        'eventType' => $v['event_type'],
+                        'durationSeconds' => (int) $v['duration_seconds'],
+                        'detail' => $v['detail'],
+                        'occurredAt' => $v['occurred_at'],
+                    ];
+                }
+            }
+        }
+        $answersByAttempt = fetchAttemptAnswersBatchPhp($pdo, $attemptIds, true);
 
-            $ansMap = fetchAttemptAnswersMapPhp($pdo, $r['id'], true);
+        $attOut = [];
+        foreach ($rows as $r) {
+            $aid = (string) $r['id'];
+            $vios = $viosByAttempt[$aid] ?? [];
+            $ansMap = $answersByAttempt[$aid] ?? [];
 
             $attOut[] = [
                 'id' => $r['id'],

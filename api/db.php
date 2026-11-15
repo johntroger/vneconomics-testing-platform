@@ -227,6 +227,7 @@ function getDb(): PDO
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
                 PDO::ATTR_EMULATE_PREPARES => false,
+                PDO::ATTR_TIMEOUT => 10,
             ]);
         } else {
             $path = resolveSqlitePath($cfg);
@@ -238,7 +239,9 @@ function getDb(): PDO
             $pdo->exec('PRAGMA journal_mode = WAL;');
             $pdo->exec('PRAGMA synchronous = NORMAL;');
             $pdo->exec('PRAGMA foreign_keys = ON;');
-            $pdo->exec('PRAGMA busy_timeout = 5000;');
+            $pdo->exec('PRAGMA busy_timeout = 10000;');
+            $pdo->exec('PRAGMA temp_store = MEMORY;');
+            $pdo->exec('PRAGMA cache_size = -16000;');
         }
     } catch (Throwable $e) {
         error_log('[VNE_TESTING_DB_ERROR] ' . $e->getMessage());

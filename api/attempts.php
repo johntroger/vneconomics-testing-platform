@@ -473,49 +473,71 @@ function finalizeAndGradeAttempt(PDO $pdo, string $attemptId, bool $forcedByReje
     ];
 }
 
+function formatAttemptAnswerRowPhp(array $a, bool $includeGrading = true): array
+{
+    $rsv = decodeJsonSafe($a['rendered_seed_vars'] ?? null, []);
+    $kt = decodeJsonSafe($a['keystroke_telemetry'] ?? null, null);
+    $entry = [
+        'questionId' => $a['question_id'],
+        'chapterCategory' => (string) ($a['chapter_category'] ?? ''),
+        'renderedSeedVars' => (is_array($rsv) && count($rsv) > 0) ? $rsv : new stdClass(),
+        'answerPayload' => decodeJsonSafe($a['answer_payload'] ?? null, ''),
+        'isCorrect' => $includeGrading ? ($a['is_correct'] === null ? null : (bool) $a['is_correct']) : null,
+        'maxPoints' => (float) $a['max_points'],
+        'earnedPoints' => $includeGrading ? (float) $a['earned_points'] : 0.0,
+        'gradingFeedback' => $includeGrading ? ($a['grading_feedback'] ?? '') : '',
+        'gradingStatus' => $includeGrading ? (string) ($a['grading_status'] ?: 'AUTO') : 'AUTO',
+        'honeypotTriggered' => $includeGrading ? (bool) ($a['honeypot_triggered'] ?? false) : false,
+    ];
+    if ($kt !== null) {
+        $entry['keystrokeTelemetry'] = $kt;
+    }
+    if ($includeGrading) {
+        $rb = decodeJsonSafe($a['rubric_breakdown_json'] ?? null, null);
+        $mh = decodeJsonSafe($a['matched_highlights_json'] ?? null, null);
+        $bh = decodeJsonSafe($a['blocked_highlights_json'] ?? null, null);
+        if ($rb !== null) {
+            $entry['rubricBreakdown'] = $rb;
+        }
+        if ($mh !== null) {
+            $entry['matchedHighlights'] = $mh;
+        }
+        if ($bh !== null) {
+            $entry['blockedHighlights'] = $bh;
+        }
+    }
+    return $entry;
+}
+
+/**
+ * Batch-load attempt_answers for many attempts in 200-ID chunks (eliminates N+1 queries).
+ * Returns [attemptId => [questionId => formattedAnswer]].
+ */
+function fetchAttemptAnswersBatchPhp(PDO $pdo, array $attemptIds, bool $includeGrading = true): array
+{
+    $grouped = [];
+    if (count($attemptIds) === 0) {
+        return $grouped;
+    }
+    foreach (array_chunk(array_values(array_unique($attemptIds)), 200) as $chunk) {
+        $ph = implode(',', array_fill(0, count($chunk), '?'));
+        $stmt = $pdo->prepare("SELECT * FROM attempt_answers WHERE attempt_id IN ($ph)");
+        $stmt->execute($chunk);
+        foreach ($stmt->fetchAll() as $a) {
+            $aid = (string) $a['attempt_id'];
+            $grouped[$aid][(string) $a['question_id']] = formatAttemptAnswerRowPhp($a, $includeGrading);
+        }
+    }
+    return $grouped;
+}
+
 /**
  * Hydrate attempt_answers keyed by questionId so proctor/resume endpoints share one mapper.
  */
 function fetchAttemptAnswersMapPhp(PDO $pdo, string $attemptId, bool $includeGrading = true): array
 {
-    $stmt = $pdo->prepare('SELECT * FROM attempt_answers WHERE attempt_id = :aid');
-    $stmt->execute([':aid' => $attemptId]);
-    $ansMap = [];
-    foreach ($stmt->fetchAll() as $a) {
-        $rsv = decodeJsonSafe($a['rendered_seed_vars'] ?? null, []);
-        $kt = decodeJsonSafe($a['keystroke_telemetry'] ?? null, null);
-        $entry = [
-            'questionId' => $a['question_id'],
-            'chapterCategory' => (string) ($a['chapter_category'] ?? ''),
-            'renderedSeedVars' => (is_array($rsv) && count($rsv) > 0) ? $rsv : new stdClass(),
-            'answerPayload' => decodeJsonSafe($a['answer_payload'] ?? null, ''),
-            'isCorrect' => $includeGrading ? ($a['is_correct'] === null ? null : (bool) $a['is_correct']) : null,
-            'maxPoints' => (float) $a['max_points'],
-            'earnedPoints' => $includeGrading ? (float) $a['earned_points'] : 0.0,
-            'gradingFeedback' => $includeGrading ? ($a['grading_feedback'] ?? '') : '',
-            'gradingStatus' => $includeGrading ? (string) ($a['grading_status'] ?: 'AUTO') : 'AUTO',
-            'honeypotTriggered' => $includeGrading ? (bool) ($a['honeypot_triggered'] ?? false) : false,
-        ];
-        if ($kt !== null) {
-            $entry['keystrokeTelemetry'] = $kt;
-        }
-        if ($includeGrading) {
-            $rb = decodeJsonSafe($a['rubric_breakdown_json'] ?? null, null);
-            $mh = decodeJsonSafe($a['matched_highlights_json'] ?? null, null);
-            $bh = decodeJsonSafe($a['blocked_highlights_json'] ?? null, null);
-            if ($rb !== null) {
-                $entry['rubricBreakdown'] = $rb;
-            }
-            if ($mh !== null) {
-                $entry['matchedHighlights'] = $mh;
-            }
-            if ($bh !== null) {
-                $entry['blockedHighlights'] = $bh;
-            }
-        }
-        $ansMap[$a['question_id']] = $entry;
-    }
-    return $ansMap;
+    $batch = fetchAttemptAnswersBatchPhp($pdo, [$attemptId], $includeGrading);
+    return $batch[$attemptId] ?? [];
 }
 
 if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) === __FILE__) {
@@ -858,23 +880,51 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         $openStmt->execute([':eid' => $examId]);
         $openIds = $openStmt->fetchAll(PDO::FETCH_COLUMN);
 
+        $emailPayloads = [];
         foreach ($openIds as $aid) {
             $res = finalizeAndGradeAttempt($pdo, (string) $aid, true);
             $email = (string) ($res['attempt']['studentEmail'] ?? '');
             if ($email !== '' && filter_var($email, FILTER_VALIDATE_EMAIL)) {
-                $subj = '[VNEconomics] Kết quả bài thi: ' . ($res['exam']['title'] ?? '');
-                $html = buildStudentScoreEmailHtml($res['exam'], $res['attempt'], $res['answers']);
-                enqueueAndSendEmail($pdo, $email, $subj, $html, 'STUDENT_SCORE', 'Thu bài tự động (Sweeper)', null, null, true);
+                $emailPayloads[] = [
+                    'email' => $email,
+                    'subject' => '[VNEconomics] Kết quả bài thi: ' . ($res['exam']['title'] ?? ''),
+                    'html' => buildStudentScoreEmailHtml($res['exam'], $res['attempt'], $res['answers']),
+                ];
             }
         }
 
-        // Send aggregate CSV report to instructor
+        // Send aggregate CSV report payload prep
         $allAttStmt = $pdo->prepare('SELECT * FROM exam_attempts WHERE exam_id = :eid ORDER BY student_code ASC');
         $allAttStmt->execute([':eid' => $examId]);
         $allAttempts = $allAttStmt->fetchAll();
 
         $instEmail = trim((string) ($examRow['instructor_email'] ?? ''));
-        $reportResult = null;
+
+        // Flush HTTP response immediately before slow batch SMTP sending (prevents 504 timeout at 300+ students)
+        if (!headers_sent()) {
+            header('Content-Type: application/json; charset=utf-8');
+        }
+        echo json_encode([
+            'ok' => true,
+            'sweptCount' => count($openIds),
+            'totalAttempts' => count($allAttempts),
+            'queuedEmails' => count($emailPayloads),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+        if (function_exists('fastcgi_finish_request')) {
+            fastcgi_finish_request();
+        } else {
+            @ob_flush();
+            @flush();
+        }
+
+        @ignore_user_abort(true);
+        @set_time_limit(0);
+
+        foreach ($emailPayloads as $ep) {
+            enqueueAndSendEmail($pdo, $ep['email'], $ep['subject'], $ep['html'], 'STUDENT_SCORE', 'Thu bài tự động (Sweeper)', null, null, true);
+        }
+
         if ($instEmail !== '' && filter_var($instEmail, FILTER_VALIDATE_EMAIL)) {
             $csv = buildInstructorCsvAttachment($examRow, $allAttempts);
             $csvFile = 'bao_cao_' . preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $examRow['room_pin']) . '_' . date('Ymd_Hi') . '.csv';
@@ -898,13 +948,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
                     ':id' => $examId,
                 ]);
         }
-
-        jsonResponse([
-            'ok' => true,
-            'sweptCount' => count($openIds),
-            'totalAttempts' => count($allAttempts),
-            'reportResult' => $reportResult,
-        ]);
+        exit;
     }
 
     jsonError('Action attempts không hợp lệ.', 400);

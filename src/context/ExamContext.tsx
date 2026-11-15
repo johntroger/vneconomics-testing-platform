@@ -263,6 +263,25 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
   const stateRef = useRef<ExamPlatformState>(state);
   stateRef.current = state;
   const autoSubmittedPollRef = useRef<string | null>(null);
+  const heartbeatQueueRef = useRef<
+    Map<string, { timer: number; attemptId: string; body: string }>
+  >(new Map());
+  const flushPendingHeartbeats = useCallback(async (attemptId?: string) => {
+    const entries = Array.from(heartbeatQueueRef.current.entries()).filter(
+      ([, entry]) => !attemptId || entry.attemptId === attemptId,
+    );
+    if (entries.length === 0) return;
+    await Promise.all(
+      entries.map(([key, entry]) => {
+        window.clearTimeout(entry.timer);
+        heartbeatQueueRef.current.delete(key);
+        return apiRequest('/api/attempts.php?action=heartbeat', {
+          method: 'POST',
+          body: entry.body,
+        });
+      }),
+    );
+  }, []);
   const [backendConnected, setBackendConnected] = useState(false);
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() =>
     Boolean(sessionStorage.getItem(ADMIN_TOKEN_KEY)),
@@ -435,7 +454,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
     const intervalId = window.setInterval(() => {
       tickCount += 1;
       void pullAdminState(tickCount % 5 === 0);
-    }, 4000);
+    }, 5000);
 
     return () => {
       cancelled = true;
@@ -1038,19 +1057,29 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         const attSnap = stateRef.current.attempts
           .find((a) => a.id === attemptId)
           ?.assignedQuestions.find((s) => s.questionId === questionId);
-        void apiRequest('/api/attempts.php?action=heartbeat', {
-          method: 'POST',
-          body: JSON.stringify({
-            attemptId,
-            questionId,
-            chapterCategory: attSnap?.chapterCategory,
-            renderedSeedVars: attSnap?.seedVars,
-            maxPoints: attSnap?.maxPoints,
-            answerPayload: payload,
-            keystrokeTelemetry: telemetry,
-            currentQuestionIndex: nextQuestionIndex,
-          }),
+        const key = `${attemptId}:${questionId}`;
+        const existing = heartbeatQueueRef.current.get(key);
+        if (existing) {
+          window.clearTimeout(existing.timer);
+        }
+        const body = JSON.stringify({
+          attemptId,
+          questionId,
+          chapterCategory: attSnap?.chapterCategory,
+          renderedSeedVars: attSnap?.seedVars,
+          maxPoints: attSnap?.maxPoints,
+          answerPayload: payload,
+          keystrokeTelemetry: telemetry,
+          currentQuestionIndex: nextQuestionIndex,
         });
+        const timer = window.setTimeout(() => {
+          heartbeatQueueRef.current.delete(key);
+          void apiRequest('/api/attempts.php?action=heartbeat', {
+            method: 'POST',
+            body,
+          });
+        }, 500);
+        heartbeatQueueRef.current.set(key, { timer, attemptId, body });
       }
     },
     [backendConnected, updateState],
@@ -1261,6 +1290,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
       };
 
       if (backendConnected) {
+        await flushPendingHeartbeats(attemptId);
         const submitRes = await apiRequestDetailed<{
           ok: boolean;
           result?: Partial<ExamAttempt>;
@@ -1462,13 +1492,39 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
       }
     };
 
-    const intervalId = window.setInterval(() => {
-      void tickPoll();
-    }, 3000);
+    let timeoutId: number | null = null;
+
+    const scheduleNext = () => {
+      if (cancelled) return;
+      const jitterMs = Math.floor(Math.random() * 2500 - 1250);
+      timeoutId = window.setTimeout(() => {
+        void runLoop();
+      }, 6000 + jitterMs);
+    };
+
+    const runLoop = async () => {
+      if (cancelled) return;
+      if (document.visibilityState !== 'hidden') {
+        await tickPoll();
+      }
+      scheduleNext();
+    };
+
+    const handleVisibilityChange = () => {
+      if (!cancelled && document.visibilityState === 'visible') {
+        void tickPoll();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    scheduleNext();
 
     return () => {
       cancelled = true;
-      window.clearInterval(intervalId);
+      if (timeoutId !== null) {
+        window.clearTimeout(timeoutId);
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [backendConnected, activePollAttemptId, submitAttempt, updateState]);
 
