@@ -90,6 +90,8 @@ interface AuthActionResult {
 
 interface ExamContextValue extends ExamPlatformState {
   backendConnected: boolean;
+  serverClockOffsetMs: number;
+  syncStatus: 'SAVED' | 'SAVING' | 'OFFLINE';
   isAdminAuthenticated: boolean;
   instructorUser: InstructorUser | null;
   googleClientId: string;
@@ -320,6 +322,8 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
     );
   }, []);
   const [backendConnected, setBackendConnected] = useState(false);
+  const [serverClockOffsetMs, setServerClockOffsetMs] = useState(0);
+  const [syncStatus, setSyncStatus] = useState<'SAVED' | 'SAVING' | 'OFFLINE'>('SAVED');
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(() =>
     Boolean(sessionStorage.getItem(ADMIN_TOKEN_KEY)),
   );
@@ -790,6 +794,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
             unlockRequestNote?: string | null;
             integrityScore?: number;
             startedAt?: string;
+            serverNow?: string;
           }>('/api/attempts.php?action=start', {
             method: 'POST',
             body: JSON.stringify({
@@ -823,6 +828,12 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
 
           if (startRes.ok && startRes.data?.ok) {
             const payload = startRes.data;
+            if (payload.serverNow) {
+              const serverMs = Date.parse(payload.serverNow);
+              if (!Number.isNaN(serverMs)) {
+                setServerClockOffsetMs(serverMs - Date.now());
+              }
+            }
             const resolvedAttemptId = payload.attemptId ?? clientAttemptId;
 
             if (payload.alreadySubmitted) {
@@ -1181,14 +1192,20 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
           keystrokeTelemetry: telemetry,
           currentQuestionIndex: nextQuestionIndex,
         });
+        const delayMs = typeof payload === 'string' ? 1500 : 500;
+        setSyncStatus('SAVING');
         const timer = window.setTimeout(() => {
           heartbeatQueueRef.current.delete(key);
-          void apiRequest('/api/attempts.php?action=heartbeat', {
+          void apiRequestDetailed('/api/attempts.php?action=heartbeat', {
             method: 'POST',
             body,
+          }).then((res) => {
+            setSyncStatus(res.ok ? 'SAVED' : 'OFFLINE');
           });
-        }, 500);
+        }, delayMs);
         heartbeatQueueRef.current.set(key, { timer, attemptId, body });
+      } else {
+        setSyncStatus('OFFLINE');
       }
     },
     [backendConnected, updateState],
@@ -2499,6 +2516,8 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
       value={{
         ...state,
         backendConnected,
+        serverClockOffsetMs,
+        syncStatus,
         isAdminAuthenticated,
         instructorUser,
         googleClientId,

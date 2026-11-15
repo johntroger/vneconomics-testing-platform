@@ -647,8 +647,20 @@ export const HomePortalPage: React.FC = () => {
                       </label>
                       <input
                         type="text"
+                        inputMode="numeric"
+                        maxLength={10}
                         value={dob}
-                        onChange={(e) => setDob(e.target.value)}
+                        onChange={(e) => {
+                          const raw = e.target.value;
+                          if (raw.length < dob.length) {
+                            setDob(raw);
+                            return;
+                          }
+                          const digits = raw.replace(/\D/g, '').slice(0, 8);
+                          if (digits.length <= 2) setDob(digits);
+                          else if (digits.length <= 4) setDob(`${digits.slice(0, 2)}-${digits.slice(2)}`);
+                          else setDob(`${digits.slice(0, 2)}-${digits.slice(2, 4)}-${digits.slice(4)}`);
+                        }}
                         placeholder="08-02-2005"
                         className="w-full min-w-0 h-11 px-3 rounded-xl border border-slate-300 bg-white font-mono text-sm text-ink-900 placeholder:text-slate-300 placeholder:font-sans focus:outline-none focus:ring-2 focus:ring-brand-500"
                       />

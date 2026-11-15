@@ -234,7 +234,32 @@ export function buildAssignedQuestions(
       const chapterRng = createSeededRng(
         `${studentCode}::${exam.id}::pool::${rule.chapterCategory}`,
       );
-      const selected = exam.shuffleQuestions ? seededShuffle(pool, chapterRng) : pool;
+      let selected: Question[];
+      if (exam.shuffleQuestions) {
+        const easy = seededShuffle(pool.filter((q) => q.difficulty === 'EASY'), chapterRng);
+        const medium = seededShuffle(pool.filter((q) => q.difficulty === 'MEDIUM'), chapterRng);
+        const hard = seededShuffle(
+          pool.filter((q) => q.difficulty !== 'EASY' && q.difficulty !== 'MEDIUM'),
+          chapterRng,
+        );
+        const buckets = seededShuffle([easy, medium, hard], chapterRng);
+        const balanced: Question[] = [];
+        let round = 0;
+        while (balanced.length < pool.length) {
+          let added = false;
+          for (const b of buckets) {
+            if (round < b.length) {
+              balanced.push(b[round]);
+              added = true;
+            }
+          }
+          if (!added) break;
+          round += 1;
+        }
+        selected = balanced;
+      } else {
+        selected = pool;
+      }
       for (const q of selected.slice(0, remainingQuota)) {
         usedIds.add(q.id);
         picked.push({

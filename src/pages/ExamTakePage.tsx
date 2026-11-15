@@ -36,6 +36,8 @@ export const ExamTakePage: React.FC = () => {
     exams,
     questions,
     attempts,
+    serverClockOffsetMs,
+    syncStatus,
     saveAnswer,
     toggleFlagQuestion,
     updateCurrentIndex,
@@ -77,7 +79,8 @@ export const ExamTakePage: React.FC = () => {
       const startedMs = new Date(attempt.startedAt).getTime();
       const totalAllowedMs =
         (exam.durationMinutes * 60 + attempt.bonusSeconds) * 1000;
-      return Math.max(0, Math.floor((startedMs + totalAllowedMs - Date.now()) / 1000));
+      const nowServerMs = Date.now() + serverClockOffsetMs;
+      return Math.max(0, Math.floor((startedMs + totalAllowedMs - nowServerMs) / 1000));
     };
 
     setRemainingSeconds(computeLeft());
@@ -90,7 +93,7 @@ export const ExamTakePage: React.FC = () => {
       }
     }, 1000);
     return () => window.clearInterval(id);
-  }, [attempt, exam, submitAttempt]);
+  }, [attempt, exam, serverClockOffsetMs, submitAttempt]);
 
   const currentIndex = Math.min(
     attempt?.currentQuestionIndex ?? 0,
@@ -238,6 +241,23 @@ export const ExamTakePage: React.FC = () => {
             >
               <ShieldCheck className="w-3.5 h-3.5 shrink-0" />
               {attempt.leaveCount}/{maxLeavesAllowed}
+            </span>
+
+            <span
+              className={`hidden sm:inline-flex items-center px-2 py-1 rounded-lg text-[10px] font-bold whitespace-nowrap ${
+                syncStatus === 'SAVED'
+                  ? 'bg-emerald-50 text-emerald-700'
+                  : syncStatus === 'SAVING'
+                    ? 'bg-amber-50 text-amber-800'
+                    : 'bg-slate-100 text-ink-600'
+              }`}
+              title="Trạng thái lưu bài làm"
+            >
+              {syncStatus === 'SAVED'
+                ? 'Đã lưu ✓'
+                : syncStatus === 'SAVING'
+                  ? 'Đang lưu...'
+                  : 'Lưu cục bộ'}
             </span>
 
             <button
@@ -465,6 +485,70 @@ export const ExamTakePage: React.FC = () => {
             <p className="text-xs text-ink-600 leading-relaxed">
               Bạn đã trả lời <strong>{answeredCount}/{attempt.assignedQuestions.length}</strong> câu hỏi. Sau khi nộp bài, hệ thống sẽ tự chấm và gửi email về <strong>{attempt.studentEmail}</strong>.
             </p>
+            {(() => {
+              const unansweredIndices = attempt.assignedQuestions
+                .map((snap, idx) => (!attempt.answers[snap.questionId] ? idx : -1))
+                .filter((idx) => idx >= 0);
+              const flaggedIndices = attempt.assignedQuestions
+                .map((snap, idx) =>
+                  attempt.flaggedQuestionIds.includes(snap.questionId) ? idx : -1,
+                )
+                .filter((idx) => idx >= 0);
+
+              if (unansweredIndices.length === 0 && flaggedIndices.length === 0) {
+                return null;
+              }
+              return (
+                <div className="space-y-2 text-[11px]">
+                  {unansweredIndices.length > 0 && (
+                    <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 space-y-1.5">
+                      <div className="font-bold text-rose-800">
+                        Còn {unansweredIndices.length} câu chưa trả lời:
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {unansweredIndices.map((idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            disabled={exam.oneWayMode}
+                            onClick={() => {
+                              updateCurrentIndex(attempt.id, idx);
+                              setConfirmSubmitOpen(false);
+                            }}
+                            className="px-2 py-0.5 rounded-md bg-white border border-rose-300 text-rose-700 font-mono font-bold hover:bg-rose-100 disabled:opacity-60"
+                          >
+                            Câu {idx + 1}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {flaggedIndices.length > 0 && (
+                    <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 space-y-1.5">
+                      <div className="font-bold text-amber-900">
+                        Đang gắn cờ xem lại ({flaggedIndices.length} câu):
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {flaggedIndices.map((idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            disabled={exam.oneWayMode}
+                            onClick={() => {
+                              updateCurrentIndex(attempt.id, idx);
+                              setConfirmSubmitOpen(false);
+                            }}
+                            className="px-2 py-0.5 rounded-md bg-white border border-amber-300 text-amber-800 font-mono font-bold hover:bg-amber-100 disabled:opacity-60"
+                          >
+                            Câu {idx + 1}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
             <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"

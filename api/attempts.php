@@ -124,7 +124,30 @@ function buildAssignedQuestionsPhp(array $exam, array $courseQuestions, string $
                 static fn ($q) => $q['chapterCategory'] === $cat && empty($usedIds[$q['id']])
             ));
             $rng = createSeededRngPhp($studentCode . '::' . $exam['id'] . '::pool::' . $cat);
-            $selected = !empty($exam['shuffleQuestions']) ? seededShufflePhp($pool, $rng) : $pool;
+            if (!empty($exam['shuffleQuestions'])) {
+                $easy = seededShufflePhp(array_values(array_filter($pool, static fn ($q) => ($q['difficulty'] ?? 'MEDIUM') === 'EASY')), $rng);
+                $medium = seededShufflePhp(array_values(array_filter($pool, static fn ($q) => ($q['difficulty'] ?? 'MEDIUM') === 'MEDIUM')), $rng);
+                $hard = seededShufflePhp(array_values(array_filter($pool, static fn ($q) => !in_array($q['difficulty'] ?? 'MEDIUM', ['EASY', 'MEDIUM'], true))), $rng);
+                $buckets = seededShufflePhp([$easy, $medium, $hard], $rng);
+                $balanced = [];
+                $round = 0;
+                while (count($balanced) < count($pool)) {
+                    $added = false;
+                    foreach ($buckets as $b) {
+                        if ($round < count($b)) {
+                            $balanced[] = $b[$round];
+                            $added = true;
+                        }
+                    }
+                    if (!$added) {
+                        break;
+                    }
+                    $round++;
+                }
+                $selected = $balanced;
+            } else {
+                $selected = $pool;
+            }
             foreach (array_slice($selected, 0, $rem) as $q) {
                 $usedIds[$q['id']] = true;
                 $pts = !empty($rule['pointsPerQuestion']) && (float) $rule['pointsPerQuestion'] > 0
@@ -803,6 +826,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
                 'unlockRequestNote' => $existing['unlock_request_note'] ?: null,
                 'integrityScore' => (int) $existing['integrity_score'],
                 'startedAt' => $existing['started_at'],
+                'serverNow' => nowIso(),
             ]);
         }
 
@@ -854,6 +878,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             'exam' => formatExamRow($examRow, true),
             'assignedQuestions' => $assigned,
             'startedAt' => $startedAt,
+            'serverNow' => nowIso(),
         ]);
         } catch (Throwable $e) {
             error_log('[VNE_ATTEMPT_START_ERR] ' . $e->getMessage());

@@ -11,6 +11,7 @@ import {
   Plus,
   RefreshCw,
   RotateCcw,
+  Search,
   ShieldAlert,
   StopCircle,
   Trash2,
@@ -55,6 +56,8 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
   const [editingEmailId, setEditingEmailId] = useState<string | null>(null);
   const [emailDraft, setEmailDraft] = useState('');
   const [showRosterTable, setShowRosterTable] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filterMode, setFilterMode] = useState<'ALL' | 'IN_PROGRESS' | 'ALERTS' | 'ABSENT'>('ALL');
   const [rosterNotice, setRosterNotice] = useState<{
     type: 'ok' | 'err';
     text: string;
@@ -145,6 +148,30 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
     );
   const multiDeviceAttempts = examAttempts.filter(isMultiDeviceAttempt);
 
+  const joinedCodeSet = new Set(examAttempts.map((a) => a.studentCode.trim().toUpperCase()));
+  const absentRosterStudents = rosterEntries.filter(
+    (entry) => !joinedCodeSet.has(entry.studentCode.trim().toUpperCase()),
+  );
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const filteredAttempts = examAttempts.filter((a) => {
+    if (filterMode === 'IN_PROGRESS' && a.status !== 'IN_PROGRESS' && a.status !== 'LOCKED') {
+      return false;
+    }
+    if (
+      filterMode === 'ALERTS' &&
+      !isMultiDeviceAttempt(a) &&
+      (distanceByAttemptId.get(a.id) ?? 0) <= FAR_LOCATION_METERS &&
+      !a.aiFlag
+    ) {
+      return false;
+    }
+    if (!normalizedSearch) return true;
+    return (
+      a.studentCode.toLowerCase().includes(normalizedSearch) ||
+      a.studentName.toLowerCase().includes(normalizedSearch)
+    );
+  });
+
   const countInProgress = examAttempts.filter((a) => a.status === 'IN_PROGRESS').length;
   const countLocked = lockedQueue.length;
   const countAiFlagged = examAttempts.filter((a) => a.aiFlag).length;
@@ -203,7 +230,15 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
         <button
           type="button"
           disabled={exam.status === 'CLOSED'}
-          onClick={() => onCloseExamAndSweep(exam.id)}
+          onClick={() => {
+            const activeCount = countInProgress + countLocked;
+            const msg =
+              activeCount > 0
+                ? `Hiện còn ${activeCount} thí sinh đang làm bài/chờ duyệt. Xác nhận KẾT THÚC ca thi, thu toàn bộ bài đang làm và gửi Email tổng hợp?`
+                : 'Xác nhận KẾT THÚC ca thi này và gửi bảng điểm tổng hợp về Email giảng viên?';
+            if (!window.confirm(msg)) return;
+            onCloseExamAndSweep(exam.id);
+          }}
           className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:bg-slate-300 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
         >
           <StopCircle className="w-4 h-4" />
@@ -460,6 +495,109 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
 
       {/* Full Candidate Monitoring Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-card overflow-hidden">
+        <div className="p-3.5 border-b border-slate-200 bg-slate-50/70 flex flex-wrap items-center justify-between gap-2.5">
+          <div className="relative flex-1 min-w-[200px] max-w-xs">
+            <Search className="w-3.5 h-3.5 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm theo MSSV hoặc Họ tên..."
+              className="w-full h-8 pl-8 pr-3 rounded-lg border border-slate-200 bg-white text-xs text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+            />
+          </div>
+          <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+            <button
+              type="button"
+              onClick={() => setFilterMode('ALL')}
+              className={`px-2.5 py-1 rounded-lg font-bold border transition ${
+                filterMode === 'ALL'
+                  ? 'bg-brand-600 text-white border-brand-600'
+                  : 'bg-white text-ink-700 border-slate-200 hover:border-brand-300'
+              }`}
+            >
+              Tất cả ({examAttempts.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterMode('IN_PROGRESS')}
+              className={`px-2.5 py-1 rounded-lg font-bold border transition ${
+                filterMode === 'IN_PROGRESS'
+                  ? 'bg-emerald-600 text-white border-emerald-600'
+                  : 'bg-white text-ink-700 border-slate-200 hover:border-emerald-300'
+              }`}
+            >
+              Đang thi / Chờ ({countInProgress + countLocked})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterMode('ALERTS')}
+              className={`px-2.5 py-1 rounded-lg font-bold border transition ${
+                filterMode === 'ALERTS'
+                  ? 'bg-rose-600 text-white border-rose-600'
+                  : 'bg-white text-ink-700 border-slate-200 hover:border-rose-300'
+              }`}
+            >
+              Cảnh báo ({farLocationAttempts.length + multiDeviceAttempts.length})
+            </button>
+            {rosterEntries.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setFilterMode('ABSENT')}
+                className={`px-2.5 py-1 rounded-lg font-bold border transition ${
+                  filterMode === 'ABSENT'
+                    ? 'bg-amber-600 text-white border-amber-600'
+                    : 'bg-white text-amber-800 border-amber-200 hover:border-amber-400'
+                }`}
+              >
+                Chưa vào thi ({absentRosterStudents.length})
+              </button>
+            )}
+          </div>
+        </div>
+
+        {filterMode === 'ABSENT' ? (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="bg-amber-50/70 border-b border-amber-200 text-amber-900 font-bold">
+                  <th className="py-2.5 px-3.5">STT</th>
+                  <th className="py-2.5 px-3.5">Mã sinh viên</th>
+                  <th className="py-2.5 px-3.5">Họ đệm</th>
+                  <th className="py-2.5 px-3.5">Tên</th>
+                  <th className="py-2.5 px-3.5">Giới tính</th>
+                  <th className="py-2.5 px-3.5">Ngày sinh</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {absentRosterStudents
+                  .filter((st) =>
+                    !normalizedSearch
+                      ? true
+                      : st.studentCode.toLowerCase().includes(normalizedSearch) ||
+                        `${st.lastName} ${st.firstName}`.toLowerCase().includes(normalizedSearch),
+                  )
+                  .map((st, idx) => (
+                    <tr key={st.studentCode} className="hover:bg-amber-50/30">
+                      <td className="py-2 px-3.5 text-ink-500">{idx + 1}</td>
+                      <td className="py-2 px-3.5 font-mono font-bold text-brand-700">{st.studentCode}</td>
+                      <td className="py-2 px-3.5 text-ink-800">{st.lastName}</td>
+                      <td className="py-2 px-3.5 font-semibold text-ink-900">{st.firstName}</td>
+                      <td className="py-2 px-3.5 text-ink-700">{st.gender}</td>
+                      <td className="py-2 px-3.5 font-mono text-ink-700">{st.dob}</td>
+                    </tr>
+                  ))}
+                {absentRosterStudents.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="py-8 text-center text-support-700 font-bold">
+                      Tất cả sinh viên trong danh sách đã vào phòng thi!
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
@@ -475,14 +613,16 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {examAttempts.length === 0 ? (
+              {filteredAttempts.length === 0 ? (
                 <tr>
                   <td colSpan={8} className="py-8 text-center text-ink-500">
-                    Chưa có sinh viên nào vào ca thi này. Hãy dùng mã PIN <strong className="font-mono">{exam.roomPin}</strong> ở trang chủ để thử nghiệm.
+                    {examAttempts.length === 0
+                      ? `Chưa có sinh viên nào vào ca thi này. Hãy dùng mã PIN ${exam.roomPin} ở trang chủ để thử nghiệm.`
+                      : 'Không có thí sinh nào khớp bộ lọc / từ khóa tìm kiếm.'}
                   </td>
                 </tr>
               ) : (
-                examAttempts.map((a) => {
+                filteredAttempts.map((a) => {
                   const answered = Object.keys(a.answers).length;
                   const statusBadge =
                     a.status === 'IN_PROGRESS'
@@ -649,6 +789,7 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
             </tbody>
           </table>
         </div>
+        )}
       </div>
     </div>
   );
