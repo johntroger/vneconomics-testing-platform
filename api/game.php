@@ -96,6 +96,10 @@ function sanitizeQuestionForPlayer(array $q, bool $showQuestionOnPlayer, bool $r
             $out['expectedValue'] = $q['expectedValue'] ?? null;
             $out['tolerance'] = (float) ($q['tolerance'] ?? 0.01);
         }
+    } elseif ($type === 'ESSAY') {
+        if ($revealAnswer) {
+            $out['sampleAnswer'] = (string) ($q['sampleAnswer'] ?? '');
+        }
     }
 
     return $out;
@@ -154,6 +158,34 @@ function gradeGameAnswer(array $q, mixed $payload): array
             $ratio = $correctCount / count($items);
         }
         return ['isCorrect' => $isExact, 'earnedRatio' => round($ratio, 4)];
+    }
+
+    if ($type === 'NUMERICAL') {
+        $raw = is_string($payload) ? trim($payload) : (is_numeric($payload) ? (string) $payload : '');
+        $normalized = str_replace([' ', ','], ['', '.'], $raw);
+        if ($normalized === '' || !is_numeric($normalized)) {
+            return ['isCorrect' => false, 'earnedRatio' => 0.0];
+        }
+        $val = (float) $normalized;
+        $expected = (float) ($q['expectedValue'] ?? 0.0);
+        $tol = (float) ($q['tolerance'] ?? 0.01);
+        $ok = abs($val - $expected) <= $tol;
+        return ['isCorrect' => $ok, 'earnedRatio' => $ok ? 1.0 : 0.0];
+    }
+
+    if ($type === 'ESSAY') {
+        $raw = is_string($payload) ? trim($payload) : '';
+        if ($raw === '') {
+            return ['isCorrect' => false, 'earnedRatio' => 0.0];
+        }
+        $res = gradeMicroEssayRubricPhp([
+            'points' => 1.0,
+            'gradingRubric' => $q['gradingRubric'] ?? [],
+        ], $raw, [], 1.0);
+        $earned = (float) ($res['earnedPoints'] ?? 0.0);
+        $max = max(0.0001, (float) ($res['maxPoints'] ?? 1.0));
+        $ratio = max(0.0, min(1.0, $earned / $max));
+        return ['isCorrect' => $ratio >= 0.999, 'earnedRatio' => round($ratio, 4)];
     }
 
     return ['isCorrect' => false, 'earnedRatio' => 0.0];
@@ -544,14 +576,25 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         $ansRows = $ansStmt->fetchAll();
 
         $optionCounts = [];
+        $textBuckets = [];
         $correctAnswered = 0;
         foreach ($ansRows as $ar) {
-            if ((int) $ar['is_correct'] === 1) {
+            $isCor = (int) $ar['is_correct'] === 1;
+            if ($isCor) {
                 $correctAnswered++;
             }
             $p = json_decode((string) $ar['answer_payload_json'], true);
             if (is_string($p) && $p !== '') {
                 $optionCounts[$p] = ($optionCounts[$p] ?? 0) + 1;
+                $label = mb_substr(trim($p), 0, 60, 'UTF-8');
+                $key = mb_strtolower($label, 'UTF-8');
+                if (!isset($textBuckets[$key])) {
+                    $textBuckets[$key] = ['label' => $label, 'count' => 0, 'isCorrect' => $isCor];
+                }
+                $textBuckets[$key]['count']++;
+                if ($isCor) {
+                    $textBuckets[$key]['isCorrect'] = true;
+                }
             } elseif (is_array($p)) {
                 foreach ($p as $k => $v) {
                     if (is_int($k) && is_string($v)) {
@@ -563,6 +606,10 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
                 }
             }
         }
+
+        $topAnswers = array_values($textBuckets);
+        usort($topAnswers, static fn (array $a, array $b): int => $b['count'] <=> $a['count']);
+        $topAnswers = array_slice($topAnswers, 0, 5);
 
         jsonResponse([
             'ok' => true,
@@ -587,6 +634,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             'answeredCount' => count($ansRows),
             'correctAnsweredCount' => $correctAnswered,
             'optionCounts' => $optionCounts,
+            'topAnswers' => $topAnswers,
         ]);
     }
 

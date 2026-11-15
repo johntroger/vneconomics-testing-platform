@@ -3,6 +3,11 @@ import {
   getOrCreateDeviceToken,
   pingPhpApi,
 } from './apiClient';
+import {
+  gradeMicroEssayRubric,
+  normalizeDecimalInput,
+} from '../utils/dynamicQuestionEngine';
+import type { Question } from '../types/exam';
 import type {
   CreateGamePayload,
   GameHostView,
@@ -155,6 +160,32 @@ function gradeLocalAnswer(
     }
     return { isCorrect: isExact, earnedRatio: Math.round((correctCount / items.length) * 10000) / 10000 };
   }
+  if (q.type === 'NUMERICAL') {
+    const raw = typeof payload === 'string' ? payload : String(payload ?? '');
+    const parsed = normalizeDecimalInput(raw);
+    if (parsed === null) return { isCorrect: false, earnedRatio: 0 };
+    const expected = q.expectedValue ?? 0;
+    const tol = q.tolerance ?? 0.01;
+    const ok = Math.abs(parsed - expected) <= tol;
+    return { isCorrect: ok, earnedRatio: ok ? 1 : 0 };
+  }
+  if (q.type === 'ESSAY') {
+    const raw = typeof payload === 'string' ? payload.trim() : '';
+    if (!raw) return { isCorrect: false, earnedRatio: 0 };
+    const fakeQ: Question = {
+      id: q.id,
+      courseId: '',
+      chapterCategory: '',
+      difficulty: 'MEDIUM',
+      type: 'ESSAY',
+      content: q.content,
+      gradingRubric: q.gradingRubric ?? [],
+      points: 1,
+    };
+    const res = gradeMicroEssayRubric(fakeQ, raw, {}, 1);
+    const ratio = res.maxPoints > 0 ? Math.min(1, Math.max(0, res.earnedPoints / res.maxPoints)) : 0;
+    return { isCorrect: ratio >= 0.999, earnedRatio: Math.round(ratio * 10000) / 10000 };
+  }
   return { isCorrect: false, earnedRatio: 0 };
 }
 
@@ -183,6 +214,10 @@ function sanitizeLocalQuestion(
           : '',
       answer: reveal ? it.answer : false,
     })),
+    numericalUnit: q.numericalUnit,
+    expectedValue: reveal ? q.expectedValue : undefined,
+    tolerance: reveal ? q.tolerance : undefined,
+    sampleAnswer: reveal ? q.sampleAnswer : undefined,
   };
 }
 
@@ -394,11 +429,20 @@ export async function fetchGameHostView(sessionId: string): Promise<GameHostView
   const ranked = rankLocalPlayers(game);
   const ansRows = game.answers.filter((a) => a.questionIndex === game.currentQIndex);
   const optionCounts: Record<string, number> = {};
+  const textBuckets = new Map<string, { label: string; count: number; isCorrect: boolean }>();
   let correctAnsweredCount = 0;
   for (const ar of ansRows) {
     if (ar.isCorrect) correctAnsweredCount += 1;
     if (typeof ar.answerPayload === 'string') {
       optionCounts[ar.answerPayload] = (optionCounts[ar.answerPayload] ?? 0) + 1;
+      const label = ar.answerPayload.trim().slice(0, 60);
+      if (label) {
+        const key = label.toLowerCase();
+        const existing = textBuckets.get(key) ?? { label, count: 0, isCorrect: ar.isCorrect };
+        existing.count += 1;
+        if (ar.isCorrect) existing.isCorrect = true;
+        textBuckets.set(key, existing);
+      }
     } else if (Array.isArray(ar.answerPayload)) {
       for (const id of ar.answerPayload) {
         optionCounts[id] = (optionCounts[id] ?? 0) + 1;
@@ -410,6 +454,10 @@ export async function fetchGameHostView(sessionId: string): Promise<GameHostView
       }
     }
   }
+  const topAnswers = Array.from(textBuckets.values())
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 5);
+
   return {
     ok: true,
     session: {
@@ -433,6 +481,7 @@ export async function fetchGameHostView(sessionId: string): Promise<GameHostView
     answeredCount: ansRows.length,
     correctAnsweredCount,
     optionCounts,
+    topAnswers,
   };
 }
 

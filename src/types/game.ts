@@ -1,4 +1,9 @@
-import type { QuestionOption, QuestionType, TrueFalseStatement } from './exam';
+import type {
+  QuestionOption,
+  QuestionType,
+  RubricSlot,
+  TrueFalseStatement,
+} from './exam';
 
 export type GameState =
   | 'LOBBY'
@@ -21,6 +26,8 @@ export interface GameQuestionSnapshot {
   numericalUnit?: string;
   expectedValue?: number;
   tolerance?: number;
+  gradingRubric?: RubricSlot[];
+  sampleAnswer?: string;
 }
 
 export interface GameSessionSummary {
@@ -73,6 +80,7 @@ export interface GameHostView {
   answeredCount: number;
   correctAnsweredCount: number;
   optionCounts: Record<string, number>;
+  topAnswers?: Array<{ label: string; count: number; isCorrect: boolean }>;
 }
 
 export interface GamePlayerView {

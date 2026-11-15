@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
+import * as XLSX from 'xlsx';
 import {
   ArrowLeft,
   ArrowRight,
   Award,
   CheckCircle2,
   Copy,
+  Download,
   Flame,
   Lock,
   Play,
@@ -13,6 +15,8 @@ import {
   Trophy,
   Unlock,
   Users,
+  Volume2,
+  VolumeX,
   X,
 } from 'lucide-react';
 import {
@@ -24,6 +28,7 @@ import {
   toggleGameLock,
 } from '../services/gameApi';
 import { GAME_OPTION_STYLES, type GameHostView, type GameQuestionSnapshot } from '../types/game';
+import { playPodiumSound, playRevealSound, playTickSound } from '../utils/gameAudio';
 
 function getQuestionTypeBadge(q: GameQuestionSnapshot | null): string {
   if (!q) return '';
@@ -32,6 +37,8 @@ function getQuestionTypeBadge(q: GameQuestionSnapshot | null): string {
   if (q.type === 'TRUE_FALSE') {
     return (q.trueFalseItems?.length ?? 0) > 1 ? 'ĐÚNG / SAI (NHIỀU Ý)' : 'ĐÚNG HAY SAI';
   }
+  if (q.type === 'NUMERICAL') return 'NHẬP ĐÁP ÁN SỐ';
+  if (q.type === 'ESSAY') return 'GÕ TỪ KHÓA NHANH';
   return q.type;
 }
 
@@ -40,11 +47,14 @@ export const GameHostPage: React.FC = () => {
   const [view, setView] = useState<GameHostView | null>(null);
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [muted, setMuted] = useState(false);
   const [nowMs, setNowMs] = useState(Date.now());
   const clockOffsetRef = useRef(0);
   const lastVersionRef = useRef<number>(-1);
   const lastCountsRef = useRef<string>('');
   const advancingRef = useRef(false);
+  const lastBeepSecRef = useRef<number>(-1);
+  const lastSoundStateRef = useRef<string>('');
 
   const loadHostView = useCallback(async () => {
     if (!sessionId) return;
@@ -97,6 +107,22 @@ export const GameHostPage: React.FC = () => {
       if (!view || advancingRef.current || !sessionId) return;
       const { state, questionEndsAtMs } = view.session;
 
+      if (!muted) {
+        const stateKey = `${state}:${view.session.currentQIndex}`;
+        if (stateKey !== lastSoundStateRef.current) {
+          lastSoundStateRef.current = stateKey;
+          if (state === 'QUESTION_RESULT') playRevealSound();
+          if (state === 'ENDED') playPodiumSound();
+        }
+        if (state === 'QUESTION_ACTIVE') {
+          const sec = Math.ceil((questionEndsAtMs - syncedNow) / 1000);
+          if (sec >= 1 && sec <= 5 && sec !== lastBeepSecRef.current) {
+            lastBeepSecRef.current = sec;
+            playTickSound();
+          }
+        }
+      }
+
       if (state === 'QUESTION_INTRO' && syncedNow >= questionEndsAtMs) {
         advancingRef.current = true;
         void advanceGameState(sessionId).finally(() => {
@@ -133,6 +159,23 @@ export const GameHostPage: React.FC = () => {
     void navigator.clipboard.writeText(url);
     setCopied(true);
     window.setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleExportExcel = () => {
+    if (!view) return;
+    const rows = view.players.map((p) => ({
+      Hang: p.rank,
+      Nickname: p.nickname,
+      MSSV: p.studentCode || '',
+      TongDiem: p.score,
+      SoCauDung: p.correctCount,
+      TongSoCau: view.session.totalQuestions,
+      ChuoiDungHienTai: p.streak,
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'BangDiemLiveGame');
+    XLSX.writeFile(wb, `LiveGame_${view.session.gamePin}.xlsx`);
   };
 
   if (loading) {
@@ -184,6 +227,14 @@ export const GameHostPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
+          <button
+            type="button"
+            onClick={() => setMuted((m) => !m)}
+            className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
+            title={muted ? 'Bật âm thanh' : 'Tắt âm thanh'}
+          >
+            {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+          </button>
           {session.totalQuestions > 0 && session.state !== 'LOBBY' && (
             <span className="px-3 py-1.5 rounded-xl bg-slate-800 text-sm font-bold text-slate-200">
               Câu {session.currentQIndex + 1} / {session.totalQuestions}
@@ -199,42 +250,55 @@ export const GameHostPage: React.FC = () => {
       <main className="flex-1 flex flex-col p-6 max-w-6xl w-full mx-auto">
         {session.state === 'LOBBY' && (
           <div className="flex-1 flex flex-col items-center justify-center gap-8">
-            <div className="w-full max-w-2xl bg-gradient-to-br from-indigo-900/80 to-violet-900/80 border border-indigo-500/30 rounded-3xl p-8 text-center shadow-2xl">
-              <div className="text-sm font-bold uppercase tracking-widest text-indigo-200">
-                Truy cập {window.location.origin}/play và nhập Mã PIN
-              </div>
-              <div className="text-6xl sm:text-7xl font-black tracking-[0.18em] text-amber-300 my-4 select-all">
-                {session.gamePin}
+            <div className="w-full max-w-3xl bg-gradient-to-br from-indigo-900/80 to-violet-900/80 border border-indigo-500/30 rounded-3xl p-8 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-6">
+              <div className="text-center sm:text-left flex-1">
+                <div className="text-sm font-bold uppercase tracking-widest text-indigo-200">
+                  Truy cập {window.location.origin}/play và nhập Mã PIN
+                </div>
+                <div className="text-6xl sm:text-7xl font-black tracking-[0.18em] text-amber-300 my-4 select-all">
+                  {session.gamePin}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3 mt-4">
+                  <button
+                    type="button"
+                    onClick={handleCopyJoinLink}
+                    className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-sm font-bold flex items-center gap-2 transition"
+                  >
+                    <Copy className="w-4 h-4" />
+                    {copied ? 'Đã sao chép link!' : 'Sao chép link vào nhanh'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void toggleGameLock(session.id).then(loadHostView)}
+                    className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition ${
+                      session.isLocked
+                        ? 'bg-rose-500/30 border border-rose-400/40 text-rose-100'
+                        : 'bg-white/10 hover:bg-white/20 text-white'
+                    }`}
+                  >
+                    {session.isLocked ? (
+                      <>
+                        <Lock className="w-4 h-4" /> Đã khóa phòng
+                      </>
+                    ) : (
+                      <>
+                        <Unlock className="w-4 h-4" /> Khóa phòng
+                      </>
+                    )}
+                  </button>
+                </div>
               </div>
 
-              <div className="flex flex-wrap items-center justify-center gap-3 mt-4">
-                <button
-                  type="button"
-                  onClick={handleCopyJoinLink}
-                  className="px-4 py-2 rounded-xl bg-white/10 hover:bg-white/20 text-sm font-bold flex items-center gap-2 transition"
-                >
-                  <Copy className="w-4 h-4" />
-                  {copied ? 'Đã sao chép link!' : 'Sao chép link vào nhanh'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void toggleGameLock(session.id).then(loadHostView)}
-                  className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition ${
-                    session.isLocked
-                      ? 'bg-rose-500/30 border border-rose-400/40 text-rose-100'
-                      : 'bg-white/10 hover:bg-white/20 text-white'
-                  }`}
-                >
-                  {session.isLocked ? (
-                    <>
-                      <Lock className="w-4 h-4" /> Đã khóa phòng
-                    </>
-                  ) : (
-                    <>
-                      <Unlock className="w-4 h-4" /> Khóa phòng
-                    </>
-                  )}
-                </button>
+              <div className="bg-white p-2.5 rounded-2xl shadow-lg shrink-0">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(`${window.location.origin}/play/${session.gamePin}`)}`}
+                  alt={`QR vào phòng ${session.gamePin}`}
+                  className="w-36 h-36 rounded-lg"
+                  onError={(e) => {
+                    e.currentTarget.style.display = 'none';
+                  }}
+                />
               </div>
             </div>
 
@@ -504,6 +568,70 @@ export const GameHostPage: React.FC = () => {
                   )}
                 </div>
               )}
+
+              {/* NUMERICAL & ESSAY View on Host */}
+              {(currentQuestion.type === 'NUMERICAL' || currentQuestion.type === 'ESSAY') && (
+                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 space-y-4">
+                  {session.state === 'QUESTION_ACTIVE' ? (
+                    <div className="text-center py-6 text-slate-300 font-bold text-lg">
+                      Sinh viên đang nhập đáp án trên điện thoại...
+                      {currentQuestion.numericalUnit && (
+                        <span className="block text-sm text-amber-300 mt-1">
+                          Đơn vị tính: {currentQuestion.numericalUnit}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex flex-wrap items-center justify-between gap-3 bg-emerald-500/15 border border-emerald-400/40 rounded-2xl p-4">
+                        <div>
+                          <div className="text-xs font-bold uppercase tracking-wider text-emerald-300">
+                            Đáp án chuẩn
+                          </div>
+                          <div className="text-2xl font-black text-white mt-0.5">
+                            {currentQuestion.type === 'NUMERICAL'
+                              ? `${currentQuestion.expectedValue ?? '—'} ${currentQuestion.numericalUnit ?? ''} (±${currentQuestion.tolerance ?? 0.01})`
+                              : currentQuestion.sampleAnswer || 'Chấm theo Rubric từ khóa'}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className="text-xs text-slate-400 font-bold">Tỷ lệ đúng</div>
+                          <div className="text-2xl font-black text-emerald-400">
+                            {answeredCount > 0
+                              ? `${Math.round((view.correctAnsweredCount / answeredCount) * 100)}%`
+                              : '0%'}
+                          </div>
+                        </div>
+                      </div>
+
+                      {view.topAnswers && view.topAnswers.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                            Top câu trả lời phổ biến nhất
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                            {view.topAnswers.map((ans, idx) => (
+                              <div
+                                key={idx}
+                                className={`px-4 py-2.5 rounded-xl border flex items-center justify-between gap-2 ${
+                                  ans.isCorrect
+                                    ? 'bg-emerald-500/15 border-emerald-400/40 text-emerald-100'
+                                    : 'bg-slate-800 border-slate-700 text-slate-200'
+                                }`}
+                              >
+                                <span className="font-bold truncate">{ans.label}</span>
+                                <span className="text-xs font-black px-2 py-0.5 rounded-md bg-black/30 shrink-0">
+                                  {ans.count} bạn
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -599,7 +727,14 @@ export const GameHostPage: React.FC = () => {
               })}
             </div>
 
-            <div className="flex gap-3">
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <button
+                type="button"
+                onClick={handleExportExcel}
+                className="px-6 py-3 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black flex items-center gap-2 shadow-lg"
+              >
+                <Download className="w-4 h-4" /> Xuất bảng điểm Excel (.xlsx)
+              </button>
               <Link
                 to="/admin"
                 className="px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 font-bold"

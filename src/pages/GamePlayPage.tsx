@@ -30,6 +30,8 @@ function getQuestionTypeBadge(q: GameQuestionSnapshot | null): string {
   if (q.type === 'TRUE_FALSE') {
     return (q.trueFalseItems?.length ?? 0) > 1 ? 'ĐÚNG / SAI (NHIỀU Ý)' : 'ĐÚNG HAY SAI';
   }
+  if (q.type === 'NUMERICAL') return 'NHẬP ĐÁP ÁN SỐ';
+  if (q.type === 'ESSAY') return 'GÕ TỪ KHÓA NHANH';
   return q.type;
 }
 
@@ -44,6 +46,7 @@ export const GamePlayPage: React.FC = () => {
   const [submittedLocal, setSubmittedLocal] = useState(false);
   const [multiSelected, setMultiSelected] = useState<string[]>([]);
   const [tfSelected, setTfSelected] = useState<Record<string, boolean>>({});
+  const [textAnswer, setTextAnswer] = useState('');
   const [nowMs, setNowMs] = useState(Date.now());
 
   const clockOffsetRef = useRef(0);
@@ -70,6 +73,7 @@ export const GamePlayPage: React.FC = () => {
       setSubmittedLocal(false);
       setMultiSelected([]);
       setTfSelected({});
+      setTextAnswer('');
     }
     if (res.data.myAnswer) {
       setSubmittedLocal(true);
@@ -436,6 +440,79 @@ export const GamePlayPage: React.FC = () => {
                       </div>
                     )}
                   </>
+                )}
+
+                {/* NUMERICAL (Always show unit + inline Submit for mobile keyboard safety) */}
+                {question.type === 'NUMERICAL' && (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (textAnswer.trim()) void handleSubmit(textAnswer.trim());
+                    }}
+                    className="space-y-3 pt-2"
+                  >
+                    <div className="bg-slate-900 border border-slate-700 rounded-2xl p-4 space-y-2">
+                      <label className="block text-xs font-bold uppercase tracking-wider text-indigo-300">
+                        Nhập kết quả số {question.numericalUnit ? `(Đơn vị: ${question.numericalUnit})` : ''}
+                      </label>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={textAnswer}
+                          onChange={(e) => setTextAnswer(e.target.value)}
+                          placeholder="VD: 12.5"
+                          autoFocus
+                          className="flex-1 min-w-0 px-4 py-3.5 rounded-xl bg-white text-slate-900 text-xl font-black focus:outline-none focus:ring-4 focus:ring-amber-400/50"
+                        />
+                        {question.numericalUnit && (
+                          <span className="px-3 py-3 rounded-xl bg-slate-800 text-amber-300 font-bold text-sm shrink-0">
+                            {question.numericalUnit}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={!textAnswer.trim()}
+                      className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-lg flex items-center justify-center gap-2 disabled:opacity-40 touch-manipulation"
+                    >
+                      <Send className="w-5 h-5" /> Gửi đáp án
+                    </button>
+                  </form>
+                )}
+
+                {/* ESSAY (Type Answer / Keyword Rubric) */}
+                {question.type === 'ESSAY' && (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      if (textAnswer.trim()) void handleSubmit(textAnswer.trim());
+                    }}
+                    className="space-y-3 pt-2"
+                  >
+                    <div className="bg-slate-900 border border-slate-700 rounded-2xl p-4 space-y-2">
+                      <label className="block text-xs font-bold uppercase tracking-wider text-indigo-300">
+                        Gõ câu trả lời ngắn / từ khóa chính
+                      </label>
+                      <textarea
+                        rows={3}
+                        maxLength={450}
+                        value={textAnswer}
+                        onChange={(e) => setTextAnswer(e.target.value)}
+                        placeholder="Nhập câu trả lời ngắn gọn..."
+                        autoFocus
+                        className="w-full px-3.5 py-3 rounded-xl bg-white text-slate-900 font-semibold text-base focus:outline-none focus:ring-4 focus:ring-amber-400/50"
+                      />
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={!textAnswer.trim()}
+                      className="w-full py-3.5 rounded-2xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-lg flex items-center justify-center gap-2 disabled:opacity-40 touch-manipulation"
+                    >
+                      <Send className="w-5 h-5" /> Gửi đáp án
+                    </button>
+                  </form>
                 )}
               </>
             )}

@@ -1,6 +1,10 @@
 import type { Question } from '../types/exam';
 import type { GameQuestionSnapshot } from '../types/game';
-import { generateSeedVarsForQuestion, interpolateText } from './dynamicQuestionEngine';
+import {
+  evaluateFormula,
+  generateSeedVarsForQuestion,
+  interpolateText,
+} from './dynamicQuestionEngine';
 
 export interface BuildGameSnapshotOptions {
   flattenTrueFalse: boolean;
@@ -26,12 +30,49 @@ export function buildGameQuestionsSnapshot(
   const result: GameQuestionSnapshot[] = [];
 
   for (const q of questions) {
-    if (q.type !== 'SINGLE_CHOICE' && q.type !== 'MULTI_CHOICE' && q.type !== 'TRUE_FALSE') {
+    if (
+      q.type !== 'SINGLE_CHOICE' &&
+      q.type !== 'MULTI_CHOICE' &&
+      q.type !== 'TRUE_FALSE' &&
+      q.type !== 'NUMERICAL' &&
+      q.type !== 'ESSAY'
+    ) {
       continue;
     }
 
     const vars = generateSeedVarsForQuestion(q, 'LIVE_GAME_ROOM', seedKey);
     const renderedContent = interpolateText(q.content, vars);
+
+    if (q.type === 'NUMERICAL') {
+      const formula = q.numericalFormula?.trim() || '0';
+      const expectedValue = Math.round(evaluateFormula(formula, vars) * 10000) / 10000;
+      result.push({
+        id: q.id,
+        sourceQuestionId: q.id,
+        type: 'NUMERICAL',
+        content: renderedContent,
+        timeLimitSec: getRecommendedTimeSec('NUMERICAL', 1, opts.defaultTimeSec),
+        numericalUnit: q.numericalUnit ?? '',
+        expectedValue,
+        tolerance: q.tolerance ?? 0.01,
+      });
+      continue;
+    }
+
+    if (q.type === 'ESSAY') {
+      const rubric = q.gradingRubric ?? [];
+      if (rubric.length === 0) continue;
+      result.push({
+        id: q.id,
+        sourceQuestionId: q.id,
+        type: 'ESSAY',
+        content: renderedContent,
+        timeLimitSec: Math.max(opts.defaultTimeSec, 30),
+        gradingRubric: rubric,
+        sampleAnswer: q.sampleAnswer ? interpolateText(q.sampleAnswer, vars) : '',
+      });
+      continue;
+    }
 
     if (q.type === 'TRUE_FALSE') {
       const items = q.trueFalseItems ?? [];

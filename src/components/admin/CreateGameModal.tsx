@@ -102,7 +102,7 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
             Số câu hỏi hợp lệ sẽ đưa vào Game:{' '}
             <strong className="text-indigo-700">{previewSnapshot.length} câu</strong>
             <span className="block text-xs text-slate-500 mt-0.5">
-              Hỗ trợ Trắc nghiệm 1 đáp án, Nhiều đáp án & Đúng/Sai (tự lọc bỏ Tự luận).
+              Hỗ trợ Trắc nghiệm 1/nhiều đáp án, Đúng/Sai, Tính toán số (Numerical) &amp; Tự luận ngắn có Rubric.
             </span>
           </div>
 
