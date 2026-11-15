@@ -13,6 +13,7 @@ interface QuestionEditorModalProps {
   isOpen: boolean;
   courseId: string;
   existingChapters: string[];
+  defaultChapter?: string;
   initialQuestion?: Question;
   onClose: () => void;
   onSave: (q: Question) => void;
@@ -22,6 +23,7 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
   isOpen,
   courseId,
   existingChapters,
+  defaultChapter,
   initialQuestion,
   onClose,
   onSave,
@@ -31,8 +33,12 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
   );
   const [chapterCategory, setChapterCategory] = useState(
     initialQuestion?.chapterCategory ??
+      defaultChapter ??
       existingChapters[0] ??
       'Chương 1: Tổng quan',
+  );
+  const [addingNewChapter, setAddingNewChapter] = useState(
+    existingChapters.length === 0,
   );
   const [difficulty, setDifficulty] = useState<DifficultyLevel>(
     initialQuestion?.difficulty ?? 'MEDIUM',
@@ -222,21 +228,49 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
 
           {/* Chapter Category */}
           <div>
-            <label className="block font-bold text-ink-700 mb-1">
-              Chương / Chuyên đề
-            </label>
-            <input
-              list="chapter-suggestions"
-              value={chapterCategory}
-              onChange={(e) => setChapterCategory(e.target.value)}
-              className="w-full h-10 px-3 rounded-xl border border-slate-300 font-semibold"
-              placeholder="Ví dụ: Chương 1: Cung - Cầu & Cân bằng"
-            />
-            <datalist id="chapter-suggestions">
-              {existingChapters.map((c) => (
-                <option key={c} value={c} />
-              ))}
-            </datalist>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <label className="block font-bold text-ink-700">
+                Chương / Chuyên đề
+              </label>
+              {existingChapters.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!addingNewChapter) {
+                      setAddingNewChapter(true);
+                      setChapterCategory(`Chương ${existingChapters.length + 1}: `);
+                    } else {
+                      setAddingNewChapter(false);
+                      setChapterCategory(existingChapters[0] ?? 'Chương 1: Tổng quan');
+                    }
+                  }}
+                  className="text-[11px] font-bold text-brand-700 hover:underline flex items-center gap-1"
+                >
+                  {addingNewChapter ? 'Chọn chương có sẵn' : '+ Thêm chương mới'}
+                </button>
+              )}
+            </div>
+            {addingNewChapter || existingChapters.length === 0 ? (
+              <input
+                type="text"
+                value={chapterCategory}
+                onChange={(e) => setChapterCategory(e.target.value)}
+                className="w-full h-10 px-3 rounded-xl border border-slate-300 font-semibold"
+                placeholder="Ví dụ: Chương 2: Cung - Cầu & Cân bằng"
+              />
+            ) : (
+              <select
+                value={existingChapters.includes(chapterCategory) ? chapterCategory : existingChapters[0]}
+                onChange={(e) => setChapterCategory(e.target.value)}
+                className="w-full h-10 px-3 rounded-xl border border-slate-300 bg-white font-semibold"
+              >
+                {existingChapters.map((c) => (
+                  <option key={c} value={c}>
+                    {c}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* Prompt */}

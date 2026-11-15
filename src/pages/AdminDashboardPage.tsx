@@ -131,9 +131,13 @@ export const AdminDashboardPage: React.FC = () => {
   const toastTimerRef = useRef<number | null>(null);
 
   const [questionModalOpen, setQuestionModalOpen] = useState(false);
+  const [questionModalDefaultChapter, setQuestionModalDefaultChapter] = useState<string | undefined>(undefined);
   const [editingQuestion, setEditingQuestion] = useState<Question | undefined>(
     undefined,
   );
+  const [customChaptersByCourse, setCustomChaptersByCourse] = useState<Record<string, string[]>>({});
+  const [newChapterOpen, setNewChapterOpen] = useState(false);
+  const [newChapterName, setNewChapterName] = useState('');
   const [essayModalAttemptId, setEssayModalAttemptId] = useState<string | null>(
     null,
   );
@@ -216,13 +220,18 @@ export const AdminDashboardPage: React.FC = () => {
 
   const chapterGroups = useMemo(() => {
     const map = new Map<string, Question[]>();
+    if (selectedCourse) {
+      for (const ch of customChaptersByCourse[selectedCourse.id] ?? []) {
+        if (!map.has(ch)) map.set(ch, []);
+      }
+    }
     for (const q of courseQuestions) {
       const arr = map.get(q.chapterCategory) ?? [];
       arr.push(q);
       map.set(q.chapterCategory, arr);
     }
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b, 'vi'));
-  }, [courseQuestions]);
+  }, [courseQuestions, customChaptersByCourse, selectedCourse]);
 
   const handleDownloadTemplateXlsx = () => {
     downloadQuestionBankTemplateXlsx(
@@ -1177,6 +1186,17 @@ export const AdminDashboardPage: React.FC = () => {
                   <div className="flex flex-wrap gap-2 text-xs">
                     <button
                       type="button"
+                      onClick={() => {
+                        if (!requireOfficialOrPrompt()) return;
+                        setNewChapterName(`Chương ${chapterGroups.length + 1}: `);
+                        setNewChapterOpen((o) => !o);
+                      }}
+                      className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-ink-800 font-bold flex items-center gap-1 hover:border-brand-300"
+                    >
+                      <Plus className="w-3.5 h-3.5" /> Thêm Chương
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => setTemplateBoxOpen((o) => !o)}
                       className="px-3 py-1.5 rounded-xl border border-brand-200 bg-brand-50 text-brand-800 font-bold flex items-center gap-1 hover:bg-brand-100"
                     >
@@ -1229,6 +1249,7 @@ export const AdminDashboardPage: React.FC = () => {
                       onClick={() => {
                         if (!requireOfficialOrPrompt()) return;
                         setEditingQuestion(undefined);
+                        setQuestionModalDefaultChapter(undefined);
                         setQuestionModalOpen(true);
                       }}
                       className="px-3.5 py-1.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold flex items-center gap-1"
@@ -1237,6 +1258,49 @@ export const AdminDashboardPage: React.FC = () => {
                     </button>
                   </div>
                 </div>
+
+                {newChapterOpen && selectedCourse && (
+                  <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex flex-wrap items-center gap-2 text-xs">
+                    <input
+                      type="text"
+                      value={newChapterName}
+                      onChange={(e) => setNewChapterName(e.target.value)}
+                      placeholder="VD: Chương 2: Cung - Cầu & Cân bằng"
+                      className="flex-1 min-w-[200px] h-9 px-3 rounded-lg border border-slate-300 bg-white font-semibold"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setNewChapterOpen(false)}
+                      className="h-9 px-3 rounded-lg border border-slate-200 bg-white text-ink-600 font-semibold"
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const clean = newChapterName.trim();
+                        if (!clean) {
+                          showToast('Vui lòng nhập tên Chương.');
+                          return;
+                        }
+                        setCustomChaptersByCourse((prev) => {
+                          const existing = prev[selectedCourse.id] ?? [];
+                          if (existing.includes(clean)) return prev;
+                          return { ...prev, [selectedCourse.id]: [...existing, clean] };
+                        });
+                        setNewChapterOpen(false);
+                        setNewChapterName('');
+                        setEditingQuestion(undefined);
+                        setQuestionModalDefaultChapter(clean);
+                        setQuestionModalOpen(true);
+                        showToast(`Đã thêm "${clean}". Bạn có thể nhập câu hỏi ngay.`);
+                      }}
+                      className="h-9 px-3.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-bold"
+                    >
+                      Lưu &amp; Thêm câu hỏi
+                    </button>
+                  </div>
+                )}
 
                 {newCourseOpen && (
                   <div className="p-3 bg-slate-50 rounded-xl border flex flex-wrap gap-2 text-xs">
@@ -1651,10 +1715,11 @@ export const AdminDashboardPage: React.FC = () => {
 
       {selectedCourse && (
         <QuestionEditorModal
-          key={editingQuestion?.id ?? 'new'}
+          key={`${editingQuestion?.id ?? 'new'}_${questionModalDefaultChapter ?? ''}`}
           isOpen={questionModalOpen}
           courseId={selectedCourse.id}
           existingChapters={chapterGroups.map(([name]) => name)}
+          defaultChapter={questionModalDefaultChapter}
           initialQuestion={editingQuestion}
           onClose={() => setQuestionModalOpen(false)}
           onSave={(q) => {
