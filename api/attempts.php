@@ -600,6 +600,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
     $body = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' ? [] : readJsonBody();
 
     if ($action === 'start') {
+        try {
         $pin = strtoupper(trim((string) ($body['pin'] ?? '')));
         $examIdParam = trim((string) ($body['examId'] ?? ''));
         $studentCode = strtoupper(trim((string) ($body['studentCode'] ?? '')));
@@ -854,6 +855,10 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             'assignedQuestions' => $assigned,
             'startedAt' => $startedAt,
         ]);
+        } catch (Throwable $e) {
+            error_log('[VNE_ATTEMPT_START_ERR] ' . $e->getMessage());
+            jsonError('Lỗi khởi tạo bài thi: ' . $e->getMessage(), 500);
+        }
     }
 
     if ($action === 'heartbeat') {
