@@ -21,6 +21,7 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
   const [minorNotice, setMinorNotice] = useState<string | null>(null);
   const leftAtRef = useRef<number | null>(null);
   const mountedAtRef = useRef<number>(Date.now());
+  const lastInputActivityAtRef = useRef<number>(0);
   const noticeTimerRef = useRef<number | null>(null);
   const baseViewportWidthRef = useRef<number>(
     typeof window !== 'undefined' ? window.innerWidth : 390,
@@ -120,6 +121,17 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
   useEffect(() => {
     if (!enabled) return;
 
+    const isTouchDevice =
+      typeof window !== 'undefined' &&
+      ('ontouchstart' in window || navigator.maxTouchPoints > 0);
+
+    const onInputFocusChange = (e: FocusEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        lastInputActivityAtRef.current = Date.now();
+      }
+    };
+
     const onVisibilityChange = () => {
       if (document.hidden) {
         handleLeaveSignal('Chuyển sang ứng dụng / tab khác');
@@ -129,6 +141,11 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
     };
 
     const onBlur = () => {
+      // Trên điện thoại/tablet (iOS Safari, Android), bấm nút hạ bàn phím hoặc thanh công cụ bàn phím
+      // có thể kích hoạt window.blur dù thí sinh vẫn đang ở trong trang thi (document.hidden === false).
+      if (isTouchDevice && !document.hidden) {
+        return;
+      }
       handleLeaveSignal('Mất tiêu điểm màn hình (Popup / Đa nhiệm)');
     };
 
@@ -145,6 +162,7 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
 
       const activeTag = document.activeElement?.tagName ?? '';
       const isTyping = activeTag === 'INPUT' || activeTag === 'TEXTAREA';
+      const recentKeyboardToggle = Date.now() - lastInputActivityAtRef.current < 1500;
       const vw = window.visualViewport?.width ?? window.innerWidth;
       const vh = window.visualViewport?.height ?? window.innerHeight;
 
@@ -155,7 +173,10 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
 
       const widthShrunk = vw < baseW * 0.8;
       const heightShrunkWithoutTyping =
-        !isTyping && vh < window.screen.height * 0.56 && window.innerHeight < window.screen.height * 0.62;
+        !isTyping &&
+        !recentKeyboardToggle &&
+        vh < window.screen.height * 0.56 &&
+        window.innerHeight < window.screen.height * 0.62;
 
       if (widthShrunk || heightShrunkWithoutTyping) {
         setBlackout(true);
@@ -204,6 +225,8 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
       }
     };
 
+    document.addEventListener('focusin', onInputFocusChange);
+    document.addEventListener('focusout', onInputFocusChange);
     document.addEventListener('visibilitychange', onVisibilityChange);
     window.addEventListener('blur', onBlur);
     window.addEventListener('focus', onFocus);
@@ -217,6 +240,8 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
     window.addEventListener('keydown', onKeyDown);
 
     return () => {
+      document.removeEventListener('focusin', onInputFocusChange);
+      document.removeEventListener('focusout', onInputFocusChange);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('blur', onBlur);
       window.removeEventListener('focus', onFocus);
