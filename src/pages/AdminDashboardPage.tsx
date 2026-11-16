@@ -955,36 +955,64 @@ export const AdminDashboardPage: React.FC = () => {
                     const active = ex.id === selectedExam.id;
                     const rosterCount = ex.rosterEntries?.length ?? 0;
                     return (
-                      <button
+                      <div
                         key={ex.id}
-                        type="button"
-                        onClick={() => setSelectedExamId(ex.id)}
-                        className={`px-3 py-2 rounded-xl border text-left text-xs transition ${
+                        className={`inline-flex items-stretch rounded-xl border transition overflow-hidden ${
                           active
                             ? 'bg-brand-600 text-white border-brand-600 shadow-xs'
                             : 'bg-slate-50 text-ink-800 border-slate-200 hover:border-brand-300'
                         }`}
                       >
-                        <div className="font-bold flex items-center gap-1.5">
-                          <span>{ex.title}</span>
-                          <span
-                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                              active
-                                ? 'bg-white/20 text-white'
-                                : ex.status === 'OPEN'
-                                  ? 'bg-support-100 text-support-700'
-                                  : ex.status === 'CLOSED'
-                                    ? 'bg-slate-200 text-ink-600'
-                                    : 'bg-amber-100 text-amber-800'
-                            }`}
-                          >
-                            {ex.status === 'OPEN' ? 'MỞ' : ex.status === 'CLOSED' ? 'ĐÓNG' : 'NHÁP'}
-                          </span>
-                        </div>
-                        <div className={`text-[11px] mt-0.5 font-mono ${active ? 'text-brand-100' : 'text-ink-500'}`}>
-                          PIN {ex.roomPin} • {rosterCount > 0 ? `${rosterCount} SV` : 'Chưa import DS'}
-                        </div>
-                      </button>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedExamId(ex.id)}
+                          className="px-3 py-2 text-left text-xs"
+                        >
+                          <div className="font-bold flex items-center gap-1.5">
+                            <span>{ex.title}</span>
+                            <span
+                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                active
+                                  ? 'bg-white/20 text-white'
+                                  : ex.status === 'OPEN'
+                                    ? 'bg-support-100 text-support-700'
+                                    : ex.status === 'CLOSED'
+                                      ? 'bg-slate-200 text-ink-600'
+                                      : 'bg-amber-100 text-amber-800'
+                              }`}
+                            >
+                              {ex.status === 'OPEN' ? 'MỞ' : ex.status === 'CLOSED' ? 'ĐÓNG' : 'NHÁP'}
+                            </span>
+                          </div>
+                          <div className={`text-[11px] mt-0.5 font-mono ${active ? 'text-brand-100' : 'text-ink-500'}`}>
+                            PIN {ex.roomPin} • {rosterCount > 0 ? `${rosterCount} SV` : 'Chưa import DS'}
+                          </div>
+                        </button>
+                        <button
+                          type="button"
+                          title={`Xóa ca thi "${ex.title}" (PIN ${ex.roomPin})`}
+                          aria-label={`Xóa ca thi ${ex.title}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!requireOfficialOrPrompt()) return;
+                            if (!window.confirm(`Xóa ca thi "${ex.title}" (PIN ${ex.roomPin}) và toàn bộ bài làm của ca thi này?`)) return;
+                            void deleteExam(ex.id).then((res) => {
+                              if (!res.ok) {
+                                showToast(res.error || 'Không thể xóa ca thi.');
+                              } else {
+                                showToast(`Đã xóa ca thi "${ex.title}".`);
+                              }
+                            });
+                          }}
+                          className={`px-2 flex items-center justify-center border-l transition ${
+                            active
+                              ? 'border-white/20 text-white/80 hover:bg-rose-600 hover:text-white'
+                              : 'border-slate-200 text-ink-400 hover:bg-rose-50 hover:text-rose-600'
+                          }`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
                     );
                   })}
               </div>
@@ -2216,20 +2244,51 @@ export const AdminDashboardPage: React.FC = () => {
               <div className="flex flex-wrap gap-1.5">
                 {exams
                   .filter((ex) => ex.courseId === selectedExam.courseId)
-                  .map((ex) => (
-                    <button
-                      key={ex.id}
-                      type="button"
-                      onClick={() => setSelectedExamId(ex.id)}
-                      className={`px-3 py-1.5 rounded-xl border text-xs font-bold transition ${
-                        ex.id === selectedExam.id
-                          ? 'bg-brand-600 text-white border-brand-600 shadow-xs'
-                          : 'bg-slate-50 text-ink-700 border-slate-200 hover:border-brand-300'
-                      }`}
-                    >
-                      {ex.title} (PIN {ex.roomPin})
-                    </button>
-                  ))}
+                  .map((ex) => {
+                    const active = ex.id === selectedExam.id;
+                    return (
+                      <div
+                        key={ex.id}
+                        className={`inline-flex items-stretch rounded-xl border text-xs font-bold transition overflow-hidden ${
+                          active
+                            ? 'bg-brand-600 text-white border-brand-600 shadow-xs'
+                            : 'bg-slate-50 text-ink-700 border-slate-200 hover:border-brand-300'
+                        }`}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setSelectedExamId(ex.id)}
+                          className="px-3 py-1.5"
+                        >
+                          {ex.title} (PIN {ex.roomPin})
+                        </button>
+                        <button
+                          type="button"
+                          title={`Xóa ca thi "${ex.title}" (PIN ${ex.roomPin})`}
+                          aria-label={`Xóa ca thi ${ex.title}`}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (!requireOfficialOrPrompt()) return;
+                            if (!window.confirm(`Xóa ca thi "${ex.title}" (PIN ${ex.roomPin}) và toàn bộ bài làm của ca thi này?`)) return;
+                            void deleteExam(ex.id).then((res) => {
+                              if (!res.ok) {
+                                showToast(res.error || 'Không thể xóa ca thi.');
+                              } else {
+                                showToast(`Đã xóa ca thi "${ex.title}".`);
+                              }
+                            });
+                          }}
+                          className={`px-2 flex items-center justify-center border-l transition ${
+                            active
+                              ? 'border-white/20 text-white/80 hover:bg-rose-600 hover:text-white'
+                              : 'border-slate-200 text-ink-400 hover:bg-rose-50 hover:text-rose-600'
+                          }`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
               </div>
             </div>
 
