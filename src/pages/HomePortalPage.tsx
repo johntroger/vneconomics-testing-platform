@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowRight,
+  BookOpen,
   CheckCircle2,
   ExternalLink,
   Gamepad2,
@@ -353,6 +354,14 @@ export const HomePortalPage: React.FC = () => {
             </div>
           </div>
           <div className="flex items-center gap-2 shrink-0">
+            <Link
+              to="/huong-dan"
+              className="text-xs font-bold px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-ink-700 flex items-center gap-1.5 transition whitespace-nowrap"
+            >
+              <BookOpen className="w-3.5 h-3.5 text-brand-600" />
+              <span className="hidden sm:inline">Hướng dẫn GV</span>
+              <span className="sm:hidden">Hướng dẫn</span>
+            </Link>
             <Link
               to="/play"
               className="text-xs font-bold px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white flex items-center gap-1.5 transition shadow-sm whitespace-nowrap"

@@ -633,9 +633,16 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
 
           <div className="space-y-2 pt-1">
-            <div className="flex items-center justify-between text-xs">
+            <div className="flex items-center justify-between text-xs gap-2 flex-wrap">
               <Link to="/" className="font-semibold text-brand-600 hover:underline">
                 ← Cổng thi Sinh viên
+              </Link>
+              <Link
+                to="/huong-dan"
+                className="font-semibold text-support-700 hover:underline inline-flex items-center gap-1"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                Xem Hướng dẫn GV
               </Link>
               <button
                 type="button"
@@ -829,6 +836,17 @@ export const AdminDashboardPage: React.FC = () => {
                 <span className="hidden sm:inline">Khôi phục mẫu</span>
               </button>
             )}
+
+            <Link
+              to="/huong-dan"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Mở tài liệu Hướng dẫn Giảng viên ở tab mới"
+              className="h-9 px-3 rounded-xl border border-brand-200 bg-brand-50 text-brand-700 text-xs font-bold flex items-center gap-1.5 hover:bg-brand-100 shrink-0 whitespace-nowrap"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Hướng dẫn</span>
+            </Link>
 
             <button
               type="button"
