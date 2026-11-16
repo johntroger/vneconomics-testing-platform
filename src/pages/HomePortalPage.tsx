@@ -338,10 +338,10 @@ export const HomePortalPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-surface-100 to-slate-100 flex flex-col">
       {/* Top Header aligned to content container */}
-      <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-4">
-        <div className="max-w-5xl mx-auto w-full flex items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center p-1 shadow-sm shrink-0 overflow-hidden">
+      <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-3 sm:px-6 pt-[max(0.875rem,env(safe-area-inset-top))] sm:pt-[max(1.25rem,env(safe-area-inset-top))] pb-3 sm:pb-4">
+        <div className="max-w-5xl mx-auto w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center p-1 shadow-sm shrink-0 overflow-hidden">
               <img src="/logo.png" alt="VNEconomics Logo" className="w-full h-full object-contain" />
             </div>
             <div className="min-w-0">
@@ -353,30 +353,31 @@ export const HomePortalPage: React.FC = () => {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <nav className="grid grid-cols-3 sm:flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto shrink-0">
             <Link
               to="/huong-dan"
-              className="text-xs font-bold px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-ink-700 flex items-center gap-1.5 transition whitespace-nowrap"
+              className="text-[11px] sm:text-xs font-bold px-2 sm:px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-ink-700 flex items-center justify-center gap-1 sm:gap-1.5 transition whitespace-nowrap"
             >
-              <BookOpen className="w-3.5 h-3.5 text-brand-600" />
+              <BookOpen className="w-3.5 h-3.5 text-brand-600 shrink-0" />
               <span className="hidden sm:inline">Hướng dẫn GV</span>
-              <span className="sm:hidden">Hướng dẫn</span>
+              <span className="sm:hidden truncate">Hướng dẫn</span>
             </Link>
             <Link
               to="/play"
-              className="text-xs font-bold px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white flex items-center gap-1.5 transition shadow-sm whitespace-nowrap"
+              className="text-[11px] sm:text-xs font-bold px-2 sm:px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white flex items-center justify-center gap-1 sm:gap-1.5 transition shadow-sm whitespace-nowrap"
             >
-              <Gamepad2 className="w-3.5 h-3.5" />
-              Vào Game Live
+              <Gamepad2 className="w-3.5 h-3.5 shrink-0" />
+              <span className="hidden sm:inline">Vào Game Live</span>
+              <span className="sm:hidden truncate">Game Live</span>
             </Link>
             <Link
               to="/admin"
-              className="text-xs font-bold px-4 py-2 rounded-xl bg-support-600 hover:bg-support-700 text-white flex items-center gap-1.5 transition shadow-sm whitespace-nowrap"
+              className="text-[11px] sm:text-xs font-bold px-2 sm:px-4 py-2 rounded-xl bg-support-600 hover:bg-support-700 text-white flex items-center justify-center gap-1 sm:gap-1.5 transition shadow-sm whitespace-nowrap"
             >
-              <Lock className="w-3.5 h-3.5" />
-              Giảng viên
+              <Lock className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">Giảng viên</span>
             </Link>
-          </div>
+          </nav>
         </div>
       </header>
 
