@@ -28,3 +28,18 @@ DirectoryIndex index.html index.php
   Order allow,deny
   Deny from all
 </FilesMatch>
+
+# Nén Gzip cho SPA & API JSON
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/css application/javascript application/json image/svg+xml
+</IfModule>
+
+# Cache 1 năm cho file Vite có hash (/assets/*), không cache index.html để luôn nhận bản deploy mới
+<IfModule mod_headers.c>
+  <FilesMatch "\.(js|css|woff2|svg|png|jpg|webp)$">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </FilesMatch>
+  <FilesMatch "^(index\.html|build-info\.txt)$">
+    Header set Cache-Control "no-cache, no-store, must-revalidate"
+  </FilesMatch>
+</IfModule>

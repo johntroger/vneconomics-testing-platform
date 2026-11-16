@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   Activity,
@@ -29,7 +29,11 @@ import { CreateGameModal } from '../components/admin/CreateGameModal';
 import { EssayGradingModal } from '../components/admin/EssayGradingModal';
 import { fetchInstructorGames, type GameListItem } from '../services/gameApi';
 import { ExamAnalyticsCharts } from '../components/admin/ExamAnalyticsCharts';
-import { ExcelQuestionBankModal } from '../components/admin/ExcelQuestionBankModal';
+const ExcelQuestionBankModal = lazy(() =>
+  import('../components/admin/ExcelQuestionBankModal').then((m) => ({
+    default: m.ExcelQuestionBankModal,
+  })),
+);
 import { GoogleSignInButton } from '../components/admin/GoogleSignInButton';
 import { LiveProctorTable } from '../components/admin/LiveProctorTable';
 import { QuestionEditorModal } from '../components/admin/QuestionEditorModal';
@@ -54,11 +58,6 @@ import {
   computeChapterMastery,
   computeItemAnalysis,
 } from '../utils/dynamicQuestionEngine';
-import {
-  ALL_QUESTION_TYPES,
-  downloadQuestionBankTemplateXlsx,
-  exportCourseQuestionsToXlsx,
-} from '../utils/excelQuestionBank';
 
 type AdminTab =
   | 'COURSES'
@@ -301,7 +300,10 @@ export const AdminDashboardPage: React.FC = () => {
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b, 'vi'));
   }, [courseQuestions, customChaptersByCourse, selectedCourse]);
 
-  const handleDownloadTemplateXlsx = () => {
+  const handleDownloadTemplateXlsx = async () => {
+    const { downloadQuestionBankTemplateXlsx } = await import(
+      '../utils/excelQuestionBank'
+    );
     downloadQuestionBankTemplateXlsx(
       selectedCourse?.code ?? 'COURSE',
       selectedCourse?.name ?? 'Học phần',
@@ -1793,8 +1795,11 @@ export const AdminDashboardPage: React.FC = () => {
                           <button
                             type="button"
                             disabled={courseQuestions.length === 0}
-                            onClick={() => {
+                            onClick={async () => {
                               setBankMoreMenuOpen(false);
+                              const { exportCourseQuestionsToXlsx } = await import(
+                                '../utils/excelQuestionBank'
+                              );
                               exportCourseQuestionsToXlsx(
                                 courseQuestions,
                                 selectedCourse?.code ?? 'COURSE',
@@ -1971,14 +1976,16 @@ export const AdminDashboardPage: React.FC = () => {
                       </button>
                       <button
                         type="button"
-                        onClick={() => setBankTemplateTypes([...ALL_QUESTION_TYPES])}
+                        onClick={() =>
+                          setBankTemplateTypes(BANK_TEMPLATE_TYPE_OPTIONS.map((o) => o.type))
+                        }
                         className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition ${
-                          bankTemplateTypes.length === ALL_QUESTION_TYPES.length
+                          bankTemplateTypes.length === BANK_TEMPLATE_TYPE_OPTIONS.length
                             ? 'bg-white border-brand-300 text-brand-800'
                             : 'bg-white/60 border-slate-200 text-ink-600 hover:bg-white'
                         }`}
                       >
-                        Tick cả 5 loại
+                        Tick tất cả
                       </button>
                       <button
                         type="button"
@@ -2637,9 +2644,10 @@ export const AdminDashboardPage: React.FC = () => {
         />
       )}
 
-      {selectedCourse && (
-        <ExcelQuestionBankModal
-          open={excelModalOpen}
+      {selectedCourse && excelModalOpen && (
+        <Suspense fallback={null}>
+          <ExcelQuestionBankModal
+            open={excelModalOpen}
           onClose={() => setExcelModalOpen(false)}
           course={selectedCourse}
           courseQuestions={courseQuestions}
@@ -2660,7 +2668,8 @@ export const AdminDashboardPage: React.FC = () => {
               }.`,
             );
           }}
-        />
+          />
+        </Suspense>
       )}
 
       {selectedExam && (
