@@ -428,6 +428,9 @@ function ensureExamSchema(PDO $pdo, string $driver): void
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_inst_google ON instructors(google_sub)");
     }
 
+    try {
+        $shiftTables = $driver === 'mysql'
+            ? [
                 "CREATE TABLE IF NOT EXISTS exam_shifts (
                     id VARCHAR(64) PRIMARY KEY,
                     exam_id VARCHAR(64) NOT NULL,
