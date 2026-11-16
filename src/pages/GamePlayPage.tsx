@@ -7,13 +7,20 @@ import {
   Clock,
   Flame,
   Send,
+  Shield,
   TrendingUp,
   Trophy,
+  Volume2,
+  VolumeX,
   XCircle,
+  Zap,
 } from 'lucide-react';
+import { ConfettiBurst } from '../components/game/ConfettiBurst';
+import { GameAvatarBadge } from '../components/game/GameAvatarBadge';
 import {
   fetchGamePlayerView,
   pollGameStatus,
+  sendGameReaction,
   submitGameAnswer,
   subscribeLocalGameUpdates,
 } from '../services/gameApi';
@@ -21,7 +28,15 @@ import {
   GAME_OPTION_STYLES,
   type GamePlayerView,
   type GameQuestionSnapshot,
+  type PowerupType,
 } from '../types/game';
+import {
+  playCorrectSound,
+  playPodiumSound,
+  playPowerUpSound,
+  playStreakSound,
+  playWrongSound,
+} from '../utils/gameAudio';
 
 function getQuestionTypeBadge(q: GameQuestionSnapshot | null): string {
   if (!q) return '';
@@ -48,7 +63,11 @@ export const GamePlayPage: React.FC = () => {
   const [multiSelected, setMultiSelected] = useState<string[]>([]);
   const [tfSelected, setTfSelected] = useState<Record<string, boolean>>({});
   const [textAnswer, setTextAnswer] = useState('');
+  const [armedPowerup, setArmedPowerup] = useState<PowerupType>('');
+  const [muted, setMuted] = useState(false);
+  const [rxCooldown, setRxCooldown] = useState(false);
   const [nowMs, setNowMs] = useState(Date.now());
+  const lastSoundKeyRef = useRef('');
 
   const clockOffsetRef = useRef(0);
   const lastVersionRef = useRef<number>(-1);
@@ -76,6 +95,7 @@ export const GamePlayPage: React.FC = () => {
       setMultiSelected([]);
       setTfSelected({});
       setTextAnswer('');
+      setArmedPowerup('');
     }
     if (res.data.myAnswer) {
       setSubmittedLocal(true);
@@ -136,6 +156,31 @@ export const GamePlayPage: React.FC = () => {
     return () => window.clearInterval(tick);
   }, []);
 
+  useEffect(() => {
+    if (!view || muted) return;
+    const key = `${view.session.state}:${view.session.currentQIndex}`;
+    if (key === lastSoundKeyRef.current) return;
+    if (view.session.state === 'QUESTION_RESULT') {
+      lastSoundKeyRef.current = key;
+      if (view.myAnswer?.isCorrect) {
+        if (view.player.streak >= 2) playStreakSound();
+        else playCorrectSound();
+      } else {
+        playWrongSound();
+      }
+    } else if (view.session.state === 'ENDED') {
+      lastSoundKeyRef.current = key;
+      if (view.player.rank <= 3) playPodiumSound();
+    }
+  }, [view, muted]);
+
+  const handleReaction = async (emoji: string) => {
+    if (!view || rxCooldown) return;
+    setRxCooldown(true);
+    window.setTimeout(() => setRxCooldown(false), 450);
+    await sendGameReaction(view.session.gamePin, emoji);
+  };
+
   const handleSubmit = async (payload: string | string[] | Record<string, boolean>) => {
     if (!sessionId || !playerId || !view || submitting || submittedLocal) return;
     setSubmitting(true);
@@ -146,6 +191,7 @@ export const GamePlayPage: React.FC = () => {
       playerId,
       questionIndex: view.session.currentQIndex,
       answerPayload: payload,
+      usePowerup: armedPowerup,
     });
     setSubmitting(false);
     if (!res.ok) {
@@ -187,22 +233,34 @@ export const GamePlayPage: React.FC = () => {
 
   return (
     <div className="min-h-[100dvh] bg-slate-950 text-white flex flex-col select-none">
+      <ConfettiBurst active={session.state === 'ENDED' && player.rank <= 3} />
       {/* Compact Header */}
       <header className="px-4 py-3 bg-slate-900 border-b border-slate-800 flex items-center justify-between gap-2 shrink-0">
-        <div className="min-w-0">
-          <div className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider">
-            PIN {session.gamePin} • Câu {session.currentQIndex + 1}/{session.totalQuestions}
-          </div>
-          <div className="font-black text-base truncate flex items-center gap-2">
-            <span>{player.nickname}</span>
-            {player.teamName && (
-              <span className="px-2 py-0.5 rounded-lg bg-violet-500/25 text-violet-200 text-xs font-bold">
-                {player.teamName}
-              </span>
-            )}
+        <div className="flex items-center gap-2.5 min-w-0">
+          <GameAvatarBadge avatarId={player.avatarId} streak={player.streak} size="sm" />
+          <div className="min-w-0">
+            <div className="text-[11px] font-bold text-indigo-400 uppercase tracking-wider">
+              PIN {session.gamePin} • Câu {session.currentQIndex + 1}/{session.totalQuestions}
+            </div>
+            <div className="font-black text-base truncate flex items-center gap-2">
+              <span>{player.nickname}</span>
+              {player.teamName && (
+                <span className="px-2 py-0.5 rounded-lg bg-violet-500/25 text-violet-200 text-xs font-bold">
+                  {player.teamName}
+                </span>
+              )}
+            </div>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => setMuted((m) => !m)}
+            className="p-1.5 rounded-xl bg-slate-800 text-slate-300"
+            title={muted ? 'Bật âm' : 'Tắt âm'}
+          >
+            {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
+          </button>
           {player.streak >= 2 && (
             <span className="px-2.5 py-1 rounded-xl bg-amber-500/20 text-amber-300 text-xs font-black flex items-center gap-1">
               <Flame className="w-3.5 h-3.5" /> {player.streak}
@@ -225,8 +283,28 @@ export const GamePlayPage: React.FC = () => {
             <p className="text-slate-300 text-sm">
               Hãy nhìn lên màn hình của giảng viên và chờ trò chơi bắt đầu.
             </p>
-            <div className="px-5 py-2.5 rounded-2xl bg-slate-900 border border-slate-800 font-bold text-indigo-300">
-              {player.nickname} {player.studentCode ? `(${player.studentCode})` : ''}
+            <div className="px-5 py-2.5 rounded-2xl bg-slate-900 border border-slate-800 font-bold text-indigo-300 flex items-center gap-2.5">
+              <GameAvatarBadge avatarId={player.avatarId} size="sm" />
+              <span>
+                {player.nickname} {player.studentCode ? `(${player.studentCode})` : ''}
+              </span>
+            </div>
+            <div className="pt-2 space-y-2">
+              <div className="text-[11px] uppercase tracking-wider text-slate-400 font-bold">
+                Thả cảm xúc lên màn hình chiếu
+              </div>
+              <div className="flex items-center justify-center gap-2.5">
+                {['👏', '🔥', '🚀', '❤️', '😂'].map((em) => (
+                  <button
+                    key={em}
+                    type="button"
+                    onClick={() => void handleReaction(em)}
+                    className="w-12 h-12 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-90 text-2xl flex items-center justify-center transition touch-manipulation shadow"
+                  >
+                    {em}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}
@@ -264,6 +342,34 @@ export const GamePlayPage: React.FC = () => {
               <div className="px-3 py-2 rounded-xl bg-rose-500/20 border border-rose-400/40 text-rose-200 text-xs font-bold text-center">
                 {submitNotice}
               </div>
+            )}
+
+            {!submittedLocal && player.powerupType && (
+              <button
+                type="button"
+                onClick={() => {
+                  const next = armedPowerup ? '' : (player.powerupType ?? '');
+                  setArmedPowerup(next);
+                  if (next && !muted) playPowerUpSound();
+                }}
+                className={`w-full py-2.5 px-4 rounded-2xl font-black text-xs flex items-center justify-center gap-2 border transition touch-manipulation ${
+                  armedPowerup
+                    ? 'bg-gradient-to-r from-amber-400 to-orange-500 text-slate-950 border-white shadow-lg shadow-amber-500/30'
+                    : 'bg-indigo-500/20 border-indigo-400/40 text-indigo-200 hover:bg-indigo-500/30'
+                }`}
+              >
+                {player.powerupType === 'DOUBLE_PTS' ? (
+                  <>
+                    <Zap className="w-4 h-4" />
+                    {armedPowerup ? 'ĐÃ BẬT: x2 ĐIỂM CÂU NÀY!' : 'Kích hoạt Power-up: ⚡ x2 Điểm câu này'}
+                  </>
+                ) : (
+                  <>
+                    <Shield className="w-4 h-4" />
+                    {armedPowerup ? 'ĐÃ BẬT: 🛡️ KHIÊN BẢO VỆ STREAK!' : 'Kích hoạt Power-up: 🛡️ Khiên giữ Streak'}
+                  </>
+                )}
+              </button>
             )}
 
             {submittedLocal ? (
@@ -633,6 +739,19 @@ export const GamePlayPage: React.FC = () => {
                   {player.correctCount} / {session.totalQuestions}
                 </div>
               </div>
+            </div>
+
+            <div className="flex items-center justify-center gap-2">
+              {['👏', '🔥', '🚀', '❤️', '😂'].map((em) => (
+                <button
+                  key={em}
+                  type="button"
+                  onClick={() => void handleReaction(em)}
+                  className="w-11 h-11 rounded-2xl bg-slate-800 hover:bg-slate-700 active:scale-90 text-xl flex items-center justify-center transition touch-manipulation"
+                >
+                  {em}
+                </button>
+              ))}
             </div>
 
             <Link

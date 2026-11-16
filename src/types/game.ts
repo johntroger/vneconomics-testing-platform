@@ -7,6 +7,14 @@ import type {
 
 export type GameMode = 'CLASSIC' | 'TEAM';
 
+export type PowerupType = '' | 'DOUBLE_PTS' | 'SHIELD';
+
+export interface GameReaction {
+  id: string;
+  e: string;
+  t?: number;
+}
+
 export type GameState =
   | 'LOBBY'
   | 'QUESTION_INTRO'
@@ -63,6 +71,7 @@ export interface GamePollResponse {
   pc: number;
   ac: number;
   lk: number;
+  rx?: GameReaction[];
 }
 
 export interface GamePlayer {
@@ -70,6 +79,7 @@ export interface GamePlayer {
   nickname: string;
   studentCode: string;
   teamName?: string;
+  avatarId?: string;
   score: number;
   prevRank: number;
   rank: number;
@@ -102,6 +112,7 @@ export interface GamePlayerView {
   session: GameSessionSummary;
   player: GamePlayer & {
     teamRank?: number;
+    powerupType?: PowerupType;
     gapToAbove: number;
     totalPlayers: number;
   };

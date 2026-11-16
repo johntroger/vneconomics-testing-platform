@@ -16,7 +16,9 @@ import type {
   GamePlayerView,
   GamePollResponse,
   GameQuestionSnapshot,
+  GameReaction,
   GameState,
+  PowerupType,
   TeamStanding,
 } from '../types/game';
 
@@ -49,7 +51,14 @@ interface LocalGameRecord {
   questionStartedAtMs: number;
   questionEndsAtMs: number;
   stateVersion: number;
-  players: Array<GamePlayer & { deviceToken: string; isKicked: boolean }>;
+  players: Array<
+    GamePlayer & {
+      deviceToken: string;
+      isKicked: boolean;
+      powerupType?: PowerupType;
+    }
+  >;
+  reactions?: GameReaction[];
   answers: LocalAnswerRecord[];
 }
 
@@ -118,6 +127,7 @@ function rankLocalPlayers(game: LocalGameRecord): GamePlayer[] {
     nickname: p.nickname,
     studentCode: p.studentCode,
     teamName: p.teamName ?? '',
+    avatarId: p.avatarId ?? 'fox',
     score: p.score,
     prevRank: p.prevRank,
     rank: idx + 1,
@@ -392,12 +402,14 @@ export async function joinLiveGame(params: {
   nickname: string;
   studentCode?: string;
   teamName?: string;
+  avatarId?: string;
 }): Promise<{
   ok: boolean;
   sessionId?: string;
   playerId?: string;
   nickname?: string;
   teamName?: string;
+  avatarId?: string;
   error?: string;
 }> {
   const deviceToken = getOrCreateDeviceToken();
@@ -464,6 +476,8 @@ export async function joinLiveGame(params: {
     nickname: params.nickname.trim().slice(0, 40),
     studentCode: (params.studentCode ?? '').trim().toUpperCase(),
     teamName: assignedTeam,
+    avatarId: params.avatarId || 'fox',
+    powerupType: '',
     deviceToken,
     score: 0,
     prevRank: 0,
@@ -481,7 +495,31 @@ export async function joinLiveGame(params: {
     playerId,
     nickname: params.nickname.trim(),
     teamName: assignedTeam,
+    avatarId: params.avatarId || 'fox',
   };
+}
+
+export async function sendGameReaction(gamePin: string, emoji: string): Promise<void> {
+  if (await isPhpGameAvailable()) {
+    await apiRequestDetailed('/api/game.php?action=react', {
+      method: 'POST',
+      body: JSON.stringify({ gamePin, emoji }),
+    });
+    return;
+  }
+  const games = readLocalGames();
+  const game = Object.values(games).find((g) => g.gamePin === gamePin);
+  if (!game) return;
+  const cutoff = Date.now() - 5000;
+  const next = (game.reactions ?? []).filter((r) => (r.t ?? 0) >= cutoff);
+  next.push({
+    id: `rx_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
+    e: emoji,
+    t: Date.now(),
+  });
+  game.reactions = next.slice(-25);
+  writeLocalGames(games);
+  broadcastGameUpdate(game.id);
 }
 
 export async function pollGameStatus(pin: string): Promise<GamePollResponse | null> {
@@ -500,6 +538,8 @@ export async function pollGameStatus(pin: string): Promise<GamePollResponse | nu
   if (!game) return null;
   const activePlayers = game.players.filter((p) => !p.isKicked).length;
   const answered = game.answers.filter((a) => a.questionIndex === game.currentQIndex).length;
+  const cutoff = Date.now() - 5000;
+  const rx = (game.reactions ?? []).filter((r) => (r.t ?? 0) >= cutoff);
   return {
     ok: true,
     id: game.id,
@@ -512,6 +552,7 @@ export async function pollGameStatus(pin: string): Promise<GamePollResponse | nu
     pc: activePlayers,
     ac: answered,
     lk: game.isLocked ? 1 : 0,
+    rx,
   };
 }
 
@@ -755,6 +796,8 @@ export async function fetchGamePlayerView(
         studentCode: player.studentCode,
         teamName: player.teamName ?? '',
         teamRank: myTeamRank,
+        avatarId: player.avatarId ?? 'fox',
+        powerupType: player.powerupType ?? '',
         score: player.score,
         prevRank: player.prevRank,
         rank: myRank,
@@ -781,6 +824,7 @@ export async function submitGameAnswer(params: {
   playerId: string;
   questionIndex: number;
   answerPayload: string | string[] | Record<string, boolean>;
+  usePowerup?: PowerupType;
 }): Promise<{ ok: boolean; error?: string }> {
   if (await isPhpGameAvailable()) {
     const res = await apiRequestDetailed<{ ok: boolean }>('/api/game.php?action=answer', {
@@ -821,6 +865,11 @@ export async function submitGameAnswer(params: {
   const isFinal = params.questionIndex === game.questionsSnapshot.length - 1;
   const multiplier = isFinal && game.doubleFinalQuestion ? 2 : 1;
   const basePoints = 1000 * multiplier;
+  const ownedPowerup: PowerupType = player.powerupType ?? '';
+  const usedPowerup: PowerupType =
+    params.usePowerup && params.usePowerup === ownedPowerup ? params.usePowerup : '';
+  let nextPowerup: PowerupType = usedPowerup ? '' : ownedPowerup;
+
   let pointsEarned = 0;
   let newStreak = 0;
   if (earnedRatio > 0) {
@@ -832,12 +881,24 @@ export async function submitGameAnswer(params: {
       streakBonus = Math.min((newStreak - 1) * 100, 300);
     } else if (earnedRatio >= 0.5) {
       newStreak = player.streak;
+    } else if (usedPowerup === 'SHIELD') {
+      newStreak = player.streak;
     }
     pointsEarned = speedScore + streakBonus;
+    if (usedPowerup === 'DOUBLE_PTS') {
+      pointsEarned *= 2;
+    }
+  } else if (usedPowerup === 'SHIELD') {
+    newStreak = player.streak;
+  }
+
+  if (newStreak >= 2 && newStreak % 2 === 0 && !nextPowerup) {
+    nextPowerup = Math.random() < 0.5 ? 'DOUBLE_PTS' : 'SHIELD';
   }
 
   player.score += pointsEarned;
   player.streak = newStreak;
+  player.powerupType = nextPowerup;
   if (isCorrect) player.correctCount += 1;
 
   game.answers.push({

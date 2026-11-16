@@ -1490,7 +1490,7 @@ function ensureGameSchema(PDO $pdo, string $driver): void
 
     try {
         $pdo->query('SELECT id, game_pin, state_version, double_final_question, game_mode, team_names_json FROM game_sessions LIMIT 1');
-        $pdo->query('SELECT id, prev_rank, streak, is_kicked, team_name FROM game_players LIMIT 1');
+        $pdo->query('SELECT id, prev_rank, streak, is_kicked, team_name, avatar_id, powerup_type FROM game_players LIMIT 1');
         $pdo->query('SELECT id, answer_payload_json, earned_ratio FROM game_answers LIMIT 1');
         $checked = true;
         return;
@@ -1530,6 +1530,8 @@ function ensureGameSchema(PDO $pdo, string $driver): void
                 nickname VARCHAR(100) NOT NULL,
                 student_code VARCHAR(64) NOT NULL DEFAULT '',
                 team_name VARCHAR(64) NOT NULL DEFAULT '',
+                avatar_id VARCHAR(32) NOT NULL DEFAULT 'fox',
+                powerup_type VARCHAR(24) NOT NULL DEFAULT '',
                 device_token VARCHAR(128) NOT NULL,
                 score INT NOT NULL DEFAULT 0,
                 prev_rank INT NOT NULL DEFAULT 0,
@@ -1623,11 +1625,15 @@ function ensureGameSchema(PDO $pdo, string $driver): void
             "ALTER TABLE game_sessions ADD COLUMN game_mode VARCHAR(16) NOT NULL DEFAULT 'CLASSIC'",
             "ALTER TABLE game_sessions ADD COLUMN team_names_json TEXT NULL",
             "ALTER TABLE game_players ADD COLUMN team_name VARCHAR(64) NOT NULL DEFAULT ''",
+            "ALTER TABLE game_players ADD COLUMN avatar_id VARCHAR(32) NOT NULL DEFAULT 'fox'",
+            "ALTER TABLE game_players ADD COLUMN powerup_type VARCHAR(24) NOT NULL DEFAULT ''",
         ]
         : [
             "ALTER TABLE game_sessions ADD COLUMN game_mode TEXT NOT NULL DEFAULT 'CLASSIC'",
             "ALTER TABLE game_sessions ADD COLUMN team_names_json TEXT NULL",
             "ALTER TABLE game_players ADD COLUMN team_name TEXT NOT NULL DEFAULT ''",
+            "ALTER TABLE game_players ADD COLUMN avatar_id TEXT NOT NULL DEFAULT 'fox'",
+            "ALTER TABLE game_players ADD COLUMN powerup_type TEXT NOT NULL DEFAULT ''",
         ];
     foreach ($alterStatements as $alter) {
         try {

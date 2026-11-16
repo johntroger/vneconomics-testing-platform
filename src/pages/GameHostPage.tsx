@@ -28,7 +28,18 @@ import {
   toggleGameLock,
 } from '../services/gameApi';
 import { GAME_OPTION_STYLES, type GameHostView, type GameQuestionSnapshot } from '../types/game';
-import { playPodiumSound, playRevealSound, playTickSound } from '../utils/gameAudio';
+import { GameAvatarBadge } from '../components/game/GameAvatarBadge';
+import { ConfettiBurst } from '../components/game/ConfettiBurst';
+import {
+  playIntroWhoosh,
+  playPlayerJoinSound,
+  playPodiumSound,
+  playRevealSound,
+  playTickSound,
+  startCountdownMusic,
+  startLobbyMusic,
+  stopBackgroundMusic,
+} from '../utils/gameAudio';
 
 function getQuestionTypeBadge(q: GameQuestionSnapshot | null): string {
   if (!q) return '';
@@ -50,6 +61,9 @@ export const GameHostPage: React.FC = () => {
   const [muted, setMuted] = useState(false);
   const mutedRef = useRef(false);
   mutedRef.current = muted;
+  const [floatingRx, setFloatingRx] = useState<Array<{ id: string; e: string; left: number }>>([]);
+  const seenRxIdsRef = useRef<Set<string>>(new Set());
+  const prevPlayerCountRef = useRef<number>(0);
   const [nowMs, setNowMs] = useState(Date.now());
   const clockOffsetRef = useRef(0);
   const lastVersionRef = useRef<number>(-1);
@@ -88,6 +102,22 @@ export const GameHostPage: React.FC = () => {
       const poll = await pollGameStatus(view.session.gamePin);
       if (!poll) return;
       clockOffsetRef.current = poll.now - Date.now();
+      if (poll.rx && poll.rx.length > 0) {
+        const fresh = poll.rx.filter((r) => !seenRxIdsRef.current.has(r.id));
+        if (fresh.length > 0) {
+          fresh.forEach((r) => seenRxIdsRef.current.add(r.id));
+          const items = fresh.map((r) => ({
+            id: r.id,
+            e: r.e,
+            left: 10 + Math.floor(Math.random() * 80),
+          }));
+          setFloatingRx((prev) => [...prev.slice(-20), ...items]);
+          window.setTimeout(() => {
+            const ids = new Set(items.map((x) => x.id));
+            setFloatingRx((prev) => prev.filter((x) => !ids.has(x.id)));
+          }, 2600);
+        }
+      }
       const countKey = `${poll.pc}:${poll.ac}`;
       if (poll.v !== lastVersionRef.current || countKey !== lastCountsRef.current) {
         await loadHostView();
@@ -99,6 +129,34 @@ export const GameHostPage: React.FC = () => {
       window.clearInterval(interval);
     };
   }, [sessionId, view?.session.gamePin, loadHostView]);
+
+  // Background music & SFX lifecycle
+  useEffect(() => {
+    const state = view?.session.state;
+    if (!state || muted) {
+      stopBackgroundMusic();
+      return;
+    }
+    if (state === 'LOBBY') {
+      startLobbyMusic();
+    } else if (state === 'QUESTION_ACTIVE') {
+      startCountdownMusic();
+    } else {
+      stopBackgroundMusic();
+    }
+    return () => {
+      stopBackgroundMusic();
+    };
+  }, [view?.session.state, muted]);
+
+  useEffect(() => {
+    if (!view) return;
+    const pc = view.players.length;
+    if (pc > prevPlayerCountRef.current && view.session.state === 'LOBBY' && !mutedRef.current) {
+      playPlayerJoinSound();
+    }
+    prevPlayerCountRef.current = pc;
+  }, [view?.players.length, view?.session.state]);
 
   // High-frequency local UI timer & auto-advance
   useEffect(() => {
@@ -113,6 +171,7 @@ export const GameHostPage: React.FC = () => {
         const stateKey = `${state}:${view.session.currentQIndex}`;
         if (stateKey !== lastSoundStateRef.current) {
           lastSoundStateRef.current = stateKey;
+          if (state === 'QUESTION_INTRO') playIntroWhoosh();
           if (state === 'QUESTION_RESULT') playRevealSound();
           if (state === 'ENDED') playPodiumSound();
         }
@@ -120,7 +179,7 @@ export const GameHostPage: React.FC = () => {
           const sec = Math.ceil((questionEndsAtMs - syncedNow) / 1000);
           if (sec >= 1 && sec <= 5 && sec !== lastBeepSecRef.current) {
             lastBeepSecRef.current = sec;
-            playTickSound();
+            playTickSound(sec <= 2);
           }
         } else {
           lastBeepSecRef.current = -1;
@@ -223,7 +282,20 @@ export const GameHostPage: React.FC = () => {
   const progressPct = Math.max(0, Math.min(100, (remainingMs / totalTimeMs) * 100));
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col">
+    <div className="min-h-screen bg-slate-950 text-white flex flex-col relative overflow-hidden">
+      <ConfettiBurst active={session.state === 'ENDED'} />
+      {/* Floating Emoji Rain */}
+      <div className="fixed inset-x-0 bottom-6 pointer-events-none z-30 overflow-hidden h-72">
+        {floatingRx.map((r) => (
+          <div
+            key={r.id}
+            style={{ left: `${r.left}%` }}
+            className="absolute bottom-0 text-4xl sm:text-5xl animate-float-up drop-shadow-lg"
+          >
+            {r.e}
+          </div>
+        ))}
+      </div>
       {/* Top Bar */}
       <header className="px-6 py-3 bg-slate-900/90 border-b border-slate-800 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
@@ -344,8 +416,9 @@ export const GameHostPage: React.FC = () => {
                   {players.map((p) => (
                     <div
                       key={p.id}
-                      className="group px-4 py-2.5 rounded-2xl bg-slate-800 border border-slate-700 font-bold text-base flex items-center gap-2"
+                      className="group px-3.5 py-2 rounded-2xl bg-slate-800 border border-slate-700 font-bold text-base flex items-center gap-2.5 shadow-md"
                     >
+                      <GameAvatarBadge avatarId={p.avatarId} streak={p.streak} size="sm" />
                       <span>{p.nickname}</span>
                       {p.teamName && (
                         <span className="text-xs px-2 py-0.5 rounded-md bg-violet-500/25 text-violet-200">
@@ -708,6 +781,7 @@ export const GameHostPage: React.FC = () => {
                       <span className="w-9 h-9 rounded-xl bg-slate-800 flex items-center justify-center font-black text-lg">
                         #{p.rank}
                       </span>
+                      <GameAvatarBadge avatarId={p.avatarId} streak={p.streak} size="sm" />
                       <div>
                         <div className="font-bold text-lg">{p.nickname}</div>
                         {p.streak >= 2 && (
@@ -794,14 +868,16 @@ export const GameHostPage: React.FC = () => {
                   return (
                     <div key={place} className="flex flex-col items-center">
                       {p ? (
-                        <>
-                          <div className="font-black text-lg text-center truncate max-w-full">
+                        <div className="flex flex-col items-center mb-2">
+                          {place === 1 && <span className="text-3xl mb-1 animate-bounce">👑</span>}
+                          <GameAvatarBadge avatarId={p.avatarId} streak={p.streak} size="md" />
+                          <div className="font-black text-lg text-center truncate max-w-full mt-1.5">
                             {p.nickname}
                           </div>
-                          <div className="text-sm font-bold text-emerald-400 mb-2">
+                          <div className="text-sm font-bold text-emerald-400">
                             {p.score.toLocaleString('vi-VN')} đ
                           </div>
-                        </>
+                        </div>
                       ) : (
                         <div className="text-slate-600 text-sm mb-2">—</div>
                       )}

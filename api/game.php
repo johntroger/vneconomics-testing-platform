@@ -22,6 +22,27 @@ function gameCachePath(string $pin): string
     return rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'vne_game_' . $safePin . '.json';
 }
 
+function gameRxCachePath(string $pin): string
+{
+    $safePin = preg_replace('/[^a-zA-Z0-9_-]/', '', $pin);
+    return rtrim(sys_get_temp_dir(), '/\\') . DIRECTORY_SEPARATOR . 'vne_game_' . $safePin . '_rx.json';
+}
+
+function readRecentReactions(string $pin): array
+{
+    $file = gameRxCachePath($pin);
+    if (!is_file($file)) {
+        return [];
+    }
+    $raw = @file_get_contents($file);
+    $list = is_string($raw) ? json_decode($raw, true) : null;
+    if (!is_array($list)) {
+        return [];
+    }
+    $cutoff = gameNowMs() - 5000;
+    return array_values(array_filter($list, static fn (array $r): bool => ((int) ($r['t'] ?? 0)) >= $cutoff));
+}
+
 function writeGamePollCache(PDO $pdo, array $sessionRow): void
 {
     $pin = (string) ($sessionRow['game_pin'] ?? '');
@@ -194,7 +215,7 @@ function gradeGameAnswer(array $q, mixed $payload): array
 function getRankedPlayers(PDO $pdo, string $sessionId): array
 {
     $stmt = $pdo->prepare(
-        'SELECT id, nickname, student_code, team_name, score, prev_rank, streak, correct_count, joined_at
+        'SELECT id, nickname, student_code, team_name, avatar_id, score, prev_rank, streak, correct_count, joined_at
          FROM game_players
          WHERE session_id = :sid AND is_kicked = 0
          ORDER BY score DESC, correct_count DESC, joined_at ASC'
@@ -209,6 +230,7 @@ function getRankedPlayers(PDO $pdo, string $sessionId): array
             'nickname' => (string) $r['nickname'],
             'studentCode' => (string) $r['student_code'],
             'teamName' => (string) ($r['team_name'] ?? ''),
+            'avatarId' => (string) ($r['avatar_id'] ?? 'fox'),
             'score' => (int) $r['score'],
             'prevRank' => (int) $r['prev_rank'],
             'rank' => $rank++,
@@ -268,6 +290,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             $decoded = is_string($raw) ? json_decode($raw, true) : null;
             if (is_array($decoded) && !empty($decoded['ok'])) {
                 $decoded['now'] = gameNowMs();
+                $decoded['rx'] = readRecentReactions($pin);
                 jsonResponse($decoded);
             }
         }
@@ -285,7 +308,29 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         $raw = @file_get_contents($cacheFile);
         $decoded = is_string($raw) ? json_decode($raw, true) : ['ok' => true, 's' => $row['state'], 'q' => (int) $row['current_q_index'], 'v' => (int) $row['state_version']];
         $decoded['now'] = gameNowMs();
+        $decoded['rx'] = readRecentReactions($pin);
         jsonResponse($decoded);
+    }
+
+    if ($action === 'react') {
+        $body = readJsonBody();
+        $pin = trim((string) ($body['gamePin'] ?? ''));
+        $emoji = trim((string) ($body['emoji'] ?? ''));
+        $allowed = ['👏', '🔥', '🚀', '❤️', '😂'];
+        if ($pin === '' || !in_array($emoji, $allowed, true)) {
+            jsonError('Reaction không hợp lệ.', 400);
+        }
+        $list = readRecentReactions($pin);
+        $list[] = [
+            'id' => generateId('rx'),
+            'e' => $emoji,
+            't' => gameNowMs(),
+        ];
+        if (count($list) > 25) {
+            $list = array_slice($list, -25);
+        }
+        @file_put_contents(gameRxCachePath($pin), json_encode($list, JSON_UNESCAPED_UNICODE), LOCK_EX);
+        jsonResponse(['ok' => true]);
     }
 
     $pdo = getDb();
@@ -448,6 +493,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         $pin = trim((string) ($body['gamePin'] ?? ''));
         $nickname = trim((string) ($body['nickname'] ?? ''));
         $studentCode = strtoupper(trim((string) ($body['studentCode'] ?? '')));
+        $avatarId = preg_replace('/[^a-z0-9_-]/', '', strtolower(trim((string) ($body['avatarId'] ?? 'fox')))) ?: 'fox';
         $deviceToken = trim((string) ($body['deviceToken'] ?? ''));
 
         if ($pin === '' || $nickname === '') {
@@ -481,6 +527,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
                 'nickname' => $existing['nickname'],
                 'studentCode' => $existing['student_code'],
                 'teamName' => (string) ($existing['team_name'] ?? ''),
+                'avatarId' => (string) ($existing['avatar_id'] ?? 'fox'),
             ]);
         }
 
@@ -518,14 +565,15 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
 
         $playerId = generateId('gpl');
         $pdo->prepare(
-            'INSERT INTO game_players (id, session_id, nickname, student_code, team_name, device_token, score, prev_rank, streak, correct_count, is_kicked, joined_at)
-             VALUES (:id, :sid, :nick, :code, :team, :dt, 0, 0, 0, 0, 0, :jat)'
+            'INSERT INTO game_players (id, session_id, nickname, student_code, team_name, avatar_id, powerup_type, device_token, score, prev_rank, streak, correct_count, is_kicked, joined_at)
+             VALUES (:id, :sid, :nick, :code, :team, :av, \'\', :dt, 0, 0, 0, 0, 0, :jat)'
         )->execute([
             ':id' => $playerId,
             ':sid' => $session['id'],
             ':nick' => mb_substr($nickname, 0, 40, 'UTF-8'),
             ':code' => mb_substr($studentCode, 0, 32, 'UTF-8'),
             ':team' => $assignedTeam,
+            ':av' => $avatarId,
             ':dt' => $deviceToken,
             ':jat' => nowIso(),
         ]);
@@ -540,6 +588,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             'nickname' => mb_substr($nickname, 0, 40, 'UTF-8'),
             'studentCode' => mb_substr($studentCode, 0, 32, 'UTF-8'),
             'teamName' => $assignedTeam,
+            'avatarId' => $avatarId,
         ]);
     }
 
@@ -842,6 +891,8 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
                 'studentCode' => $player['student_code'],
                 'teamName' => $myTeamName,
                 'teamRank' => $myTeamRank,
+                'avatarId' => (string) ($player['avatar_id'] ?? 'fox'),
+                'powerupType' => (string) ($player['powerup_type'] ?? ''),
                 'score' => (int) $player['score'],
                 'prevRank' => (int) $player['prev_rank'],
                 'rank' => $myRank,
@@ -927,6 +978,11 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         $basePoints = 1000 * $multiplier;
 
         $currentStreak = (int) $player['streak'];
+        $ownedPowerup = (string) ($player['powerup_type'] ?? '');
+        $requestedPowerup = trim((string) ($body['usePowerup'] ?? ''));
+        $usedPowerup = ($requestedPowerup !== '' && $requestedPowerup === $ownedPowerup) ? $requestedPowerup : '';
+        $nextPowerup = $usedPowerup !== '' ? '' : $ownedPowerup;
+
         $pointsEarned = 0;
         $newStreak = 0;
 
@@ -940,10 +996,20 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
                 $newStreak = $currentStreak; // Preserve streak on partial >= 50%
                 $streakBonus = 0;
             } else {
-                $newStreak = 0;
+                $newStreak = ($usedPowerup === 'SHIELD') ? $currentStreak : 0;
                 $streakBonus = 0;
             }
             $pointsEarned = $speedScore + $streakBonus;
+            if ($usedPowerup === 'DOUBLE_PTS') {
+                $pointsEarned *= 2;
+            }
+        } elseif ($usedPowerup === 'SHIELD') {
+            $newStreak = $currentStreak;
+        }
+
+        // Grant tactical power-up on even streaks (2, 4, 6...) if player has none
+        if ($newStreak >= 2 && $newStreak % 2 === 0 && $nextPowerup === '') {
+            $nextPowerup = (random_int(0, 1) === 0) ? 'DOUBLE_PTS' : 'SHIELD';
         }
 
         $pdo->prepare(
@@ -964,12 +1030,13 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
 
         $pdo->prepare(
             'UPDATE game_players
-             SET score = score + :pe, streak = :st, correct_count = correct_count + :cc
+             SET score = score + :pe, streak = :st, correct_count = correct_count + :cc, powerup_type = :pu
              WHERE id = :pid'
         )->execute([
             ':pe' => $pointsEarned,
             ':st' => $newStreak,
             ':cc' => $isCorrect ? 1 : 0,
+            ':pu' => $nextPowerup,
             ':pid' => $pid,
         ]);
 

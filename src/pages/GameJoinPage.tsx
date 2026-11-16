@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { ArrowRight, Gamepad2, Hash, IdCard, Lock, Sparkles, User } from 'lucide-react';
+import { ArrowRight, Gamepad2, Hash, IdCard, Lock, Shuffle, Sparkles, User } from 'lucide-react';
+import { GAME_AVATARS, GameAvatarBadge } from '../components/game/GameAvatarBadge';
 import { joinLiveGame, lookupGamePin } from '../services/gameApi';
 import type { GameMode } from '../types/game';
 
@@ -23,6 +24,9 @@ export const GameJoinPage: React.FC = () => {
   const [nickname, setNickname] = useState('');
   const [studentCode, setStudentCode] = useState('');
   const [teamName, setTeamName] = useState('');
+  const [avatarId, setAvatarId] = useState(
+    () => GAME_AVATARS[Math.floor(Math.random() * GAME_AVATARS.length)].id,
+  );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
@@ -84,6 +88,7 @@ export const GameJoinPage: React.FC = () => {
       nickname: nickname.trim(),
       studentCode: studentCode.trim(),
       teamName: roomInfo.gameMode === 'TEAM' ? teamName : undefined,
+      avatarId,
     });
     setLoading(false);
 
@@ -161,6 +166,41 @@ export const GameJoinPage: React.FC = () => {
                 >
                   Đổi PIN
                 </button>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="text-xs font-bold uppercase tracking-wider text-indigo-200">
+                    Chọn Nhân vật (Avatar)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const others = GAME_AVATARS.filter((a) => a.id !== avatarId);
+                      setAvatarId(others[Math.floor(Math.random() * others.length)].id);
+                    }}
+                    className="text-xs font-bold text-amber-300 hover:text-amber-200 flex items-center gap-1"
+                  >
+                    <Shuffle className="w-3.5 h-3.5" /> Đổi ngẫu nhiên
+                  </button>
+                </div>
+                <div className="grid grid-cols-6 gap-2 bg-white/10 p-2.5 rounded-2xl border border-white/10">
+                  {GAME_AVATARS.map((av) => (
+                    <button
+                      key={av.id}
+                      type="button"
+                      onClick={() => setAvatarId(av.id)}
+                      className={`p-1 rounded-xl flex items-center justify-center transition ${
+                        avatarId === av.id
+                          ? 'ring-2 ring-amber-300 bg-white/20 scale-105'
+                          : 'opacity-70 hover:opacity-100'
+                      }`}
+                      title={av.label}
+                    >
+                      <GameAvatarBadge avatarId={av.id} size="sm" />
+                    </button>
+                  ))}
+                </div>
               </div>
 
               <div>
