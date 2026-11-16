@@ -16,6 +16,7 @@ import {
   Mail,
   Plus,
   RefreshCw,
+  Save,
   Search,
   ShieldCheck,
   Smartphone,
@@ -385,6 +386,8 @@ export const AdminDashboardPage: React.FC = () => {
     return false;
   };
 
+  const [savingExamConfig, setSavingExamConfig] = useState(false);
+
   const saveExamSetting = (nextExam: typeof exams[number]) => {
     if (!requireOfficialOrPrompt()) return;
     void upsertExam(nextExam).then((res) => {
@@ -392,6 +395,18 @@ export const AdminDashboardPage: React.FC = () => {
         showToast(res.error || 'Không thể lưu thay đổi lên máy chủ.');
       }
     });
+  };
+
+  const handleExplicitSaveExam = async () => {
+    if (!selectedExam || !requireOfficialOrPrompt()) return;
+    setSavingExamConfig(true);
+    const res = await upsertExam(selectedExam);
+    setSavingExamConfig(false);
+    if (!res.ok) {
+      showToast(res.error || 'Không thể lưu cấu hình lên máy chủ.');
+    } else {
+      showToast(`Đã lưu cấu hình ca thi "${selectedExam.title}" (PIN ${selectedExam.roomPin}).`);
+    }
   };
 
   if (!isAdminAuthenticated) {
@@ -1314,6 +1329,20 @@ export const AdminDashboardPage: React.FC = () => {
                   })
                   )}
                 </div>
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-ink-500">
+                    Tự động đồng bộ khi sửa, bấm Lưu để xác nhận.
+                  </span>
+                  <button
+                    type="button"
+                    disabled={savingExamConfig}
+                    onClick={() => void handleExplicitSaveExam()}
+                    className="h-9 px-3.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs disabled:opacity-50 shrink-0"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>{savingExamConfig ? 'Đang lưu...' : 'Lưu Ma trận'}</span>
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1744,6 +1773,20 @@ export const AdminDashboardPage: React.FC = () => {
                       className="w-full p-2 rounded-lg border border-slate-300 font-mono text-[11px]"
                     />
                   </div>
+                </div>
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
+                  <span className="text-[11px] text-ink-500">
+                    Mọi thay đổi được tự động lưu, hoặc bấm nút để lưu ngay.
+                  </span>
+                  <button
+                    type="button"
+                    disabled={savingExamConfig}
+                    onClick={() => void handleExplicitSaveExam()}
+                    className="h-9 px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs disabled:opacity-50 shrink-0"
+                  >
+                    <Save className="w-3.5 h-3.5" />
+                    <span>{savingExamConfig ? 'Đang lưu...' : 'Lưu cấu hình ca thi'}</span>
+                  </button>
                 </div>
               </div>
             </div>
