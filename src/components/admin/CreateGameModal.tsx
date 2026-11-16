@@ -4,6 +4,7 @@ import { Gamepad2, Play, X } from 'lucide-react';
 import { createLiveGame } from '../../services/gameApi';
 import type { Question } from '../../types/exam';
 import type { GameMode } from '../../types/game';
+import { unlockGameAudio } from '../../utils/gameAudio';
 import { buildGameQuestionsSnapshot } from '../../utils/gameSnapshotBuilder';
 
 const DEFAULT_TEAMS = ['Đội Đỏ', 'Đội Xanh', 'Đội Vàng', 'Đội Lục', 'Đội Tím', 'Đội Cam'];
@@ -49,6 +50,7 @@ export const CreateGameModal: React.FC<CreateGameModalProps> = ({
 
   const handleLaunch = async (e: React.FormEvent) => {
     e.preventDefault();
+    void unlockGameAudio();
     if (previewSnapshot.length === 0) {
       setError('Không có câu hỏi trắc nghiệm phù hợp (SINGLE_CHOICE, MULTI_CHOICE, TRUE_FALSE).');
       return;

@@ -31,6 +31,7 @@ import { GAME_OPTION_STYLES, type GameHostView, type GameQuestionSnapshot } from
 import { GameAvatarBadge } from '../components/game/GameAvatarBadge';
 import { ConfettiBurst } from '../components/game/ConfettiBurst';
 import {
+  isAudioReady,
   playIntroWhoosh,
   playPlayerJoinSound,
   playPodiumSound,
@@ -39,6 +40,7 @@ import {
   startCountdownMusic,
   startLobbyMusic,
   stopBackgroundMusic,
+  unlockGameAudio,
 } from '../utils/gameAudio';
 
 function getQuestionTypeBadge(q: GameQuestionSnapshot | null): string {
@@ -59,6 +61,7 @@ export const GameHostPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [muted, setMuted] = useState(false);
+  const [audioBlocked, setAudioBlocked] = useState(() => !isAudioReady());
   const mutedRef = useRef(false);
   mutedRef.current = muted;
   const [floatingRx, setFloatingRx] = useState<Array<{ id: string; e: string; left: number }>>([]);
@@ -129,6 +132,26 @@ export const GameHostPage: React.FC = () => {
       window.clearInterval(interval);
     };
   }, [sessionId, view?.session.gamePin, loadHostView]);
+
+  // Unlock Web Audio on first user interaction (browser autoplay policy)
+  useEffect(() => {
+    const tryUnlock = async () => {
+      const ok = await unlockGameAudio();
+      if (ok) {
+        setAudioBlocked(false);
+      }
+    };
+    void tryUnlock();
+    const onGesture = () => {
+      void tryUnlock();
+    };
+    window.addEventListener('pointerdown', onGesture);
+    window.addEventListener('keydown', onGesture);
+    return () => {
+      window.removeEventListener('pointerdown', onGesture);
+      window.removeEventListener('keydown', onGesture);
+    };
+  }, []);
 
   // Background music & SFX lifecycle
   useEffect(() => {
@@ -315,9 +338,26 @@ export const GameHostPage: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-3 shrink-0">
+          {audioBlocked && !muted && (
+            <button
+              type="button"
+              onClick={async () => {
+                const ok = await unlockGameAudio();
+                if (ok) setAudioBlocked(false);
+              }}
+              className="px-3 py-1.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 text-xs font-black animate-pulse flex items-center gap-1.5 shadow"
+            >
+              <Volume2 className="w-4 h-4" /> Bấm để bật nhạc
+            </button>
+          )}
           <button
             type="button"
-            onClick={() => setMuted((m) => !m)}
+            onClick={() => {
+              void unlockGameAudio().then((ok) => {
+                if (ok) setAudioBlocked(false);
+              });
+              setMuted((m) => !m);
+            }}
             className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition"
             title={muted ? 'Bật âm thanh' : 'Tắt âm thanh'}
           >

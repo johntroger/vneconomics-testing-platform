@@ -13,10 +13,25 @@ function getAudioCtx(): AudioContext | null {
   if (!sharedAudioCtx) {
     sharedAudioCtx = new Ctx();
   }
-  if (sharedAudioCtx.state === 'suspended') {
-    void sharedAudioCtx.resume().catch(() => {});
-  }
   return sharedAudioCtx;
+}
+
+export function isAudioReady(): boolean {
+  const ctx = getAudioCtx();
+  return Boolean(ctx && ctx.state === 'running');
+}
+
+export async function unlockGameAudio(): Promise<boolean> {
+  try {
+    const ctx = getAudioCtx();
+    if (!ctx) return false;
+    if (ctx.state === 'suspended') {
+      await ctx.resume();
+    }
+    return ctx.state === 'running';
+  } catch {
+    return false;
+  }
 }
 
 function getNoiseBuffer(ctx: AudioContext): AudioBuffer {
