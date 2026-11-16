@@ -48,6 +48,8 @@ export const GameHostPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [copied, setCopied] = useState(false);
   const [muted, setMuted] = useState(false);
+  const mutedRef = useRef(false);
+  mutedRef.current = muted;
   const [nowMs, setNowMs] = useState(Date.now());
   const clockOffsetRef = useRef(0);
   const lastVersionRef = useRef<number>(-1);
@@ -107,7 +109,7 @@ export const GameHostPage: React.FC = () => {
       if (!view || advancingRef.current || !sessionId) return;
       const { state, questionEndsAtMs } = view.session;
 
-      if (!muted) {
+      if (!mutedRef.current) {
         const stateKey = `${state}:${view.session.currentQIndex}`;
         if (stateKey !== lastSoundStateRef.current) {
           lastSoundStateRef.current = stateKey;
@@ -120,24 +122,34 @@ export const GameHostPage: React.FC = () => {
             lastBeepSecRef.current = sec;
             playTickSound();
           }
+        } else {
+          lastBeepSecRef.current = -1;
         }
       }
 
       if (state === 'QUESTION_INTRO' && syncedNow >= questionEndsAtMs) {
         advancingRef.current = true;
-        void advanceGameState(sessionId).finally(() => {
-          advancingRef.current = false;
-          void loadHostView();
-        });
+        void (async () => {
+          try {
+            await advanceGameState(sessionId);
+            await loadHostView();
+          } finally {
+            advancingRef.current = false;
+          }
+        })();
       } else if (state === 'QUESTION_ACTIVE') {
         const allAnswered =
           view.players.length > 0 && view.answeredCount >= view.players.length;
         if (syncedNow >= questionEndsAtMs || allAnswered) {
           advancingRef.current = true;
-          void advanceGameState(sessionId).finally(() => {
-            advancingRef.current = false;
-            void loadHostView();
-          });
+          void (async () => {
+            try {
+              await advanceGameState(sessionId);
+              await loadHostView();
+            } finally {
+              advancingRef.current = false;
+            }
+          })();
         }
       }
     }, 150);
@@ -148,9 +160,12 @@ export const GameHostPage: React.FC = () => {
   const handleNext = async () => {
     if (!sessionId || advancingRef.current) return;
     advancingRef.current = true;
-    await advanceGameState(sessionId);
-    advancingRef.current = false;
-    await loadHostView();
+    try {
+      await advanceGameState(sessionId);
+      await loadHostView();
+    } finally {
+      advancingRef.current = false;
+    }
   };
 
   const handleCopyJoinLink = () => {
