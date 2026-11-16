@@ -18,7 +18,6 @@ import {
   RefreshCw,
   Save,
   Search,
-  ShieldCheck,
   Smartphone,
   Trash2,
   Upload,
@@ -505,8 +504,8 @@ export const AdminDashboardPage: React.FC = () => {
     return (
       <div className="min-h-screen bg-surface-100 flex items-center justify-center p-4 py-8">
         <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-card p-6 space-y-4">
-          <div className="w-12 h-12 rounded-2xl bg-brand-600 text-white flex items-center justify-center mx-auto">
-            <ShieldCheck className="w-6 h-6" />
+          <div className="w-14 h-14 rounded-2xl bg-white border border-slate-200 flex items-center justify-center p-1.5 shadow-sm mx-auto overflow-hidden">
+            <img src="/logo.png" alt="VNEconomics Logo" className="w-full h-full object-contain" />
           </div>
           <div className="text-center">
             <h1 className="text-lg font-extrabold text-ink-900">
@@ -732,8 +731,8 @@ export const AdminDashboardPage: React.FC = () => {
       <header className="bg-white border-b border-slate-200 sticky top-0 z-40 safe-top">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2.5 flex flex-col md:flex-row md:items-center md:justify-between gap-2.5">
           <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-brand-600 text-white flex items-center justify-center font-bold shrink-0">
-              <ShieldCheck className="w-4 h-4 sm:w-5 sm:h-5" />
+            <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center p-1 shadow-sm shrink-0 overflow-hidden">
+              <img src="/logo.png" alt="VNEconomics Logo" className="w-full h-full object-contain" />
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">

@@ -6,7 +6,6 @@ import {
   CheckCircle2,
   ExternalLink,
   Gamepad2,
-  GraduationCap,
   Lock,
   Mail,
   MapPin,
@@ -341,8 +340,8 @@ export const HomePortalPage: React.FC = () => {
       <header className="sticky top-0 z-20 bg-white/90 backdrop-blur-md border-b border-slate-200/80 px-4 sm:px-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-4">
         <div className="max-w-5xl mx-auto w-full flex items-center justify-between gap-3">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-600 to-brand-700 text-white flex items-center justify-center font-bold shadow-sm shrink-0">
-              <GraduationCap className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center p-1 shadow-sm shrink-0 overflow-hidden">
+              <img src="/logo.png" alt="VNEconomics Logo" className="w-full h-full object-contain" />
             </div>
             <div className="min-w-0">
               <p className="text-sm font-extrabold text-ink-900 leading-none truncate">
