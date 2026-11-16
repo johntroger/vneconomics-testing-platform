@@ -40,6 +40,7 @@ import { LiveProctorTable } from '../components/admin/LiveProctorTable';
 import { QuestionEditorModal } from '../components/admin/QuestionEditorModal';
 import { CaptchaField } from '../components/common/CaptchaField';
 import { InfoHint } from '../components/common/InfoHint';
+import { ADMIN_TAB_REGISTRY, type AdminTabId } from '../data/adminGuideRegistry';
 import { useExamPlatform } from '../context/ExamContext';
 import type {
   ChapterQuotaRule,
@@ -838,10 +839,10 @@ export const AdminDashboardPage: React.FC = () => {
             )}
 
             <Link
-              to="/huong-dan"
+              to={`/huong-dan#${ADMIN_TAB_REGISTRY.find((t) => t.id === activeTab)?.guideAnchor ?? 'buoc-1'}`}
               target="_blank"
               rel="noopener noreferrer"
-              title="Mở tài liệu Hướng dẫn Giảng viên ở tab mới"
+              title="Mở hướng dẫn đúng bước đang thao tác ở tab mới"
               className="h-9 px-3 rounded-xl border border-brand-200 bg-brand-50 text-brand-700 text-xs font-bold flex items-center gap-1.5 hover:bg-brand-100 shrink-0 whitespace-nowrap"
             >
               <BookOpen className="w-3.5 h-3.5" />
@@ -859,24 +860,33 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Navigation Tabs */}
+        {/* Navigation Tabs (synced from ADMIN_TAB_REGISTRY) */}
         <div className="max-w-7xl mx-auto px-3 sm:px-4 flex gap-1 overflow-x-auto no-scrollbar border-t border-slate-100">
-          {[
-            { id: 'COURSES' as const, label: `1. Học phần (${courses.length})`, icon: BookOpen },
-            { id: 'BANK' as const, label: `2. Ngân hàng câu hỏi (${courseQuestions.length})`, icon: Layers },
-            { id: 'EXAMS' as const, label: `3. Tạo & Cấu hình Đề thi (${exams.length})`, icon: FileSpreadsheet },
-            { id: 'LIVE' as const, label: '4. Giám sát Live & Duyệt', icon: Activity },
-            { id: 'ANALYTICS_ESSAY' as const, label: '5. Thống kê & Tự luận', icon: BarChart3 },
-            { id: 'EMAILS' as const, label: `6. Nhật ký Email (${emailLogs.length})`, icon: Mail },
-            { id: 'LIVE_GAME' as const, label: '7. Live Game (Kahoot)', icon: Gamepad2 },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const active = activeTab === tab.id;
+          {ADMIN_TAB_REGISTRY.map((spec) => {
+            const iconMap: Record<AdminTabId, typeof BookOpen> = {
+              COURSES: BookOpen,
+              BANK: Layers,
+              EXAMS: FileSpreadsheet,
+              LIVE: Activity,
+              ANALYTICS_ESSAY: BarChart3,
+              EMAILS: Mail,
+              LIVE_GAME: Gamepad2,
+            };
+            const countMap: Partial<Record<AdminTabId, number>> = {
+              COURSES: courses.length,
+              BANK: courseQuestions.length,
+              EXAMS: exams.length,
+              EMAILS: emailLogs.length,
+            };
+            const Icon = iconMap[spec.id];
+            const count = countMap[spec.id];
+            const label = count !== undefined ? `${spec.baseLabel} (${count})` : spec.baseLabel;
+            const active = activeTab === spec.id;
             return (
               <button
-                key={tab.id}
+                key={spec.id}
                 type="button"
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => setActiveTab(spec.id)}
                 className={`px-3 sm:px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-1.5 whitespace-nowrap shrink-0 transition ${
                   active
                     ? 'border-brand-600 text-brand-700'
@@ -884,7 +894,7 @@ export const AdminDashboardPage: React.FC = () => {
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
-                {tab.label}
+                {label}
               </button>
             );
           })}

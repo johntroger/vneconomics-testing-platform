@@ -13,163 +13,13 @@ import {
   ShieldAlert,
   Sparkles,
 } from 'lucide-react';
-
-interface StepGuide {
-  stepNumber: number;
-  id: string;
-  tabName: string;
-  title: string;
-  frequency: string;
-  summary: string;
-  actions: string[];
-  exampleTitle: string;
-  exampleLines: string[];
-  tip?: string;
-  warning?: string;
-}
-
-const STEP_GUIDES: StepGuide[] = [
-  {
-    stepNumber: 1,
-    id: 'buoc-1',
-    tabName: '1. Học phần',
-    title: 'Tạo tên Học phần (Môn học)',
-    frequency: 'Làm 1 lần đầu học kỳ',
-    summary:
-      'Mỗi môn học chỉ cần tạo một lần. Ngân hàng câu hỏi và đề thi của môn đó sẽ được gom gọn vào đây để thầy/cô dùng lại cho nhiều học kỳ sau.',
-    actions: [
-      'Bấm vào thẻ "1. Học phần" ở hàng menu trên cùng.',
-      'Bấm nút "+ Thêm Học phần mới".',
-      'Nhập Mã học phần (ngắn gọn, viết hoa) và Tên học phần đầy đủ.',
-      'Bấm "Lưu / Tạo học phần". Tên môn học sẽ hiện sẵn ở ô chọn Học phần phía trên màn hình.',
-    ],
-    exampleTitle: 'Ví dụ minh họa — Môn Kinh tế Vi mô',
-    exampleLines: [
-      '• Mã học phần: ECO101',
-      '• Tên học phần: Kinh tế Vi mô',
-      '→ Sau khi lưu, ô chọn góc trên sẽ hiện: "ECO101 — Kinh tế Vi mô".',
-    ],
-  },
-  {
-    stepNumber: 2,
-    id: 'buoc-2',
-    tabName: '2. Ngân hàng câu hỏi',
-    title: 'Nhập câu hỏi bằng Excel (hoặc gõ trực tiếp)',
-    frequency: 'Làm 1 lần, tái sử dụng nhiều kỳ',
-    summary:
-      'Thầy/cô có thể nhập hàng chục câu hỏi chỉ trong 1 phút bằng file Excel mẫu, hoặc bấm thêm từng câu trực tiếp trên web.',
-    actions: [
-      'Bấm vào thẻ "2. Ngân hàng câu hỏi" (kiểm tra phía trên đang chọn đúng môn học của mình).',
-      'Bấm nút "Nhập / Xuất Excel" (màu xanh lá).',
-      'Bấm "Tải file Excel mẫu (.xlsx)" về máy tính và mở bằng Microsoft Excel.',
-      'Điền câu hỏi theo các cột có sẵn (Chương, Loại câu, Nội dung, Phương án A/B/C/D, Đáp án đúng) rồi lưu file.',
-      'Quay lại trang web, bấm chọn file Excel vừa lưu → xem trước danh sách hợp lệ → bấm "Xác nhận nhập câu hỏi".',
-    ],
-    exampleTitle: 'Ví dụ minh họa — Bảng nhập 3 câu hỏi mẫu trong Excel',
-    exampleLines: [
-      '• Dòng 1: Chương 1: Tổng quan | SINGLE_CHOICE | Quy luật khan hiếm là gì? | A: Nguồn lực có hạn | ... | Đáp án: A',
-      '• Dòng 2: Chương 2: Cung - Cầu | SINGLE_CHOICE | Khi giá tăng, lượng cầu sẽ: | A: Giảm xuống | ... | Đáp án: A',
-      '• Dòng 3 (Điền khuyết): Chương 2: Cung - Cầu | FILL_IN_BLANK | Điểm cân bằng là nơi cung ___ cầu. | Đáp án: bằng',
-    ],
-    tip: 'Với câu điền vào chỗ trống (FILL_IN_BLANK), thầy/cô chỉ cần gõ 3 dấu gạch dưới trở lên (___) tại vị trí muốn sinh viên tự gõ đáp án.',
-  },
-  {
-    stepNumber: 3,
-    id: 'buoc-3',
-    tabName: '3. Tạo & Cấu hình Đề thi',
-    title: 'Chọn Ma trận Chương, Thời gian & Bảo mật',
-    frequency: 'Làm 1 lần cho mỗi bài kiểm tra',
-    summary:
-      'Hệ thống tự động bốc ngẫu nhiên câu hỏi từ Ngân hàng theo số lượng thầy/cô quy định cho từng Chương, giúp mỗi sinh viên có một mã đề khác nhau.',
-    actions: [
-      'Bấm vào thẻ "3. Tạo & Cấu hình Đề thi" → bấm "+ Tạo Đề thi mới".',
-      'Đặt tên đề thi (ví dụ: Kiểm tra Giữa kỳ — Kinh tế Vi mô). Hệ thống tự cấp Mã PIN 6 số (thầy/cô có thể sửa lại cho dễ nhớ).',
-      'Ở bảng Ma trận Chương, nhập số lượng câu cần lấy từ mỗi chương.',
-      'Cài đặt Thời gian làm bài (phút), bật "Trộn A/B/C/D", và đặt mức Chống gian lận (khuyến nghị: Số lần rời màn hình tối đa = 3, Tổng giây vắng mặt = 30).',
-      'BẮT BUỘC: Kéo xuống cuối bảng và bấm nút "Lưu cấu hình ca thi" để lưu lên máy chủ.',
-    ],
-    exampleTitle: 'Ví dụ minh họa — Đề kiểm tra 15 phút gồm 10 câu',
-    exampleLines: [
-      '• Chương 1: Tổng quan → lấy 5 câu',
-      '• Chương 2: Cung - Cầu → lấy 5 câu',
-      '• Thời gian làm bài: 15 phút | Số lần rời màn hình tối đa: 3 lần | Tổng giây vắng mặt tối đa: 30 giây.',
-    ],
-    warning:
-      'Rất hay quên: Sau khi sửa số phút, mã PIN hoặc cấu hình bảo mật ở Tab 3, thầy/cô nhớ bấm nút xanh "Lưu cấu hình ca thi" ở cuối khung thì thay đổi mới có hiệu lực!',
-  },
-  {
-    stepNumber: 4,
-    id: 'buoc-4',
-    tabName: '4. Giám sát Live & Duyệt',
-    title: 'Mở Ca thi lấy Mã PIN cho từng lớp & Coi thi trực tiếp',
-    frequency: 'Làm mỗi buổi thi',
-    summary:
-      'Dạy nhiều lớp cùng một môn? Thầy/cô giữ nguyên 1 Đề thi gốc nhưng mở nhiều Ca thi riêng (Ca Thứ 2, Ca Thứ 4...). Mỗi Ca thi có Mã PIN và bảng điểm riêng, không bao giờ bị trộn lẫn.',
-    actions: [
-      'Bấm vào thẻ "4. Giám sát Live & Duyệt".',
-      'Bấm nút "+ Tạo Ca thi mới", đặt tên lớp/ca (ví dụ: Giữa kỳ — Lớp Thứ 2). Hệ thống tạo ngay Mã PIN 6 số ở trạng thái "OPEN" (Đang mở).',
-      'Đọc hoặc chiếu Mã PIN 6 số lên bảng. Sinh viên vào trang chủ, nhập PIN, Họ tên, MSSV, Email là vào thi ngay (không cần tạo tài khoản).',
-      'Theo dõi tiến độ làm bài trực tiếp trên màn hình. Nếu sinh viên bị khóa đỏ do lỡ thoát app, thầy/cô bấm nút "Mở khóa" cạnh tên sinh viên nếu đồng ý cho thi tiếp.',
-    ],
-    exampleTitle: 'Ví dụ minh họa — Dạy 2 lớp dùng chung 1 đề gốc',
-    exampleLines: [
-      '• Sáng Thứ 2: Bấm "+ Tạo Ca thi mới" → đặt tên "Giữa kỳ — Ca Thứ 2" → nhận PIN 550123 cho lớp Thứ 2.',
-      '• Chiều Thứ 4: Bấm "+ Tạo Ca thi mới" → đặt tên "Giữa kỳ — Ca Thứ 4" → nhận PIN 778456 cho lớp Thứ 4.',
-      '• Nếu tạo nhầm ca thi thử: Bấm biểu tượng Thùng rác cạnh tên Ca thi để xóa — Đề thi gốc ở Tab 3 vẫn còn nguyên!',
-    ],
-    tip: 'Khi sinh viên dùng điện thoại bấm nút hạ bàn phím để đọc lại đề, hệ thống đã tự động bỏ qua nên không báo gian lận oan.',
-  },
-  {
-    stepNumber: 5,
-    id: 'buoc-5',
-    tabName: '5. Thống kê & Tự luận',
-    title: 'Xem đúng/sai từng câu, Chấm tự luận & Xuất Excel',
-    frequency: 'Làm sau khi kết thúc ca thi',
-    summary:
-      'Xem ngay biểu đồ điểm của cả lớp, kiểm tra từng sinh viên làm đúng/sai câu nào, và tải bảng điểm Excel đầy đủ chỉ với 1 cú bấm.',
-    actions: [
-      'Bấm vào thẻ "5. Thống kê & Tự luận".',
-      'Chọn đúng Ca thi cần xem ở thanh trên cùng.',
-      'Xem Biểu đồ phổ điểm, Bảng kết quả từng câu hỏi (Đúng/Sai) của từng thí sinh, và bấm "Chấm tự luận" (nếu đề có câu tự luận).',
-      'Bấm "Xuất Excel (.xlsx)" để tải file về máy, hoặc bấm "Gửi kết quả ca thi về Email" để nhận file Excel thống kê chi tiết qua hộp thư.',
-    ],
-    exampleTitle: 'Ví dụ minh họa — Nội dung trong file Excel tải về',
-    exampleLines: [
-      '• Sheet 1 (Tổng hợp Ca thi): MSSV, Họ tên, Lớp, Điểm số, Thời gian nộp, Số lần vi phạm.',
-      '• Sheet 2 (Chi tiết từng câu hỏi): Ma trận từng thí sinh ở mỗi câu (Đúng / Sai / Điểm câu đó) giúp thầy/cô đánh giá năng lực từng bạn.',
-    ],
-  },
-];
-
-const CHECKLIST_ITEMS = [
-  'Đã đăng nhập đúng tài khoản Giảng viên (góc trên bên phải hiện tên/email của thầy/cô, không phải chế độ Demo).',
-  'Đã bấm nút "Lưu cấu hình ca thi" ở Tab 3 sau khi chỉnh thời gian, ma trận câu hỏi và mức chống gian lận.',
-  'Ca thi ở Tab 4 đang có trạng thái Đang mở (OPEN) và đã ghi lại đúng Mã PIN 6 số để đọc cho lớp.',
-  'Đã dặn sinh viên mở link thi bằng Chrome (Android) hoặc Safari (iPhone), KHÔNG bấm thi trực tiếp bên trong cửa sổ chat Zalo / Messenger.',
-];
-
-const FAQ_ITEMS = [
-  {
-    q: 'Sinh viên báo nhập đúng Mã PIN 6 số nhưng không vào được phòng thi?',
-    a: 'Thầy/cô vào Tab 4 (Giám sát Live & Duyệt), kiểm tra xem Ca thi đó đang ở trạng thái OPEN (Đang mở) hay đang ở Nháp (DRAFT) / Đã đóng (CLOSED). Nếu chưa mở, bấm nút "Mở phòng thi ngay".',
-  },
-  {
-    q: 'Sinh viên bị khóa màn hình báo đỏ giữa chừng thì xử lý thế nào?',
-    a: 'Nguyên nhân do sinh viên chuyển sang ứng dụng khác (Zalo, Google...) vượt quá số lần/số giây tối đa hoặc chụp ảnh màn hình. Thầy/cô hỏi nhanh lý do tại lớp: nếu hợp lệ, bấm nút "Mở khóa" ngay cạnh tên sinh viên ở Tab 4 để các bạn làm tiếp.',
-  },
-  {
-    q: 'Nếu tôi bấm biểu tượng thùng rác xóa hết các Ca thi cũ, Đề thi gốc có bị mất không?',
-    a: 'Không. Đề thi gốc ở Tab 3 và Ngân hàng câu hỏi ở Tab 2 được lưu tách biệt hoàn toàn với Ca thi. Thầy/cô có thể xóa thoải mái các Ca thi thử nghiệm hoặc Ca thi đã cũ mà không ảnh hưởng tới Đề thi gốc.',
-  },
-  {
-    q: 'Tôi sửa thời gian từ 15 phút lên 30 phút ở Tab 3 nhưng sinh viên vẫn thấy 15 phút?',
-    a: 'Do thầy/cô chưa bấm nút "Lưu cấu hình ca thi" ở cuối phần cài đặt Tab 3. Hãy bấm lưu lại và nhắc sinh viên tải lại trang.',
-  },
-  {
-    q: 'Sinh viên thi xong có xem được điểm luôn không?',
-    a: 'Có (nếu thầy/cô bật tùy chọn cho xem điểm/đáp án ở Tab 3). Điểm sẽ hiển thị ngay trên màn hình sau khi nộp bài và hệ thống tự động gửi bản tổng hợp về Email sinh viên đã nhập.',
-  },
-];
+import {
+  ADMIN_TAB_REGISTRY,
+  GUIDE_RELEASE_NOTES,
+  GUIDE_VERSION,
+  INSTRUCTOR_FAQ_ITEMS,
+  PRE_EXAM_CHECKLIST,
+} from '../data/adminGuideRegistry';
 
 export const InstructorGuidePage: React.FC = () => {
   const [checkedItems, setCheckedItems] = useState<Record<number, boolean>>({});
@@ -179,7 +29,7 @@ export const InstructorGuidePage: React.FC = () => {
     setCheckedItems((prev) => ({ ...prev, [index]: !prev[index] }));
   };
 
-  const checkedCount = CHECKLIST_ITEMS.filter((_, idx) => checkedItems[idx]).length;
+  const checkedCount = PRE_EXAM_CHECKLIST.filter((_, idx) => checkedItems[idx]).length;
 
   return (
     <div className="min-h-screen bg-slate-50 text-ink-900 flex flex-col">
@@ -195,7 +45,7 @@ export const InstructorGuidePage: React.FC = () => {
                 Cẩm nang Hướng dẫn Giảng viên
               </p>
               <p className="text-[11px] text-ink-500 truncate">
-                Từng bước thực hiện kèm ví dụ minh họa — Dễ đọc, dễ làm theo
+                Đồng bộ theo giao diện hiện hành (Phiên bản {GUIDE_VERSION})
               </p>
             </div>
           </div>
@@ -233,7 +83,7 @@ export const InstructorGuidePage: React.FC = () => {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-brand-700 bg-brand-100 px-3 py-1 rounded-full">
               <Sparkles className="w-3.5 h-3.5" />
-              Dành cho Giảng viên — Làm theo 5 bước là chạy ngay
+              Dành cho Giảng viên — Đủ 7 Tab từ trái sang phải
             </span>
           </div>
           <div>
@@ -241,30 +91,36 @@ export const InstructorGuidePage: React.FC = () => {
               Hướng dẫn Tổ chức Kiểm tra &amp; Coi thi Trực tuyến VNEconomics
             </h1>
             <p className="text-sm text-ink-600 mt-1.5 leading-relaxed">
-              Thầy/cô không cần rành kỹ thuật: chỉ cần đi lần lượt từ trái sang phải theo đúng thứ tự{' '}
-              <strong className="text-ink-900">Tab 1 → Tab 2 → Tab 3 → Tab 4 → Tab 5</strong> trên màn hình{' '}
+              Thầy/cô không cần rành kỹ thuật: để tổ chức một buổi thi, chỉ cần đi lần lượt từ trái sang phải{' '}
+              <strong className="text-ink-900">Tab 1 → Tab 2 → Tab 3 → Tab 4 → Tab 5</strong> trên{' '}
               <Link to="/admin" className="text-brand-700 font-bold underline">
                 Cổng Giảng viên (/admin)
               </Link>
-              . Toàn bộ tài liệu dưới đây dùng một ví dụ thực tế (môn <strong>Kinh tế Vi mô — ECO101</strong>) để thầy/cô đối chiếu trực tiếp.
+              . Hai thẻ bổ sung (<strong>Tab 6: Nhật ký Email</strong> &amp; <strong>Tab 7: Live Game</strong>) giúp đối soát thư báo điểm và tổ chức trò chơi ôn tập trên lớp.
             </p>
           </div>
 
           {/* Quick jump pills */}
           <div className="flex flex-wrap gap-1.5 pt-1 print:hidden">
             <a
+              href="#cap-nhat-moi"
+              className="px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 hover:border-emerald-400 text-xs font-bold text-emerald-800"
+            >
+              Có gì mới?
+            </a>
+            <a
               href="#dang-nhap"
               className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:border-brand-300 text-xs font-bold text-ink-700"
             >
               0. Đăng nhập
             </a>
-            {STEP_GUIDES.map((step) => (
+            {ADMIN_TAB_REGISTRY.map((step) => (
               <a
                 key={step.id}
-                href={`#${step.id}`}
+                href={`#${step.guideAnchor}`}
                 className="px-3 py-1.5 rounded-lg bg-white border border-slate-200 hover:border-brand-300 text-xs font-bold text-ink-700"
               >
-                {step.tabName}
+                {step.baseLabel}
               </a>
             ))}
             <a
@@ -282,30 +138,59 @@ export const InstructorGuidePage: React.FC = () => {
           </div>
         </section>
 
+        {/* What's New / Synced Updates */}
+        {GUIDE_RELEASE_NOTES.map((note, idx) => (
+          <section
+            key={idx}
+            id="cap-nhat-moi"
+            className="bg-emerald-50/70 rounded-2xl border border-emerald-200 p-5 shadow-2xs space-y-2.5 scroll-mt-20"
+          >
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-sm sm:text-base font-extrabold text-emerald-950 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-emerald-600" />
+                {note.title}
+              </h2>
+              <span className="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-white text-emerald-800 border border-emerald-200">
+                Cập nhật: {note.date}
+              </span>
+            </div>
+            <ul className="space-y-1.5 text-xs sm:text-sm text-emerald-950">
+              {note.highlights.map((item, i) => (
+                <li key={i} className="flex items-start gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <span>{item}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+
         {/* Overview Table */}
         <section className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-3">
           <h2 className="text-base font-extrabold text-ink-900 flex items-center gap-2">
             <BookOpen className="w-4 h-4 text-brand-600" />
-            Tóm tắt nhanh quy trình 5 bước
+            Tóm tắt nhanh toàn bộ 7 thẻ (Tab) trong Cổng Giảng viên
           </h2>
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs sm:text-sm">
               <thead>
                 <tr className="border-b-2 border-slate-200 text-ink-600">
-                  <th className="py-2 pr-3 font-bold">Bước</th>
+                  <th className="py-2 pr-3 font-bold">Mục</th>
                   <th className="py-2 pr-3 font-bold">Tên Tab trên màn hình</th>
-                  <th className="py-2 pr-3 font-bold">Việc thầy/cô làm</th>
-                  <th className="py-2 font-bold">Tần suất</th>
+                  <th className="py-2 pr-3 font-bold">Chức năng chính</th>
+                  <th className="py-2 font-bold">Khi nào dùng</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {STEP_GUIDES.map((s) => (
+                {ADMIN_TAB_REGISTRY.map((s) => (
                   <tr key={s.id} className="hover:bg-slate-50/70">
                     <td className="py-2.5 pr-3 font-extrabold text-brand-700 whitespace-nowrap">
                       Bước {s.stepNumber}
                     </td>
                     <td className="py-2.5 pr-3 font-bold text-ink-900 whitespace-nowrap">
-                      {s.tabName}
+                      <a href={`#${s.guideAnchor}`} className="hover:underline text-brand-700">
+                        {s.baseLabel}
+                      </a>
                     </td>
                     <td className="py-2.5 pr-3 text-ink-700">{s.title}</td>
                     <td className="py-2.5 text-ink-500 whitespace-nowrap">{s.frequency}</td>
@@ -349,11 +234,11 @@ export const InstructorGuidePage: React.FC = () => {
           </div>
         </section>
 
-        {/* Detailed Steps 1 -> 5 */}
-        {STEP_GUIDES.map((step) => (
+        {/* Detailed Steps 1 -> 7 */}
+        {ADMIN_TAB_REGISTRY.map((step) => (
           <section
             key={step.id}
-            id={step.id}
+            id={step.guideAnchor}
             className="bg-white rounded-2xl border border-slate-200 p-5 sm:p-6 shadow-2xs space-y-4 scroll-mt-20"
           >
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
@@ -363,7 +248,7 @@ export const InstructorGuidePage: React.FC = () => {
                 </span>
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-wider text-brand-700">
-                    Tab: {step.tabName}
+                    Tab: {step.baseLabel}
                   </p>
                   <h2 className="text-base sm:text-lg font-extrabold text-ink-900">
                     {step.title}
@@ -438,14 +323,14 @@ export const InstructorGuidePage: React.FC = () => {
               Checklist kiểm tra 5 phút trước giờ thi
             </h2>
             <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-slate-100 text-ink-700">
-              Đã kiểm tra: {checkedCount}/{CHECKLIST_ITEMS.length}
+              Đã kiểm tra: {checkedCount}/{PRE_EXAM_CHECKLIST.length}
             </span>
           </div>
           <p className="text-xs text-ink-500">
             Thầy/cô có thể bấm đánh dấu trực tiếp vào từng ô dưới đây trước khi đọc Mã PIN cho lớp:
           </p>
           <div className="space-y-2">
-            {CHECKLIST_ITEMS.map((item, idx) => {
+            {PRE_EXAM_CHECKLIST.map((item, idx) => {
               const checked = Boolean(checkedItems[idx]);
               return (
                 <label
@@ -481,7 +366,7 @@ export const InstructorGuidePage: React.FC = () => {
             Giải đáp nhanh các tình huống thường gặp (FAQ)
           </h2>
           <div className="space-y-2">
-            {FAQ_ITEMS.map((faq, idx) => {
+            {INSTRUCTOR_FAQ_ITEMS.map((faq, idx) => {
               const isOpen = openFaq === idx;
               return (
                 <div key={idx} className="rounded-xl border border-slate-200 overflow-hidden">
