@@ -249,6 +249,7 @@ export const ExamTakePage: React.FC = () => {
         enabled={!isLocked}
         gracePeriodMs={exam.gracePeriodMs}
         isLocked={isLocked}
+        requireFullscreen={Boolean(exam.requireFullscreen)}
         onPauseChange={handlePauseChange}
         onViolation={handleViolation}
       />

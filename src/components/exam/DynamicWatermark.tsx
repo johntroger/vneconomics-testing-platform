@@ -27,9 +27,9 @@ export const DynamicWatermark: React.FC<DynamicWatermarkProps> = ({
   return (
     <div
       aria-hidden="true"
-      className="fixed inset-0 pointer-events-none select-none overflow-hidden z-20"
+      className="fixed inset-0 pointer-events-none select-none overflow-hidden z-40"
     >
-      <div className="grid grid-cols-2 gap-y-24 gap-x-12 -rotate-[22deg] scale-125 opacity-[0.065] py-8">
+      <div className="grid grid-cols-2 gap-y-24 gap-x-12 -rotate-[22deg] scale-125 opacity-[0.06] py-8">
         {Array.from({ length: 12 }).map((_, i) => (
           <div
             key={i}

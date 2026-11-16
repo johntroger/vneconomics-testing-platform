@@ -141,6 +141,7 @@ export interface Exam {
   oneWayMode: boolean;
   perQuestionSeconds: number;
   canvasAntiOcr: boolean;
+  requireFullscreen?: boolean;
   allowReviewAfterSubmit?: boolean;
   emailDeliveryMode: EmailDeliveryMode;
   rosterWhitelist: string[];

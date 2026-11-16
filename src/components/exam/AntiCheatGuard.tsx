@@ -6,6 +6,7 @@ interface AntiCheatGuardProps {
   enabled: boolean;
   gracePeriodMs: number;
   isLocked: boolean;
+  requireFullscreen?: boolean;
   onPauseChange: (paused: boolean, awaySecondsDelta: number, reason: string) => void;
   onViolation: (event: Omit<ViolationEvent, 'id' | 'occurredAt'>) => void;
 }
@@ -14,15 +15,19 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
   enabled,
   gracePeriodMs,
   isLocked,
+  requireFullscreen = false,
   onPauseChange,
   onViolation,
 }) => {
   const [blackout, setBlackout] = useState(false);
+  const [fullscreenMissing, setFullscreenMissing] = useState(false);
   const [minorNotice, setMinorNotice] = useState<string | null>(null);
   const leftAtRef = useRef<number | null>(null);
   const mountedAtRef = useRef<number>(Date.now());
   const lastInputActivityAtRef = useRef<number>(0);
   const noticeTimerRef = useRef<number | null>(null);
+  const screenshotBlackoutTimerRef = useRef<number | null>(null);
+  const hadFullscreenRef = useRef<boolean>(false);
   const baseViewportWidthRef = useRef<number>(
     typeof window !== 'undefined' ? window.innerWidth : 390,
   );
@@ -209,11 +214,56 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
       }
     };
 
+    const triggerScreenshotDeterrent = (shortcutLabel: string) => {
+      setBlackout(true);
+      if (screenshotBlackoutTimerRef.current !== null) {
+        window.clearTimeout(screenshotBlackoutTimerRef.current);
+      }
+      screenshotBlackoutTimerRef.current = window.setTimeout(() => {
+        if (!document.hidden && leftAtRef.current === null) {
+          setBlackout(false);
+        }
+        screenshotBlackoutTimerRef.current = null;
+      }, 1500);
+      try {
+        if (navigator.clipboard?.writeText) {
+          void navigator.clipboard.writeText('').catch(() => {});
+        }
+      } catch {
+        // Clipboard API may not be permitted
+      }
+      showQuickNotice('Phát hiện thao tác chụp màn hình — Đã ghi nhận vi phạm!', 2200);
+      onViolation({
+        severity: 'DEVTOOLS',
+        eventType: 'SCREENSHOT_ATTEMPT',
+        durationSeconds: 2,
+        detail: `Phát hiện tổ hợp phím chụp màn hình (${shortcutLabel})`,
+      });
+    };
+
+    const isScreenshotCombo = (e: KeyboardEvent): string | null => {
+      const k = e.key.toLowerCase();
+      if (e.key === 'PrintScreen' || e.code === 'PrintScreen') {
+        return e.altKey ? 'Alt+PrintScreen' : 'PrintScreen';
+      }
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && ['3', '4', '5', 's'].includes(k)) {
+        return `${e.metaKey ? 'Cmd/Win' : 'Ctrl'}+Shift+${k.toUpperCase()}`;
+      }
+      return null;
+    };
+
     const onKeyDown = (e: KeyboardEvent) => {
+      const shotCombo = isScreenshotCombo(e);
+      if (shotCombo) {
+        e.preventDefault();
+        triggerScreenshotDeterrent(shotCombo);
+        return;
+      }
+      const k = e.key.toLowerCase();
       if (
         e.key === 'F12' ||
-        e.key === 'PrintScreen' ||
-        ((e.ctrlKey || e.metaKey) && ['p', 's', 'u', 'c'].includes(e.key.toLowerCase()))
+        ((e.ctrlKey || e.metaKey) && e.shiftKey && ['i', 'j', 'c'].includes(k)) ||
+        ((e.ctrlKey || e.metaKey) && ['p', 's', 'u', 'c'].includes(k))
       ) {
         e.preventDefault();
         onViolation({
@@ -224,6 +274,45 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
         });
       }
     };
+
+    const onKeyUp = (e: KeyboardEvent) => {
+      if (e.key === 'PrintScreen' || e.code === 'PrintScreen') {
+        triggerScreenshotDeterrent('PrintScreen');
+      }
+    };
+
+    const canFullscreen =
+      requireFullscreen &&
+      !isTouchDevice &&
+      typeof document.documentElement?.requestFullscreen === 'function';
+
+    const syncFullscreenState = () => {
+      if (!canFullscreen) {
+        setFullscreenMissing(false);
+        return;
+      }
+      const inFs = Boolean(document.fullscreenElement);
+      if (inFs) {
+        hadFullscreenRef.current = true;
+        setFullscreenMissing(false);
+      } else {
+        setFullscreenMissing(true);
+        if (hadFullscreenRef.current && Date.now() - mountedAtRef.current >= 1500) {
+          onViolation({
+            severity: 'MAJOR_LEAVE',
+            eventType: 'FULLSCREEN_EXIT',
+            durationSeconds: 3,
+            detail: 'Thoát chế độ Toàn màn hình trong khi làm bài',
+          });
+        }
+      }
+    };
+
+    if (canFullscreen) {
+      syncFullscreenState();
+    } else {
+      setFullscreenMissing(false);
+    }
 
     document.addEventListener('focusin', onInputFocusChange);
     document.addEventListener('focusout', onInputFocusChange);
@@ -237,9 +326,15 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
     document.addEventListener('copy', blockAction);
     document.addEventListener('cut', blockAction);
     document.addEventListener('dragstart', blockAction);
+    document.addEventListener('fullscreenchange', syncFullscreenState);
     window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('keyup', onKeyUp);
 
     return () => {
+      if (screenshotBlackoutTimerRef.current !== null) {
+        window.clearTimeout(screenshotBlackoutTimerRef.current);
+        screenshotBlackoutTimerRef.current = null;
+      }
       document.removeEventListener('focusin', onInputFocusChange);
       document.removeEventListener('focusout', onInputFocusChange);
       document.removeEventListener('visibilitychange', onVisibilityChange);
@@ -252,14 +347,36 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
       document.removeEventListener('copy', blockAction);
       document.removeEventListener('cut', blockAction);
       document.removeEventListener('dragstart', blockAction);
+      document.removeEventListener('fullscreenchange', syncFullscreenState);
       window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('keyup', onKeyUp);
     };
-  }, [enabled, handleLeaveSignal, handleReturnSignal, onViolation, showQuickNotice]);
+  }, [enabled, handleLeaveSignal, handleReturnSignal, onViolation, requireFullscreen, showQuickNotice]);
 
   if (!enabled) return null;
 
   return (
     <>
+      {fullscreenMissing && !blackout && (
+        <div className="fixed inset-0 z-[85] bg-ink-900/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center text-white select-none">
+          <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center mb-4">
+            <AlertTriangle className="w-8 h-8 text-amber-300" />
+          </div>
+          <h2 className="text-xl font-bold mb-2">Ca thi yêu cầu Toàn màn hình</h2>
+          <p className="text-sm text-slate-300 max-w-sm leading-relaxed mb-5">
+            Để hạn chế chụp màn hình và mở ứng dụng khác, vui lòng bật chế độ Toàn màn hình trước khi tiếp tục làm bài.
+          </p>
+          <button
+            type="button"
+            onClick={() => {
+              void document.documentElement.requestFullscreen?.().catch(() => {});
+            }}
+            className="px-5 py-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-sm font-bold shadow-lg"
+          >
+            Bật Toàn màn hình để làm bài
+          </button>
+        </div>
+      )}
       {blackout && (
         <div
           aria-hidden="true"

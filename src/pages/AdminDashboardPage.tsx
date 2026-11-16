@@ -1612,6 +1612,25 @@ export const AdminDashboardPage: React.FC = () => {
                     <label className="flex items-center gap-2 font-semibold">
                       <input
                         type="checkbox"
+                        checked={Boolean(selectedExam.requireFullscreen)}
+                        onChange={(e) =>
+                          saveExamSetting({
+                            ...selectedExam,
+                            requireFullscreen: e.target.checked,
+                          })
+                        }
+                      />
+                      <span>Bắt buộc Toàn màn hình (PC)</span>
+                      <InfoHint
+                        title="Khóa chế độ Toàn màn hình trên máy tính"
+                        text={
+                          '• Khi bật, sinh viên dùng máy tính/laptop phải mở Toàn màn hình mới làm bài được; nếu bấm Esc thoát ra để mở công cụ chụp màn hình sẽ bị ghi nhận vi phạm ngay.\n• Tự động bỏ qua trên iPhone/iPad vì Safari di động không hỗ trợ API toàn màn hình.'
+                        }
+                      />
+                    </label>
+                    <label className="flex items-center gap-2 font-semibold">
+                      <input
+                        type="checkbox"
                         checked={Boolean(selectedExam.allowReviewAfterSubmit)}
                         onChange={(e) =>
                           saveExamSetting({

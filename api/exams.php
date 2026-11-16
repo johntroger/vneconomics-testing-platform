@@ -110,6 +110,7 @@ function formatExamRow(array $r, bool $stripSecrets = false): array
         'oneWayMode' => (bool) ($r['one_way_mode'] ?? false),
         'perQuestionSeconds' => (int) ($r['per_question_seconds'] ?? 0),
         'canvasAntiOcr' => (bool) ($r['canvas_anti_ocr'] ?? true),
+        'requireFullscreen' => (bool) ($r['require_fullscreen'] ?? false),
         'allowReviewAfterSubmit' => (bool) ($r['allow_review_after_submit'] ?? false),
         'emailDeliveryMode' => (string) ($r['email_delivery_mode'] ?? 'IMMEDIATE'),
         'requiresWhitelist' => is_array($whitelist) && count($whitelist) > 0,
@@ -563,6 +564,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             ':one_way_mode' => !empty($body['oneWayMode']) ? 1 : 0,
             ':per_question_seconds' => max(0, (int) ($body['perQuestionSeconds'] ?? 0)),
             ':canvas_anti_ocr' => !empty($body['canvasAntiOcr']) ? 1 : 0,
+            ':require_fullscreen' => !empty($body['requireFullscreen']) ? 1 : 0,
             ':allow_review_after_submit' => !empty($body['allowReviewAfterSubmit']) ? 1 : 0,
             ':email_delivery_mode' => (string) ($body['emailDeliveryMode'] ?? 'IMMEDIATE'),
             ':roster_whitelist_json' => json_encode($body['rosterWhitelist'] ?? [], JSON_UNESCAPED_UNICODE),
@@ -571,13 +573,13 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         ];
 
         if ($isUpdate) {
-            $sql = 'UPDATE exams SET course_id=:course_id, title=:title, room_pin=:room_pin, unlock_pin=:unlock_pin, instructor_email=:instructor_email, duration_minutes=:duration_minutes, chapter_matrix_json=:chapter_matrix_json, pinned_question_ids_json=:pinned_question_ids_json, shuffle_questions=:shuffle_questions, shuffle_mode=:shuffle_mode, shuffle_options=:shuffle_options, max_leave_count=:max_leave_count, max_away_seconds=:max_away_seconds, grace_period_ms=:grace_period_ms, one_way_mode=:one_way_mode, per_question_seconds=:per_question_seconds, canvas_anti_ocr=:canvas_anti_ocr, allow_review_after_submit=:allow_review_after_submit, email_delivery_mode=:email_delivery_mode, roster_whitelist_json=:roster_whitelist_json, roster_entries_json=:roster_entries_json, status=:status WHERE id=:id';
+            $sql = 'UPDATE exams SET course_id=:course_id, title=:title, room_pin=:room_pin, unlock_pin=:unlock_pin, instructor_email=:instructor_email, duration_minutes=:duration_minutes, chapter_matrix_json=:chapter_matrix_json, pinned_question_ids_json=:pinned_question_ids_json, shuffle_questions=:shuffle_questions, shuffle_mode=:shuffle_mode, shuffle_options=:shuffle_options, max_leave_count=:max_leave_count, max_away_seconds=:max_away_seconds, grace_period_ms=:grace_period_ms, one_way_mode=:one_way_mode, per_question_seconds=:per_question_seconds, canvas_anti_ocr=:canvas_anti_ocr, require_fullscreen=:require_fullscreen, allow_review_after_submit=:allow_review_after_submit, email_delivery_mode=:email_delivery_mode, roster_whitelist_json=:roster_whitelist_json, roster_entries_json=:roster_entries_json, status=:status WHERE id=:id';
         } else {
             $params[':owner_id'] = $actorId;
             $params[':report_sent_status'] = 'PENDING';
             $params[':created_at'] = nowIso();
-            $sql = 'INSERT INTO exams (id, course_id, owner_id, title, room_pin, unlock_pin, instructor_email, duration_minutes, chapter_matrix_json, pinned_question_ids_json, shuffle_questions, shuffle_mode, shuffle_options, max_leave_count, max_away_seconds, grace_period_ms, one_way_mode, per_question_seconds, canvas_anti_ocr, allow_review_after_submit, email_delivery_mode, roster_whitelist_json, roster_entries_json, status, report_sent_status, created_at)
-                    VALUES (:id, :course_id, :owner_id, :title, :room_pin, :unlock_pin, :instructor_email, :duration_minutes, :chapter_matrix_json, :pinned_question_ids_json, :shuffle_questions, :shuffle_mode, :shuffle_options, :max_leave_count, :max_away_seconds, :grace_period_ms, :one_way_mode, :per_question_seconds, :canvas_anti_ocr, :allow_review_after_submit, :email_delivery_mode, :roster_whitelist_json, :roster_entries_json, :status, :report_sent_status, :created_at)';
+            $sql = 'INSERT INTO exams (id, course_id, owner_id, title, room_pin, unlock_pin, instructor_email, duration_minutes, chapter_matrix_json, pinned_question_ids_json, shuffle_questions, shuffle_mode, shuffle_options, max_leave_count, max_away_seconds, grace_period_ms, one_way_mode, per_question_seconds, canvas_anti_ocr, require_fullscreen, allow_review_after_submit, email_delivery_mode, roster_whitelist_json, roster_entries_json, status, report_sent_status, created_at)
+                    VALUES (:id, :course_id, :owner_id, :title, :room_pin, :unlock_pin, :instructor_email, :duration_minutes, :chapter_matrix_json, :pinned_question_ids_json, :shuffle_questions, :shuffle_mode, :shuffle_options, :max_leave_count, :max_away_seconds, :grace_period_ms, :one_way_mode, :per_question_seconds, :canvas_anti_ocr, :require_fullscreen, :allow_review_after_submit, :email_delivery_mode, :roster_whitelist_json, :roster_entries_json, :status, :report_sent_status, :created_at)';
         }
         try {
             $pdo->prepare($sql)->execute($params);
