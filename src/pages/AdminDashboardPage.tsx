@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { CoursesTabPanel } from '../components/admin/CoursesTabPanel';
 import { EmailLogsTabPanel } from '../components/admin/EmailLogsTabPanel';
+import { StudentQuestionMatrixCard } from '../components/admin/StudentQuestionMatrixCard';
 import { CreateGameModal } from '../components/admin/CreateGameModal';
 import { EssayGradingModal } from '../components/admin/EssayGradingModal';
 import { fetchInstructorGames, type GameListItem } from '../services/gameApi';
@@ -2243,6 +2244,7 @@ export const AdminDashboardPage: React.FC = () => {
                         selectedExam,
                         attempts,
                         chapterMasteryStats,
+                        questions,
                       )
                     }
                     className="px-3.5 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5"
@@ -2387,6 +2389,13 @@ export const AdminDashboardPage: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {/* Per-Student Per-Question Matrix */}
+            <StudentQuestionMatrixCard
+              exam={selectedExam}
+              attempts={attempts}
+              questions={questions}
+            />
 
             <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-3">
               <h3 className="text-sm font-extrabold text-ink-900">

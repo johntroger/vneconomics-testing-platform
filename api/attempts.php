@@ -1105,7 +1105,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             }
 
             if ($instEmail !== '' && filter_var($instEmail, FILTER_VALIDATE_EMAIL)) {
-                $csv = buildInstructorCsvAttachment($examRow, $allAttempts);
+                $csv = buildInstructorCsvAttachment($examRow, $allAttempts, $pdo);
                 $csvFile = 'bao_cao_' . preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $examRow['room_pin']) . '_' . date('Ymd_Hi') . '.csv';
                 $html = '<h3>Báo cáo tổng hợp kết quả ca thi: ' . htmlspecialchars((string) $examRow['title'], ENT_QUOTES, 'UTF-8') . '</h3>'
                     . '<p>Tổng số thí sinh đã ghi nhận: <strong>' . count($allAttempts) . '</strong>. Đính kèm file CSV chuẩn UTF-8 BOM mở trực tiếp trong Excel.</p>';

@@ -97,6 +97,41 @@ export function buildExamCsvContent(
     }
   }
 
+  const attemptsWithQuestions = examAttempts.filter((a) => a.assignedQuestions.length > 0);
+  if (attemptsWithQuestions.length > 0) {
+    lines.push('');
+    lines.push(
+      'CHI TIẾT KẾT QUẢ TỪNG CÂU HỎI CỦA TỪNG THÍ SINH,Họ tên,Câu số,Chương,Kết quả,Điểm đạt,Điểm tối đa,Nhận xét chấm',
+    );
+    for (const a of attemptsWithQuestions) {
+      a.assignedQuestions.forEach((snap, idx) => {
+        const ans = a.answers[snap.questionId];
+        const earned = ans?.earnedPoints ?? 0;
+        const maxP = ans?.maxPoints ?? snap.maxPoints;
+        const statusLabel =
+          maxP > 0 && earned >= maxP - 1e-6
+            ? 'Đúng'
+            : earned > 0
+              ? 'Một phần'
+              : 'Sai';
+        lines.push(
+          [
+            a.studentCode,
+            a.studentName,
+            `Câu ${idx + 1}`,
+            snap.chapterCategory,
+            statusLabel,
+            earned,
+            maxP,
+            ans?.gradingFeedback ?? '',
+          ]
+            .map(escapeCsvCell)
+            .join(','),
+        );
+      });
+    }
+  }
+
   return '\uFEFF' + lines.join('\r\n');
 }
 
@@ -138,6 +173,7 @@ export function exportExamGradebookXlsx(
   exam: Exam,
   attempts: ExamAttempt[],
   chapterStats: ChapterMasteryStat[],
+  questions: Question[] = [],
 ): void {
   const examAttempts = attempts.filter((a) => a.examId === exam.id);
   const wb = XLSX.utils.book_new();
@@ -196,6 +232,93 @@ export function exportExamGradebookXlsx(
     }));
     const wsCh = XLSX.utils.json_to_sheet(chRows);
     XLSX.utils.book_append_sheet(wb, wsCh, 'ThongKeChuong');
+  }
+
+  const gradedAttempts = examAttempts.filter((a) => a.assignedQuestions.length > 0);
+  if (gradedAttempts.length > 0) {
+    const qMap = new Map(questions.map((q) => [q.id, q]));
+    const uniqueQIds: string[] = [];
+    const seenQ = new Set<string>();
+    for (const a of gradedAttempts) {
+      for (const snap of a.assignedQuestions) {
+        if (!seenQ.has(snap.questionId)) {
+          seenQ.add(snap.questionId);
+          uniqueQIds.push(snap.questionId);
+        }
+      }
+    }
+
+    const matrixRows = gradedAttempts.map((a) => {
+      let rightCount = 0;
+      let wrongCount = 0;
+      for (const snap of a.assignedQuestions) {
+        const ans = a.answers[snap.questionId];
+        const earned = ans?.earnedPoints ?? 0;
+        const maxP = ans?.maxPoints ?? snap.maxPoints;
+        if (maxP > 0 && earned >= maxP - 1e-6) {
+          rightCount += 1;
+        } else {
+          wrongCount += 1;
+        }
+      }
+      const row: Record<string, string | number> = {
+        MSSV: a.studentCode,
+        'Họ tên': a.studentName,
+        'Điểm hệ 10': Number(a.scale10Score.toFixed(2)),
+        'Số câu đúng': rightCount,
+        'Số câu sai / chưa đạt': wrongCount,
+      };
+      const snapIds = new Set(a.assignedQuestions.map((s) => s.questionId));
+      uniqueQIds.forEach((qid, idx) => {
+        const colKey = `Câu ${idx + 1}`;
+        if (!snapIds.has(qid)) {
+          row[colKey] = '—';
+          return;
+        }
+        const ans = a.answers[qid];
+        const earned = ans?.earnedPoints ?? 0;
+        const maxP = ans?.maxPoints ?? 1;
+        row[colKey] =
+          maxP > 0 && earned >= maxP - 1e-6
+            ? `Đúng (${earned}/${maxP})`
+            : earned > 0
+              ? `Một phần (${earned}/${maxP})`
+              : `Sai (0/${maxP})`;
+      });
+      return row;
+    });
+    const wsMatrix = XLSX.utils.json_to_sheet(matrixRows);
+    XLSX.utils.book_append_sheet(wb, wsMatrix, 'MaTranDungSai');
+
+    const detailRows: Array<Record<string, string | number>> = [];
+    for (const a of gradedAttempts) {
+      a.assignedQuestions.forEach((snap, idx) => {
+        const ans = a.answers[snap.questionId];
+        const earned = ans?.earnedPoints ?? 0;
+        const maxP = ans?.maxPoints ?? snap.maxPoints;
+        const qObj = qMap.get(snap.questionId);
+        const statusLabel =
+          maxP > 0 && earned >= maxP - 1e-6
+            ? 'Đúng'
+            : earned > 0
+              ? 'Một phần'
+              : 'Sai';
+        detailRows.push({
+          MSSV: a.studentCode,
+          'Họ tên': a.studentName,
+          Lớp: a.className,
+          'Câu số': `Câu ${idx + 1}`,
+          Chương: snap.chapterCategory,
+          'Nội dung câu hỏi': qObj?.content || snap.renderedContent,
+          'Kết quả': statusLabel,
+          'Điểm đạt': earned,
+          'Điểm tối đa': maxP,
+          'Nhận xét chấm': ans?.gradingFeedback ?? '',
+        });
+      });
+    }
+    const wsDetail = XLSX.utils.json_to_sheet(detailRows);
+    XLSX.utils.book_append_sheet(wb, wsDetail, 'ChiTietTungCau');
   }
 
   XLSX.writeFile(wb, `VNE_BangDiem_${exam.roomPin}.xlsx`);

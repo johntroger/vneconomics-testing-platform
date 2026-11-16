@@ -400,7 +400,7 @@ function buildStudentScoreEmailHtml(array $exam, array $attempt, array $answers)
         . "</div></div>";
 }
 
-function buildInstructorCsvAttachment(array $exam, array $attempts): string
+function buildInstructorCsvAttachment(array $exam, array $attempts, ?PDO $pdo = null): string
 {
     $esc = static function (mixed $v): string {
         $s = $v === null ? '' : (string) $v;
@@ -408,6 +408,82 @@ function buildInstructorCsvAttachment(array $exam, array $attempts): string
             return '"' . str_replace('"', '""', $s) . '"';
         }
         return $s;
+    };
+
+    $appendPerQuestionDetails = static function (array &$lines) use ($attempts, $pdo, $esc): void {
+        if ($pdo === null || count($attempts) === 0) {
+            return;
+        }
+        $attemptIds = array_values(array_filter(array_map(static fn (array $a): string => (string) ($a['id'] ?? ''), $attempts)));
+        if (count($attemptIds) === 0) {
+            return;
+        }
+        $ansByAttQ = [];
+        foreach (array_chunk($attemptIds, 200) as $chunk) {
+            $ph = implode(',', array_fill(0, count($chunk), '?'));
+            $stmt = $pdo->prepare("SELECT attempt_id, question_id, chapter_category, max_points, earned_points, grading_feedback FROM attempt_answers WHERE attempt_id IN ($ph)");
+            $stmt->execute($chunk);
+            foreach ($stmt->fetchAll() as $ansRow) {
+                $aid = (string) ($ansRow['attempt_id'] ?? '');
+                $qid = (string) ($ansRow['question_id'] ?? '');
+                if ($aid !== '' && $qid !== '') {
+                    $ansByAttQ[$aid][$qid] = $ansRow;
+                }
+            }
+        }
+
+        $hasAnyAssigned = false;
+        foreach ($attempts as $a) {
+            $assigned = json_decode((string) ($a['assigned_questions_json'] ?? '[]'), true);
+            if (is_array($assigned) && count($assigned) > 0) {
+                $hasAnyAssigned = true;
+                break;
+            }
+        }
+        if (!$hasAnyAssigned) {
+            return;
+        }
+
+        $lines[] = '';
+        $lines[] = implode(',', array_map($esc, [
+            'CHI TIẾT KẾT QUẢ TỪNG CÂU HỎI CỦA TỪNG THÍ SINH',
+            'Họ tên',
+            'Câu số',
+            'Chương / Chuyên đề',
+            'Nội dung câu hỏi',
+            'Kết quả',
+            'Điểm đạt',
+            'Điểm tối đa',
+            'Nhận xét chấm',
+        ]));
+
+        foreach ($attempts as $a) {
+            $aid = (string) ($a['id'] ?? '');
+            $assigned = json_decode((string) ($a['assigned_questions_json'] ?? '[]'), true);
+            if (!is_array($assigned) || count($assigned) === 0) {
+                continue;
+            }
+            foreach ($assigned as $idx => $snap) {
+                $qid = (string) ($snap['questionId'] ?? '');
+                $ans = $ansByAttQ[$aid][$qid] ?? null;
+                $maxP = (float) ($ans['max_points'] ?? ($snap['maxPoints'] ?? 1));
+                $earned = (float) ($ans['earned_points'] ?? 0);
+                $statusLabel = ($maxP > 0 && $earned >= $maxP - 1e-6)
+                    ? 'Đúng'
+                    : ($earned > 0 ? 'Một phần' : 'Sai');
+                $lines[] = implode(',', array_map($esc, [
+                    (string) ($a['student_code'] ?? ''),
+                    (string) ($a['student_name'] ?? ''),
+                    'Câu ' . ($idx + 1),
+                    (string) ($snap['chapterCategory'] ?? ($ans['chapter_category'] ?? '')),
+                    (string) ($snap['renderedContent'] ?? ''),
+                    $statusLabel,
+                    $earned,
+                    $maxP,
+                    (string) ($ans['grading_feedback'] ?? ''),
+                ]));
+            }
+        }
     };
 
     $rosterEntries = json_decode((string) ($exam['roster_entries_json'] ?? '[]'), true);
@@ -438,6 +514,7 @@ function buildInstructorCsvAttachment(array $exam, array $attempts): string
             ];
             $lines[] = implode(',', array_map($esc, $row));
         }
+        $appendPerQuestionDetails($lines);
         return "\xEF\xBB\xBF" . implode("\r\n", $lines);
     }
 
@@ -469,6 +546,7 @@ function buildInstructorCsvAttachment(array $exam, array $attempts): string
         $lines[] = implode(',', array_map($esc, $row));
     }
 
+    $appendPerQuestionDetails($lines);
     return "\xEF\xBB\xBF" . implode("\r\n", $lines);
 }
 
