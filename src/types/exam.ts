@@ -91,6 +91,7 @@ export interface Question {
   trueFalseItems?: TrueFalseStatement[];
   blankSlots?: BlankSlot[];
   blankAllOrNothing?: boolean;
+  variantGroup?: string;
   dynamicVars?: DynamicVarSpec[];
   numericalFormula?: string;
   numericalUnit?: string;
@@ -140,6 +141,7 @@ export interface Exam {
   oneWayMode: boolean;
   perQuestionSeconds: number;
   canvasAntiOcr: boolean;
+  allowReviewAfterSubmit?: boolean;
   emailDeliveryMode: EmailDeliveryMode;
   rosterWhitelist: string[];
   rosterEntries?: StudentRosterEntry[];

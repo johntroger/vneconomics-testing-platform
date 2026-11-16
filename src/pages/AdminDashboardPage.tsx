@@ -141,6 +141,7 @@ export const AdminDashboardPage: React.FC = () => {
     exams.length > 0 ? 'LIVE' : 'COURSES',
   );
   const [templateBoxOpen, setTemplateBoxOpen] = useState(false);
+  const [bankMoreMenuOpen, setBankMoreMenuOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimerRef = useRef<number | null>(null);
 
@@ -1586,6 +1587,25 @@ export const AdminDashboardPage: React.FC = () => {
                     <label className="flex items-center gap-2 font-semibold">
                       <input
                         type="checkbox"
+                        checked={Boolean(selectedExam.allowReviewAfterSubmit)}
+                        onChange={(e) =>
+                          saveExamSetting({
+                            ...selectedExam,
+                            allowReviewAfterSubmit: e.target.checked,
+                          })
+                        }
+                      />
+                      <span>Cho xem lại đề &amp; bài làm</span>
+                      <InfoHint
+                        title="Cho phép sinh viên xem lại bài làm sau khi nộp"
+                        text={
+                          '• Mặc định TẮT để bảo mật ngân hàng đề khi thi thật.\n• Nếu BẬT (phù hợp bài luyện tập / kiểm tra nhanh có công bố điểm ngay): sinh viên sau khi nộp sẽ thấy lại nội dung từng câu hỏi và đáp án mình đã chọn/điền.'
+                        }
+                      />
+                    </label>
+                    <label className="flex items-center gap-2 font-semibold">
+                      <input
+                        type="checkbox"
                         checked={selectedExam.oneWayMode}
                         onChange={(e) =>
                           saveExamSetting({
@@ -1725,47 +1745,70 @@ export const AdminDashboardPage: React.FC = () => {
                         }
                       />
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => setTemplateBoxOpen((o) => !o)}
-                      className="px-3 py-1.5 rounded-xl border border-brand-200 bg-brand-50 text-brand-800 font-bold flex items-center gap-1 hover:bg-brand-100"
-                    >
-                      <Download className="w-3.5 h-3.5" /> Chọn &amp; Tải Mẫu Excel
-                      <InfoHint
-                        title="Tải file Excel mẫu chuẩn"
-                        text={
-                          '• Bấm vào đây để tải bảng Excel mẫu về máy soạn câu hỏi trước.\n• Nếu chỉ làm trắc nghiệm 4 đáp án A/B/C/D, thầy/cô không cần tick chọn gì thêm, bấm "Tải File Mẫu (4 ĐA)" luôn cho gọn.'
-                        }
-                      />
-                    </button>
-                    <button
-                      type="button"
-                      disabled={courseQuestions.length === 0}
-                      onClick={() =>
-                        exportCourseQuestionsToXlsx(
-                          courseQuestions,
-                          selectedCourse?.code ?? 'COURSE',
-                          selectedCourse?.name ?? 'Học phần',
-                          Array.from(
-                            new Set([
-                              ...chapterGroups.map(([name]) => name),
-                              ...(selectedExam?.chapterMatrix.map(
-                                (r) => r.chapterCategory,
-                              ) ?? []),
-                            ]),
-                          ),
-                        )
-                      }
-                      className="px-3 py-1.5 rounded-xl border border-support-200 bg-support-50 text-support-800 font-bold flex items-center gap-1 hover:bg-support-100 disabled:opacity-45"
-                    >
-                      <FileSpreadsheet className="w-3.5 h-3.5" /> Xuất Excel
-                      <InfoHint
-                        title="Xuất Ngân hàng câu hỏi ra Excel"
-                        text={
-                          '• Tải toàn bộ câu hỏi của môn học này về máy dưới dạng file Excel (.xlsx).\n• Thầy/cô có thể dùng file này để lưu trữ dự phòng, in ra kiểm tra hoặc sửa lỗi chính tả hàng loạt rồi nạp ngược lại hệ thống.'
-                        }
-                      />
-                    </button>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setBankMoreMenuOpen((o) => !o)}
+                        className="px-3 py-1.5 rounded-xl border border-slate-300 bg-white text-ink-700 font-bold flex items-center gap-1.5 hover:bg-slate-50"
+                      >
+                        <Download className="w-3.5 h-3.5 text-brand-600" />
+                        <span>Công cụ Excel / JSON</span>
+                        <span className="text-[10px]">▾</span>
+                      </button>
+                      {bankMoreMenuOpen && (
+                        <div className="absolute right-0 mt-1.5 w-64 rounded-xl border border-slate-200 bg-white shadow-xl p-1.5 z-30 space-y-1 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setTemplateBoxOpen((o) => !o);
+                              setBankMoreMenuOpen(false);
+                            }}
+                            className="w-full text-left px-3 py-2 rounded-lg hover:bg-brand-50 text-brand-800 font-bold flex items-center gap-2"
+                          >
+                            <Download className="w-3.5 h-3.5 shrink-0" />
+                            <span>Chọn &amp; Tải Mẫu Excel</span>
+                          </button>
+                          <button
+                            type="button"
+                            disabled={courseQuestions.length === 0}
+                            onClick={() => {
+                              setBankMoreMenuOpen(false);
+                              exportCourseQuestionsToXlsx(
+                                courseQuestions,
+                                selectedCourse?.code ?? 'COURSE',
+                                selectedCourse?.name ?? 'Học phần',
+                                Array.from(
+                                  new Set([
+                                    ...chapterGroups.map(([name]) => name),
+                                    ...(selectedExam?.chapterMatrix.map(
+                                      (r) => r.chapterCategory,
+                                    ) ?? []),
+                                  ]),
+                                ),
+                              );
+                            }}
+                            className="w-full text-left px-3 py-2 rounded-lg hover:bg-support-50 text-support-800 font-bold flex items-center gap-2 disabled:opacity-45"
+                          >
+                            <FileSpreadsheet className="w-3.5 h-3.5 shrink-0" />
+                            <span>Xuất Ngân hàng ra Excel (.xlsx)</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setBankMoreMenuOpen(false);
+                              exportQuestionBankJson(
+                                courseQuestions,
+                                selectedCourse?.code ?? 'COURSE',
+                              );
+                            }}
+                            className="w-full text-left px-3 py-2 rounded-lg hover:bg-slate-50 text-ink-700 font-bold flex items-center gap-2"
+                          >
+                            <FileJson className="w-3.5 h-3.5 shrink-0" />
+                            <span>Sao lưu kỹ thuật (.JSON)</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
                     <button
                       type="button"
                       onClick={() => setExcelModalOpen(true)}
@@ -1776,25 +1819,6 @@ export const AdminDashboardPage: React.FC = () => {
                         title="Nạp hàng loạt câu hỏi từ Excel"
                         text={
                           '• Đưa nhanh hàng chục đến hàng trăm câu hỏi từ file Excel vào ngân hàng chỉ trong vài giây.\n• Hỗ trợ cả kéo thả file .xlsx lẫn copy-paste (Ctrl+C -> Ctrl+V) trực tiếp từ Excel/Google Sheets.'
-                        }
-                      />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        exportQuestionBankJson(
-                          courseQuestions,
-                          selectedCourse?.code ?? 'COURSE',
-                        )
-                      }
-                      className="px-2.5 py-1.5 rounded-xl border border-slate-200 font-bold flex items-center gap-1 hover:bg-slate-50"
-                      title="Sao lưu nhanh sang file .JSON"
-                    >
-                      <FileJson className="w-3.5 h-3.5" /> .JSON
-                      <InfoHint
-                        title="Sao lưu dữ liệu kỹ thuật (.JSON)"
-                        text={
-                          '• Xuất bản sao lưu thô dưới dạng tệp .json (dành cho mục đích lưu trữ kỹ thuật nguyên bản).\n• Nếu thầy/cô muốn mở xem hoặc sửa bằng Microsoft Excel, hãy dùng nút "Xuất Excel" màu xanh lá ở bên cạnh.'
                         }
                       />
                     </button>
@@ -1812,7 +1836,7 @@ export const AdminDashboardPage: React.FC = () => {
                       <InfoHint
                         title="Soạn từng câu hỏi trực tiếp trên web"
                         text={
-                          '• Mở cửa sổ soạn từng câu hỏi (phù hợp khi cần thêm nhanh 1–2 câu mới hoặc cài câu hỏi Tính toán biến số động {a}, {b} và câu Tự luận ngắn Rubric).'
+                          '• Mở cửa sổ soạn từng câu hỏi (phù hợp khi cần thêm nhanh 1–2 câu mới hoặc cài câu hỏi Tính toán biến số động {a}, {b}, Điền từ và Tự luận ngắn Rubric).'
                         }
                       />
                     </button>

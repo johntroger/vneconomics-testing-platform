@@ -260,7 +260,25 @@ export function buildAssignedQuestions(
       } else {
         selected = pool;
       }
-      for (const q of selected.slice(0, remainingQuota)) {
+      // Prefer questions whose variantGroup has not been picked yet in this attempt
+      const usedVariantGroups = new Set(
+        picked
+          .map((p) => p.question.variantGroup?.trim().toLowerCase())
+          .filter((g): g is string => Boolean(g)),
+      );
+      const primaryPicks: Question[] = [];
+      const fallbackPicks: Question[] = [];
+      for (const q of selected) {
+        const vg = q.variantGroup?.trim().toLowerCase();
+        if (vg && usedVariantGroups.has(vg)) {
+          fallbackPicks.push(q);
+        } else {
+          if (vg) usedVariantGroups.add(vg);
+          primaryPicks.push(q);
+        }
+      }
+      const prioritized = [...primaryPicks, ...fallbackPicks];
+      for (const q of prioritized.slice(0, remainingQuota)) {
         usedIds.add(q.id);
         picked.push({
           question: q,

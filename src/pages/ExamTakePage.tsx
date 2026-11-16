@@ -19,6 +19,17 @@ import { QuestionRenderer } from '../components/exam/QuestionRenderer';
 import { useExamPlatform } from '../context/ExamContext';
 import type { KeystrokeTelemetry, ViolationEvent } from '../types/exam';
 
+function isAnswerPayloadFilled(payload: unknown): boolean {
+  if (typeof payload === 'string') return payload.trim().length > 0;
+  if (Array.isArray(payload)) {
+    return payload.some((item) => String(item ?? '').trim().length > 0);
+  }
+  if (payload && typeof payload === 'object') {
+    return Object.keys(payload).length > 0;
+  }
+  return false;
+}
+
 function formatClock(totalSeconds: number): string {
   const safe = Math.max(0, Math.floor(totalSeconds));
   const mins = Math.floor(safe / 60);
@@ -163,7 +174,9 @@ export const ExamTakePage: React.FC = () => {
   const isLocked = attempt.status === 'LOCKED';
   const currentAnswer = attempt.answers[currentQuestion.id];
   const maxLeavesAllowed = exam.maxLeaveCount + attempt.extraLeaveAllowance;
-  const answeredCount = Object.keys(attempt.answers).length;
+  const answeredCount = attempt.assignedQuestions.filter((snap) =>
+    isAnswerPayloadFilled(attempt.answers[snap.questionId]?.answerPayload),
+  ).length;
   const isFlagged = attempt.flaggedQuestionIds.includes(currentQuestion.id);
 
   const handleAnswerChange = (
@@ -430,7 +443,9 @@ export const ExamTakePage: React.FC = () => {
             <div className="p-4 overflow-y-auto max-h-[55dvh]">
               <div className="grid grid-cols-5 gap-2">
                 {attempt.assignedQuestions.map((snap, idx) => {
-                  const isDone = Boolean(attempt.answers[snap.questionId]);
+                  const isDone = isAnswerPayloadFilled(
+                    attempt.answers[snap.questionId]?.answerPayload,
+                  );
                   const flagged = attempt.flaggedQuestionIds.includes(snap.questionId);
                   const isCur = idx === currentIndex;
                   return (

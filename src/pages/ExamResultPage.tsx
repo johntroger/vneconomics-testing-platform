@@ -17,7 +17,7 @@ export const ExamResultPage: React.FC = () => {
   const [searchParams] = useSearchParams();
   const attemptId = searchParams.get('attempt') ?? '';
 
-  const { exams, courses, attempts, correctStudentEmail } = useExamPlatform();
+  const { exams, courses, questions, attempts, correctStudentEmail } = useExamPlatform();
   const exam = exams.find((e) => e.id === examId);
   const course = courses.find((c) => c.id === exam?.courseId);
   const attempt = attempts.find((a) => a.id === attemptId);
@@ -190,10 +190,38 @@ export const ExamResultPage: React.FC = () => {
                 {attempt.assignedQuestions.map((snap, idx) => {
                   const ans = attempt.answers[snap.questionId];
                   const earned = ans ? ans.earnedPoints : 0;
+                  const qObj = questions.find((q) => q.id === snap.questionId);
+                  const formatStudentPayload = (): string => {
+                    if (!ans) return 'Chưa trả lời';
+                    const p = ans.answerPayload;
+                    if (Array.isArray(p)) {
+                      if (qObj?.type === 'MULTI_CHOICE' && qObj.options) {
+                        const labels = p.map(
+                          (oid) => qObj.options?.find((o) => o.id === oid)?.text ?? oid,
+                        );
+                        return labels.length > 0 ? labels.join(' ; ') : 'Chưa chọn';
+                      }
+                      return p.some((x) => String(x).trim() !== '')
+                        ? p.map((x, bi) => `Ô #${bi + 1}: ${x || '(trống)'}`).join(' | ')
+                        : 'Chưa điền';
+                    }
+                    if (p && typeof p === 'object') {
+                      const entries = Object.entries(p as Record<string, boolean>);
+                      return entries.length > 0
+                        ? entries
+                            .map(([, val], i) => `${String.fromCharCode(97 + i)}) ${val ? 'Đúng' : 'Sai'}`)
+                            .join(' · ')
+                        : 'Chưa chọn';
+                    }
+                    if (typeof p === 'string' && qObj?.type === 'SINGLE_CHOICE' && qObj.options) {
+                      return qObj.options.find((o) => o.id === p)?.text ?? (p || 'Chưa chọn');
+                    }
+                    return typeof p === 'string' && p.trim() !== '' ? p : 'Chưa trả lời';
+                  };
                   return (
                     <div
                       key={snap.questionId}
-                      className="p-3 rounded-xl border border-slate-200 bg-white text-xs space-y-1"
+                      className="p-3 rounded-xl border border-slate-200 bg-white text-xs space-y-1.5"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="font-bold text-ink-900">
@@ -211,6 +239,17 @@ export const ExamResultPage: React.FC = () => {
                           {earned}/{snap.maxPoints}đ
                         </span>
                       </div>
+                      {exam.allowReviewAfterSubmit && (
+                        <div className="rounded-lg bg-slate-50 border border-slate-200/80 p-2.5 space-y-1 text-[11px]">
+                          <p className="font-semibold text-ink-800 whitespace-pre-wrap">
+                            {snap.renderedContent}
+                          </p>
+                          <p className="text-ink-600">
+                            <span className="font-bold">Bài làm của bạn:</span>{' '}
+                            <span className="font-mono text-brand-800">{formatStudentPayload()}</span>
+                          </p>
+                        </div>
+                      )}
                       {ans?.gradingFeedback && (
                         <p className="text-[11px] text-ink-600">{ans.gradingFeedback}</p>
                       )}

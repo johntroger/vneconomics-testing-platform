@@ -15,15 +15,16 @@ function ensureExamSchema(PDO $pdo, string $driver): void
 
     // Fast check if core tables with latest columns exist
     try {
-        $pdo->query('SELECT shuffle_mode, pinned_question_ids_json, owner_id, roster_entries_json FROM exams LIMIT 1');
+        $pdo->query('SELECT shuffle_mode, pinned_question_ids_json, owner_id, roster_entries_json, allow_review_after_submit FROM exams LIMIT 1');
         $pdo->query('SELECT owner_id FROM courses LIMIT 1');
         $pdo->query('SELECT owner_id FROM questions LIMIT 1');
         $pdo->query('SELECT id, auth_provider FROM instructors LIMIT 1');
         $pdo->query('SELECT flagged_question_ids_json, email_edit_count, device_label, location_lat, location_lng, location_accuracy, login_devices_json FROM exam_attempts LIMIT 1');
-        $pdo->query('SELECT grading_rubric_json, numerical_formula, blank_slots_json, blank_all_or_nothing FROM questions LIMIT 1');
+        $pdo->query('SELECT grading_rubric_json, numerical_formula, blank_slots_json, blank_all_or_nothing, variant_group FROM questions LIMIT 1');
         $pdo->query('SELECT status FROM email_queue LIMIT 1');
         $pdo->query('SELECT id FROM demo_mailer_quota LIMIT 1');
         $pdo->query('SELECT nonce FROM used_captcha_nonces LIMIT 1');
+        $pdo->query('SELECT version FROM schema_migrations LIMIT 1');
         if (!$pdo->query("SELECT 1 FROM questions WHERE id = 'q_micro_c1_4' LIMIT 1")->fetchColumn()) {
             throw new RuntimeException('Backfill demo FILL_IN_BLANK sample');
         }
@@ -439,6 +440,8 @@ function ensureExamSchema(PDO $pdo, string $driver): void
             "ALTER TABLE exam_attempts ADD COLUMN login_devices_json LONGTEXT NULL",
             "ALTER TABLE questions ADD COLUMN blank_slots_json LONGTEXT NULL",
             "ALTER TABLE questions ADD COLUMN blank_all_or_nothing TINYINT(1) NOT NULL DEFAULT 0",
+            "ALTER TABLE questions ADD COLUMN variant_group VARCHAR(120) NULL",
+            "ALTER TABLE exams ADD COLUMN allow_review_after_submit TINYINT(1) NOT NULL DEFAULT 0",
         ]
         : [
             "ALTER TABLE courses ADD COLUMN owner_id TEXT NOT NULL DEFAULT 'SYSTEM_DEMO'",
@@ -452,6 +455,8 @@ function ensureExamSchema(PDO $pdo, string $driver): void
             "ALTER TABLE exam_attempts ADD COLUMN login_devices_json TEXT NULL",
             "ALTER TABLE questions ADD COLUMN blank_slots_json TEXT NULL",
             "ALTER TABLE questions ADD COLUMN blank_all_or_nothing INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE questions ADD COLUMN variant_group TEXT NULL",
+            "ALTER TABLE exams ADD COLUMN allow_review_after_submit INTEGER NOT NULL DEFAULT 0",
         ];
     foreach ($ownerMigrations as $alterSql) {
         try {
@@ -459,6 +464,31 @@ function ensureExamSchema(PDO $pdo, string $driver): void
         } catch (Throwable) {
             // Column already exists
         }
+    }
+
+    // Versioned schema_migrations tracking table (prevents future column/backfill drift)
+    try {
+        if ($driver === 'mysql') {
+            $pdo->exec(
+                "CREATE TABLE IF NOT EXISTS schema_migrations (
+                    version VARCHAR(64) PRIMARY KEY,
+                    applied_at VARCHAR(40) NOT NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+            );
+            $pdo->prepare("INSERT IGNORE INTO schema_migrations (version, applied_at) VALUES (:v, :at)")
+                ->execute([':v' => 'v2026_11_16_01_fill_blank_and_review', ':at' => nowIso()]);
+        } else {
+            $pdo->exec(
+                "CREATE TABLE IF NOT EXISTS schema_migrations (
+                    version TEXT PRIMARY KEY,
+                    applied_at TEXT NOT NULL
+                )"
+            );
+            $pdo->prepare("INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (:v, :at)")
+                ->execute([':v' => 'v2026_11_16_01_fill_blank_and_review', ':at' => nowIso()]);
+        }
+    } catch (Throwable) {
+        // Non-fatal
     }
 
     // Drop legacy UNIQUE index on exams.room_pin so multiple courses/exams may share a PIN

@@ -564,7 +564,30 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
     $isDemo = (($admin['role'] ?? 'DEMO') !== 'OFFICIAL');
 
     if ($action === 'list') {
-        $rows = $pdo->query('SELECT id, recipient, subject, kind, status, summary, csv_filename, error_message, created_at, sent_at FROM email_queue ORDER BY created_at DESC LIMIT 200')->fetchAll();
+        $actorId = (string) ($admin['instructorId'] ?? 'DEMO_INSTRUCTOR');
+        $actorEmail = strtolower(trim((string) ($admin['email'] ?? '')));
+        if (!$isDemo && $actorId === 'MASTER_ADMIN') {
+            $rows = $pdo->query('SELECT id, recipient, subject, kind, status, summary, csv_filename, error_message, created_at, sent_at FROM email_queue ORDER BY created_at DESC LIMIT 200')->fetchAll();
+        } elseif (!$isDemo) {
+            $eStmt = $pdo->prepare(
+                "SELECT id, recipient, subject, kind, status, summary, csv_filename, error_message, created_at, sent_at
+                 FROM email_queue
+                 WHERE LOWER(recipient) = :em
+                    OR LOWER(recipient) IN (SELECT DISTINCT LOWER(instructor_email) FROM exams WHERE owner_id = :uid1)
+                    OR LOWER(recipient) IN (SELECT DISTINCT LOWER(a.student_email) FROM exam_attempts a JOIN exams e ON e.id = a.exam_id WHERE e.owner_id = :uid2)
+                 ORDER BY created_at DESC LIMIT 200"
+            );
+            $eStmt->execute([':em' => $actorEmail, ':uid1' => $actorId, ':uid2' => $actorId]);
+            $rows = $eStmt->fetchAll();
+        } else {
+            $rows = $pdo->query(
+                "SELECT id, recipient, subject, kind, status, summary, csv_filename, error_message, created_at, sent_at
+                 FROM email_queue
+                 WHERE LOWER(recipient) = 'giangvien@vneconomics.com'
+                    OR LOWER(recipient) IN (SELECT DISTINCT LOWER(a.student_email) FROM exam_attempts a JOIN exams e ON e.id = a.exam_id WHERE e.owner_id = 'SYSTEM_DEMO')
+                 ORDER BY created_at DESC LIMIT 200"
+            )->fetchAll();
+        }
         jsonResponse(['ok' => true, 'logs' => $rows]);
     }
 

@@ -125,7 +125,8 @@ export const QuestionRenderer: React.FC<QuestionRendererProps> = ({
                         placeholder={`Ô #${idx + 1}`}
                         aria-label={`Ô trống ${idx + 1}`}
                         style={{
-                          width: `${Math.min(24, Math.max(10, (blankValues[idx]?.length ?? 0) + 4))}ch`,
+                          width: `${Math.min(32, Math.max(10, (blankValues[idx]?.length ?? 0) + 4))}ch`,
+                          maxWidth: '100%',
                         }}
                         className="inline-block align-baseline px-2.5 py-0.5 mx-0.5 rounded-lg border-2 border-brand-300 bg-white font-mono text-sm font-bold text-brand-900 placeholder:text-slate-400 placeholder:font-sans placeholder:font-medium focus:outline-none focus:border-brand-600 focus:ring-2 focus:ring-brand-100 transition-colors"
                       />

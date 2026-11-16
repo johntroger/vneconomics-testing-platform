@@ -127,6 +127,9 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
   const [blankAllOrNothing, setBlankAllOrNothing] = useState(
     Boolean(initialQuestion?.blankAllOrNothing),
   );
+  const [variantGroup, setVariantGroup] = useState(
+    initialQuestion?.variantGroup ?? '',
+  );
   const [formError, setFormError] = useState<string | null>(null);
   const contentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
 
@@ -209,6 +212,7 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
     trueFalseItems: type === 'TRUE_FALSE' ? trueFalseItems : undefined,
     blankSlots: type === 'FILL_IN_BLANK' ? buildBlankSlots() : undefined,
     blankAllOrNothing: type === 'FILL_IN_BLANK' ? blankAllOrNothing : undefined,
+    variantGroup: variantGroup.trim() || undefined,
     dynamicVars: dynamicVars.length > 0 ? dynamicVars : undefined,
     numericalFormula: type === 'NUMERICAL' ? numericalFormula : undefined,
     numericalUnit: type === 'NUMERICAL' ? numericalUnit : undefined,
@@ -346,51 +350,71 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
             </div>
           </div>
 
-          {/* Chapter Category */}
-          <div>
-            <div className="flex items-center justify-between gap-2 mb-1">
-              <label className="block font-bold text-ink-700">
-                Chương / Chuyên đề
-              </label>
-              {existingChapters.length > 0 && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (!addingNewChapter) {
-                      setAddingNewChapter(true);
-                      setChapterCategory(`Chương ${existingChapters.length + 1}: `);
-                    } else {
-                      setAddingNewChapter(false);
-                      setChapterCategory(existingChapters[0] ?? 'Chương 1: Tổng quan');
-                    }
-                  }}
-                  className="text-[11px] font-bold text-brand-700 hover:underline flex items-center gap-1"
+          {/* Chapter Category & Variant Group */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2">
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <label className="block font-bold text-ink-700">
+                  Chương / Chuyên đề
+                </label>
+                {existingChapters.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!addingNewChapter) {
+                        setAddingNewChapter(true);
+                        setChapterCategory(`Chương ${existingChapters.length + 1}: `);
+                      } else {
+                        setAddingNewChapter(false);
+                        setChapterCategory(existingChapters[0] ?? 'Chương 1: Tổng quan');
+                      }
+                    }}
+                    className="text-[11px] font-bold text-brand-700 hover:underline flex items-center gap-1"
+                  >
+                    {addingNewChapter ? 'Chọn chương có sẵn' : '+ Thêm chương mới'}
+                  </button>
+                )}
+              </div>
+              {addingNewChapter || existingChapters.length === 0 ? (
+                <input
+                  type="text"
+                  value={chapterCategory}
+                  onChange={(e) => setChapterCategory(e.target.value)}
+                  className="w-full h-10 px-3 rounded-xl border border-slate-300 font-semibold"
+                  placeholder="Ví dụ: Chương 2: Cung - Cầu & Cân bằng"
+                />
+              ) : (
+                <select
+                  value={existingChapters.includes(chapterCategory) ? chapterCategory : existingChapters[0]}
+                  onChange={(e) => setChapterCategory(e.target.value)}
+                  className="w-full h-10 px-3 rounded-xl border border-slate-300 bg-white font-semibold"
                 >
-                  {addingNewChapter ? 'Chọn chương có sẵn' : '+ Thêm chương mới'}
-                </button>
+                  {existingChapters.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
               )}
             </div>
-            {addingNewChapter || existingChapters.length === 0 ? (
+            <div>
+              <label className="flex items-center gap-1.5 font-bold text-ink-700 mb-1">
+                <span>Nhóm tương đương</span>
+                <InfoHint
+                  title="Chống trùng ý khi bốc đề ngẫu nhiên"
+                  text={
+                    '• Tùy chọn (có thể bỏ trống). Nếu thầy/cô soạn nhiều biến thể cùng hỏi 1 kiến thức (VD: cùng đặt tên nhóm là "cung_cau_1"), hệ thống sẽ ưu tiên chỉ bốc tối đa 1 câu trong nhóm đó cho mỗi sinh viên.'
+                  }
+                />
+              </label>
               <input
                 type="text"
-                value={chapterCategory}
-                onChange={(e) => setChapterCategory(e.target.value)}
-                className="w-full h-10 px-3 rounded-xl border border-slate-300 font-semibold"
-                placeholder="Ví dụ: Chương 2: Cung - Cầu & Cân bằng"
+                value={variantGroup}
+                onChange={(e) => setVariantGroup(e.target.value)}
+                className="w-full h-10 px-3 rounded-xl border border-slate-300 font-mono text-xs"
+                placeholder="VD: nhom_1 (tùy chọn)"
               />
-            ) : (
-              <select
-                value={existingChapters.includes(chapterCategory) ? chapterCategory : existingChapters[0]}
-                onChange={(e) => setChapterCategory(e.target.value)}
-                className="w-full h-10 px-3 rounded-xl border border-slate-300 bg-white font-semibold"
-              >
-                {existingChapters.map((c) => (
-                  <option key={c} value={c}>
-                    {c}
-                  </option>
-                ))}
-              </select>
-            )}
+            </div>
           </div>
 
           {/* Prompt */}
