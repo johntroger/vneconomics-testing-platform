@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { RoomMatchOption, useExamPlatform } from '../context/ExamContext';
 
-const DOMAIN_CHIPS = ['@gmail.com', '@st.ueh.edu.vn', '@edu.vn', '@icloud.com'];
+const DOMAIN_CHIPS = ['@gmail.com', '@icloud.com', '@nttu.edu.vn', '@ntt.edu.vn'];
 const COMMON_EMAIL_TYPOS = ['@gmai.com', '@gmial.com', '@gnail.com', '@yaho.com', '@gamil.com'];
 
 function getDeviceLabel(): string {
