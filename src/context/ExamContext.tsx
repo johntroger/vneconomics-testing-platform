@@ -24,6 +24,7 @@ import type {
   EmailLogEntry,
   Exam,
   ExamAttempt,
+  ExamShift,
   InstructorUser,
   KeystrokeTelemetry,
   Question,
@@ -82,6 +83,7 @@ interface ExamPlatformState {
   courses: Course[];
   questions: Question[];
   exams: Exam[];
+  shifts: ExamShift[];
   attempts: ExamAttempt[];
   emailLogs: EmailLogEntry[];
 }
@@ -142,7 +144,7 @@ interface ExamContextValue extends ExamPlatformState {
   ) => void;
   resetAttemptDevice: (attemptId: string) => void;
   addBonusTimeToAttempt: (attemptId: string, extraSeconds: number) => void;
-  closeExamAndSweep: (examId: string) => { sweptCount: number };
+  closeExamAndSweep: (examId: string, shiftId?: string) => { sweptCount: number };
   overrideEssayScore: (
     attemptId: string,
     questionId: string,
@@ -171,6 +173,13 @@ interface ExamContextValue extends ExamPlatformState {
   upsertExam: (exam: Exam) => Promise<{ ok: boolean; error?: string }>;
   deleteExam: (examId: string) => Promise<{ ok: boolean; error?: string }>;
   cloneExam: (examId: string, customTitle?: string) => Promise<{ exam: Exam | null; error?: string }>;
+  upsertShift: (shift: ExamShift) => Promise<{ ok: boolean; shift?: ExamShift; error?: string }>;
+  deleteShift: (shiftId: string) => Promise<{ ok: boolean; error?: string }>;
+  createShiftForExam: (
+    examId: string,
+    customTitle?: string,
+    initialStatus?: 'DRAFT' | 'OPEN',
+  ) => Promise<{ shift: ExamShift | null; error?: string }>;
   resendStudentScoreEmail: (attemptId: string, editedEmail?: string) => void;
   checkDemoMailerQuota: () => Promise<{
     isDemo: boolean;
@@ -195,6 +204,38 @@ function upsertById<T extends { id: string }>(existing: T[], incoming: T[]): T[]
   for (const item of existing) map.set(item.id, item);
   for (const item of incoming) map.set(item.id, item);
   return Array.from(map.values());
+}
+
+function buildInitialShiftsFromExams(exams: Exam[]): ExamShift[] {
+  return exams.map((ex) => ({
+    id: `shift_${ex.id}`,
+    examId: ex.id,
+    ownerId: ex.ownerId,
+    title: ex.title,
+    roomPin: ex.roomPin,
+    unlockPin: ex.unlockPin,
+    status: ex.status,
+    rosterWhitelist: ex.rosterWhitelist ?? [],
+    rosterEntries: ex.rosterEntries ?? [],
+    requiresWhitelist: ex.requiresWhitelist,
+    requiresRosterVerification: ex.requiresRosterVerification,
+    reportSentStatus: ex.reportSentStatus,
+    reportSentAt: ex.reportSentAt,
+    createdAt: ex.createdAt,
+  }));
+}
+
+function normalizeServerShift(raw: ExamShift): ExamShift {
+  return {
+    ...raw,
+    unlockPin: raw.unlockPin ?? '',
+    rosterWhitelist: Array.isArray(raw.rosterWhitelist) ? raw.rosterWhitelist : [],
+    rosterEntries: Array.isArray(raw.rosterEntries) ? raw.rosterEntries : [],
+    requiresRosterVerification: Boolean(
+      raw.requiresRosterVerification ||
+        (Array.isArray(raw.rosterEntries) && raw.rosterEntries.length > 0),
+    ),
+  };
 }
 
 function normalizeServerExam(raw: Exam): Exam {
@@ -297,6 +338,9 @@ function loadInitialState(): ExamPlatformState {
           courses: parsed.courses,
           questions: parsed.questions,
           exams: parsed.exams,
+          shifts: Array.isArray(parsed.shifts)
+            ? parsed.shifts
+            : buildInitialShiftsFromExams(parsed.exams),
           attempts: parsed.attempts,
           emailLogs: Array.isArray(parsed.emailLogs) ? parsed.emailLogs : SEED_EMAIL_LOGS,
         };
@@ -309,6 +353,7 @@ function loadInitialState(): ExamPlatformState {
     courses: SEED_COURSES,
     questions: SEED_QUESTIONS,
     exams: SEED_EXAMS,
+    shifts: buildInitialShiftsFromExams(SEED_EXAMS),
     attempts: SEED_ATTEMPTS,
     emailLogs: SEED_EMAIL_LOGS,
   };
@@ -466,6 +511,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         let nextCourses: Course[] | undefined;
         let nextQuestions: Question[] | undefined;
         let nextExams: Exam[] | undefined;
+        let nextShifts: ExamShift[] | undefined;
         let nextEmailLogs: EmailLogEntry[] | undefined;
 
         if (withBootstrap) {
@@ -474,6 +520,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
             courses?: Course[];
             questions?: Question[];
             exams?: Exam[];
+            shifts?: ExamShift[];
             emailLogs?: Array<Record<string, unknown>>;
           }>('/api/exams.php?action=bootstrap', { method: 'GET' });
 
@@ -488,6 +535,9 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
             nextQuestions = bootRes.data.questions;
             nextExams = Array.isArray(bootRes.data.exams)
               ? bootRes.data.exams.map(normalizeServerExam)
+              : undefined;
+            nextShifts = Array.isArray(bootRes.data.shifts)
+              ? bootRes.data.shifts.map(normalizeServerShift)
               : undefined;
             nextEmailLogs = Array.isArray(bootRes.data.emailLogs)
               ? bootRes.data.emailLogs.map(normalizeServerEmailLog)
@@ -515,11 +565,12 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         if (mutationEpochRef.current !== startEpoch) {
           return;
         }
-        if (nextCourses || nextQuestions || nextExams || nextEmailLogs || nextAttempts) {
+        if (nextCourses || nextQuestions || nextExams || nextShifts || nextEmailLogs || nextAttempts) {
           updateState((prev) => ({
             courses: nextCourses ?? prev.courses,
             questions: nextQuestions ?? prev.questions,
             exams: nextExams ?? prev.exams,
+            shifts: nextShifts ?? prev.shifts,
             attempts: nextAttempts ?? prev.attempts,
             emailLogs: nextEmailLogs ?? prev.emailLogs,
           }));
@@ -1901,7 +1952,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const closeExamAndSweep = useCallback(
-    (examId: string): { sweptCount: number } => {
+    (examId: string, shiftId?: string): { sweptCount: number } => {
       let sweptCount = 0;
       const nowIso = new Date().toISOString();
 
@@ -1918,6 +1969,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         const newMailLogs: EmailLogEntry[] = [];
         const updatedAttempts = prev.attempts.map((a) => {
           if (a.examId !== examId) return a;
+          if (shiftId && a.shiftId && a.shiftId !== shiftId) return a;
 
           let nextA = recalculateAttemptScores(a, prev.questions);
           if (
@@ -1974,15 +2026,27 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
 
         return {
           ...prev,
-          exams: prev.exams.map((e) =>
-            e.id === examId
+          exams: shiftId
+            ? prev.exams
+            : prev.exams.map((e) =>
+                e.id === examId
+                  ? {
+                      ...e,
+                      status: 'CLOSED',
+                      reportSentStatus: 'SENT',
+                      reportSentAt: nowIso,
+                    }
+                  : e,
+              ),
+          shifts: prev.shifts.map((s) =>
+            (shiftId ? s.id === shiftId : s.examId === examId)
               ? {
-                  ...e,
+                  ...s,
                   status: 'CLOSED',
-                  reportSentStatus: 'SENT',
+                  reportSentStatus: mailStatus === 'DEMO_SKIPPED' ? 'DEMO_SKIPPED' : 'SENT',
                   reportSentAt: nowIso,
                 }
-              : e,
+              : s,
           ),
           attempts: updatedAttempts,
           emailLogs: [instructorReportLog, ...newMailLogs, ...prev.emailLogs],
@@ -1992,7 +2056,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
       if (backendConnected) {
         void apiRequest('/api/attempts.php?action=sweep', {
           method: 'POST',
-          body: JSON.stringify({ examId }),
+          body: JSON.stringify({ examId, shiftId }),
         });
       }
 
@@ -2442,9 +2506,11 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
     async (examId: string): Promise<{ ok: boolean; error?: string }> => {
       mutationEpochRef.current += 1;
       const prevExams = stateRef.current.exams;
+      const prevShifts = stateRef.current.shifts;
       updateState((prev) => ({
         ...prev,
         exams: prev.exams.filter((e) => e.id !== examId),
+        shifts: prev.shifts.filter((s) => s.examId !== examId),
       }));
 
       if (backendConnected) {
@@ -2459,6 +2525,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
           updateState((prev) => ({
             ...prev,
             exams: prevExams,
+            shifts: prevShifts,
           }));
           return {
             ok: false,
@@ -2469,6 +2536,122 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
       return { ok: true };
     },
     [backendConnected, updateState],
+  );
+
+  const upsertShift = useCallback(
+    async (
+      shift: ExamShift,
+    ): Promise<{ ok: boolean; shift?: ExamShift; error?: string }> => {
+      mutationEpochRef.current += 1;
+      updateState((prev) => {
+        const exists = prev.shifts.some((s) => s.id === shift.id);
+        return {
+          ...prev,
+          shifts: exists
+            ? prev.shifts.map((s) => (s.id === shift.id ? shift : s))
+            : [shift, ...prev.shifts],
+        };
+      });
+
+      if (backendConnected) {
+        const res = await apiRequestDetailed<{
+          ok: boolean;
+          shift?: ExamShift;
+          error?: string;
+        }>('/api/exams.php?action=save_shift', {
+          method: 'POST',
+          body: JSON.stringify(shift),
+        });
+        if (!res.ok || !res.data?.ok) {
+          return {
+            ok: false,
+            error: res.error || res.data?.error || 'Không thể lưu ca thi lên máy chủ.',
+          };
+        }
+        if (res.data.shift) {
+          const saved = normalizeServerShift(res.data.shift);
+          updateState((prev) => ({
+            ...prev,
+            shifts: prev.shifts.map((s) => (s.id === shift.id ? saved : s)),
+          }));
+          return { ok: true, shift: saved };
+        }
+      }
+      return { ok: true, shift };
+    },
+    [backendConnected, updateState],
+  );
+
+  const deleteShift = useCallback(
+    async (shiftId: string): Promise<{ ok: boolean; error?: string }> => {
+      mutationEpochRef.current += 1;
+      const prevShifts = stateRef.current.shifts;
+      const prevAttempts = stateRef.current.attempts;
+      updateState((prev) => ({
+        ...prev,
+        shifts: prev.shifts.filter((s) => s.id !== shiftId),
+        attempts: prev.attempts.filter((a) => a.shiftId !== shiftId),
+      }));
+
+      if (backendConnected) {
+        const res = await apiRequestDetailed<{ ok: boolean; error?: string }>(
+          '/api/exams.php?action=delete_shift',
+          {
+            method: 'POST',
+            body: JSON.stringify({ id: shiftId }),
+          },
+        );
+        if (!res.ok || !res.data?.ok) {
+          updateState((prev) => ({
+            ...prev,
+            shifts: prevShifts,
+            attempts: prevAttempts,
+          }));
+          return {
+            ok: false,
+            error: res.error || res.data?.error || 'Không thể xóa ca thi.',
+          };
+        }
+      }
+      return { ok: true };
+    },
+    [backendConnected, updateState],
+  );
+
+  const createShiftForExam = useCallback(
+    async (
+      examId: string,
+      customTitle?: string,
+      initialStatus: 'DRAFT' | 'OPEN' = 'OPEN',
+    ): Promise<{ shift: ExamShift | null; error?: string }> => {
+      const parentExam = stateRef.current.exams.find((e) => e.id === examId);
+      if (!parentExam) {
+        return { shift: null, error: 'Không tìm thấy đề thi gốc.' };
+      }
+      const existingCount = stateRef.current.shifts.filter((s) => s.examId === examId).length;
+      const randomPin = String(Math.floor(100000 + Math.random() * 900000));
+      const newShift: ExamShift = {
+        id: `shift_${Date.now().toString(36)}`,
+        examId: parentExam.id,
+        ownerId: parentExam.ownerId,
+        title: customTitle?.trim() || `${parentExam.title} — Ca ${existingCount + 1}`,
+        roomPin: randomPin,
+        unlockPin: parentExam.unlockPin || '8888',
+        status: initialStatus,
+        rosterWhitelist: [],
+        rosterEntries: [],
+        requiresWhitelist: false,
+        requiresRosterVerification: false,
+        reportSentStatus: 'PENDING',
+        createdAt: new Date().toISOString(),
+      };
+      const res = await upsertShift(newShift);
+      if (!res.ok) {
+        return { shift: null, error: res.error };
+      }
+      return { shift: res.shift ?? newShift };
+    },
+    [upsertShift],
   );
 
   const cloneExam = useCallback(
@@ -2676,6 +2859,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
       courses: SEED_COURSES,
       questions: SEED_QUESTIONS,
       exams: SEED_EXAMS,
+      shifts: buildInitialShiftsFromExams(SEED_EXAMS),
       attempts: SEED_ATTEMPTS,
       emailLogs: SEED_EMAIL_LOGS,
     };
@@ -2755,6 +2939,9 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         upsertExam,
         deleteExam,
         cloneExam,
+        upsertShift,
+        deleteShift,
+        createShiftForExam,
         resendStudentScoreEmail,
         checkDemoMailerQuota,
         sendTestMailer,

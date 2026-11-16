@@ -130,6 +130,33 @@ function formatExamRow(array $r, bool $stripSecrets = false): array
     return $exam;
 }
 
+function formatShiftRow(array $r, bool $stripSecrets = false): array
+{
+    $whitelist = decodeJsonSafe($r['roster_whitelist_json'] ?? null, []);
+    $rosterEntries = decodeJsonSafe($r['roster_entries_json'] ?? null, []);
+    $shift = [
+        'id' => (string) $r['id'],
+        'examId' => (string) $r['exam_id'],
+        'ownerId' => (string) ($r['owner_id'] ?? 'SYSTEM_DEMO'),
+        'title' => (string) $r['title'],
+        'roomPin' => (string) $r['room_pin'],
+        'status' => (string) ($r['status'] ?? 'DRAFT'),
+        'requiresWhitelist' => is_array($whitelist) && count($whitelist) > 0,
+        'requiresRosterVerification' => is_array($rosterEntries) && count($rosterEntries) > 0,
+        'reportSentStatus' => (string) ($r['report_sent_status'] ?? 'PENDING'),
+        'reportSentAt' => $r['report_sent_at'] ?? null,
+        'createdAt' => (string) $r['created_at'],
+    ];
+
+    if (!$stripSecrets) {
+        $shift['unlockPin'] = (string) ($r['unlock_pin'] ?? '8888');
+        $shift['rosterWhitelist'] = is_array($whitelist) ? $whitelist : [];
+        $shift['rosterEntries'] = is_array($rosterEntries) ? $rosterEntries : [];
+    }
+
+    return $shift;
+}
+
 function upsertQuestionRow(PDO $pdo, array $body, string $actorId = 'SYSTEM_DEMO', bool $isMaster = false): array
 {
     $id = trim((string) ($body['id'] ?? '')) ?: generateId('q');
@@ -193,10 +220,12 @@ function fetchScopedData(PDO $pdo, array $auth): array
         $cRows = $pdo->query("SELECT * FROM courses WHERE owner_id = 'SYSTEM_DEMO' ORDER BY code ASC")->fetchAll();
         $qRows = $pdo->query("SELECT * FROM questions WHERE owner_id = 'SYSTEM_DEMO'")->fetchAll();
         $eRows = $pdo->query("SELECT * FROM exams WHERE owner_id = 'SYSTEM_DEMO' ORDER BY created_at DESC")->fetchAll();
+        $sRows = $pdo->query("SELECT * FROM exam_shifts WHERE owner_id = 'SYSTEM_DEMO' ORDER BY created_at DESC")->fetchAll();
     } elseif ($actorId === 'MASTER_ADMIN') {
         $cRows = $pdo->query('SELECT * FROM courses ORDER BY code ASC')->fetchAll();
         $qRows = $pdo->query('SELECT * FROM questions')->fetchAll();
         $eRows = $pdo->query('SELECT * FROM exams ORDER BY created_at DESC')->fetchAll();
+        $sRows = $pdo->query('SELECT * FROM exam_shifts ORDER BY created_at DESC')->fetchAll();
     } else {
         $cStmt = $pdo->prepare('SELECT * FROM courses WHERE owner_id = :uid ORDER BY code ASC');
         $cStmt->execute([':uid' => $actorId]);
@@ -209,12 +238,17 @@ function fetchScopedData(PDO $pdo, array $auth): array
         $eStmt = $pdo->prepare('SELECT * FROM exams WHERE owner_id = :uid ORDER BY created_at DESC');
         $eStmt->execute([':uid' => $actorId]);
         $eRows = $eStmt->fetchAll();
+
+        $sStmt = $pdo->prepare('SELECT * FROM exam_shifts WHERE owner_id = :uid ORDER BY created_at DESC');
+        $sStmt->execute([':uid' => $actorId]);
+        $sRows = $sStmt->fetchAll();
     }
 
     return [
         'courses' => array_map('formatCourseRow', $cRows),
         'questions' => array_map(static fn ($r) => formatQuestionRow($r, false), $qRows),
         'exams' => array_map(static fn ($r) => formatExamRow($r, false), $eRows),
+        'shifts' => array_map(static fn ($r) => formatShiftRow($r, false), $sRows),
     ];
 }
 
@@ -245,27 +279,53 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             jsonError('Vui lòng nhập mã PIN phòng thi.', 400);
         }
         $demoPins = ['101202', '202303', '303404'];
-        if ($requestedExamId !== '') {
-            $stmt = $pdo->prepare('SELECT e.*, c.code AS course_code, c.name AS course_name FROM exams e LEFT JOIN courses c ON c.id = e.course_id WHERE UPPER(e.room_pin) = :pin AND e.id = :eid LIMIT 1');
-            $stmt->execute([':pin' => $pin, ':eid' => $requestedExamId]);
+        $shiftStmt = $requestedExamId !== ''
+            ? $pdo->prepare('SELECT * FROM exam_shifts WHERE UPPER(room_pin) = :pin AND exam_id = :eid LIMIT 1')
+            : $pdo->prepare("SELECT * FROM exam_shifts WHERE UPPER(room_pin) = :pin ORDER BY (CASE WHEN status = 'OPEN' THEN 0 ELSE 1 END), created_at DESC");
+        $shiftStmt->execute($requestedExamId !== '' ? [':pin' => $pin, ':eid' => $requestedExamId] : [':pin' => $pin]);
+        $shiftRows = $shiftStmt->fetchAll();
+        $activeShift = $shiftRows[0] ?? null;
+
+        if ($activeShift) {
+            $exOne = $pdo->prepare('SELECT e.*, c.code AS course_code, c.name AS course_name FROM exams e LEFT JOIN courses c ON c.id = e.course_id WHERE e.id = :eid LIMIT 1');
+            $exOne->execute([':eid' => $activeShift['exam_id']]);
+            $row = $exOne->fetch();
+            if ($row) {
+                $row['room_pin'] = $activeShift['room_pin'];
+                $row['status'] = $activeShift['status'];
+                $row['roster_whitelist_json'] = $activeShift['roster_whitelist_json'];
+                $row['roster_entries_json'] = $activeShift['roster_entries_json'];
+                $rows = [$row];
+            } else {
+                $rows = [];
+            }
         } else {
-            $stmt = $pdo->prepare("SELECT e.*, c.code AS course_code, c.name AS course_name FROM exams e LEFT JOIN courses c ON c.id = e.course_id WHERE UPPER(e.room_pin) = :pin ORDER BY (CASE WHEN e.status = 'OPEN' THEN 0 ELSE 1 END), e.created_at DESC");
-            $stmt->execute([':pin' => $pin]);
+            if ($requestedExamId !== '') {
+                $stmt = $pdo->prepare('SELECT e.*, c.code AS course_code, c.name AS course_name FROM exams e LEFT JOIN courses c ON c.id = e.course_id WHERE UPPER(e.room_pin) = :pin AND e.id = :eid LIMIT 1');
+                $stmt->execute([':pin' => $pin, ':eid' => $requestedExamId]);
+            } else {
+                $stmt = $pdo->prepare("SELECT e.*, c.code AS course_code, c.name AS course_name FROM exams e LEFT JOIN courses c ON c.id = e.course_id WHERE UPPER(e.room_pin) = :pin ORDER BY (CASE WHEN e.status = 'OPEN' THEN 0 ELSE 1 END), e.created_at DESC");
+                $stmt->execute([':pin' => $pin]);
+            }
+            $rows = $stmt->fetchAll();
+            $row = $rows[0] ?? false;
         }
-        $rows = $stmt->fetchAll();
-        $row = $rows[0] ?? false;
 
         if (!$row && in_array($pin, $demoPins, true) && $requestedExamId === '') {
             seedDefaultEconomicsData($pdo, true);
+            $stmt = $pdo->prepare("SELECT e.*, c.code AS course_code, c.name AS course_name FROM exams e LEFT JOIN courses c ON c.id = e.course_id WHERE UPPER(e.room_pin) = :pin ORDER BY (CASE WHEN e.status = 'OPEN' THEN 0 ELSE 1 END), e.created_at DESC");
             $stmt->execute([':pin' => $pin]);
             $rows = $stmt->fetchAll();
             $row = $rows[0] ?? false;
         } elseif ($row && in_array($pin, $demoPins, true) && (string) ($row['owner_id'] ?? '') === 'SYSTEM_DEMO' && (string) ($row['status'] ?? '') !== 'OPEN') {
+            if ($activeShift) {
+                $pdo->prepare("UPDATE exam_shifts SET status = 'OPEN', report_sent_status = 'PENDING', report_sent_at = NULL WHERE id = :id")
+                    ->execute([':id' => $activeShift['id']]);
+                $activeShift['status'] = 'OPEN';
+            }
             $pdo->prepare("UPDATE exams SET status = 'OPEN', report_sent_status = 'PENDING', report_sent_at = NULL WHERE id = :id")
                 ->execute([':id' => $row['id']]);
-            $stmt->execute($requestedExamId !== '' ? [':pin' => $pin, ':eid' => $requestedExamId] : [':pin' => $pin]);
-            $rows = $stmt->fetchAll();
-            $row = $rows[0] ?? false;
+            $row['status'] = 'OPEN';
         }
 
         if (!$row) {
@@ -308,6 +368,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             'multipleMatches' => count($matches) > 1,
             'matches' => $matches,
             'exam' => formatExamRow($row, true),
+            'shift' => $activeShift ? formatShiftRow($activeShift, true) : null,
             'course' => $courseRow ? formatCourseRow($courseRow) : null,
             'questions' => array_map(static fn ($qr) => formatQuestionRow($qr, true), $qRows),
         ]);
@@ -759,6 +820,99 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         }
     }
 
+    if ($action === 'save_shift') {
+        $official = requireOfficialInstructor();
+        $actorId = (string) $official['instructorId'];
+        $isMaster = ($actorId === 'MASTER_ADMIN');
+        $body = readJsonBody();
+
+        $id = trim((string) ($body['id'] ?? '')) ?: generateId('shift');
+        $examId = trim((string) ($body['examId'] ?? ''));
+        $title = trim((string) ($body['title'] ?? ''));
+        $pin = trim((string) ($body['roomPin'] ?? ''));
+        if ($examId === '' || $title === '' || $pin === '') {
+            jsonError('Thiếu examId, tên ca thi hoặc mã PIN.', 400);
+        }
+
+        $exChk = $pdo->prepare('SELECT owner_id FROM exams WHERE id = :eid LIMIT 1');
+        $exChk->execute([':eid' => $examId]);
+        $exOwner = $exChk->fetchColumn();
+        if ($exOwner === false) {
+            jsonError('Không tìm thấy đề thi gốc.', 404);
+        }
+        if (!$isMaster && (string) $exOwner !== $actorId) {
+            jsonError('Không có quyền tạo/sửa ca thi cho đề của giảng viên khác.', 403);
+        }
+
+        $chk = $pdo->prepare('SELECT owner_id FROM exam_shifts WHERE id = :id LIMIT 1');
+        $chk->execute([':id' => $id]);
+        $existingOwner = $chk->fetchColumn();
+        $isUpdate = ($existingOwner !== false);
+        if ($isUpdate && !$isMaster && (string) $existingOwner !== $actorId) {
+            jsonError('Không có quyền sửa ca thi của giảng viên khác.', 403);
+        }
+
+        $params = [
+            ':id' => $id,
+            ':exam_id' => $examId,
+            ':title' => $title,
+            ':room_pin' => $pin,
+            ':unlock_pin' => trim((string) ($body['unlockPin'] ?? '8888')),
+            ':status' => (string) ($body['status'] ?? 'DRAFT'),
+            ':rw' => json_encode($body['rosterWhitelist'] ?? [], JSON_UNESCAPED_UNICODE),
+            ':re' => json_encode($body['rosterEntries'] ?? [], JSON_UNESCAPED_UNICODE),
+        ];
+
+        if ($isUpdate) {
+            $sql = 'UPDATE exam_shifts SET exam_id=:exam_id, title=:title, room_pin=:room_pin, unlock_pin=:unlock_pin, status=:status, roster_whitelist_json=:rw, roster_entries_json=:re WHERE id=:id';
+        } else {
+            $params[':owner_id'] = $actorId;
+            $params[':rss'] = 'PENDING';
+            $params[':ca'] = nowIso();
+            $sql = 'INSERT INTO exam_shifts (id, exam_id, owner_id, title, room_pin, unlock_pin, status, roster_whitelist_json, roster_entries_json, report_sent_status, created_at)
+                    VALUES (:id, :exam_id, :owner_id, :title, :room_pin, :unlock_pin, :status, :rw, :re, :rss, :ca)';
+        }
+        $pdo->prepare($sql)->execute($params);
+
+        $row = $pdo->prepare('SELECT * FROM exam_shifts WHERE id = :id LIMIT 1');
+        $row->execute([':id' => $id]);
+        jsonResponse(['ok' => true, 'shift' => formatShiftRow($row->fetch(), false)]);
+    }
+
+    if ($action === 'delete_shift') {
+        $official = requireOfficialInstructor();
+        $actorId = (string) $official['instructorId'];
+        $isMaster = ($actorId === 'MASTER_ADMIN');
+        $id = (string) ($_GET['id'] ?? ($body['id'] ?? ''));
+        if ($id === '') {
+            jsonError('Thiếu id ca thi.', 400);
+        }
+        $chk = $pdo->prepare('SELECT owner_id FROM exam_shifts WHERE id = :id LIMIT 1');
+        $chk->execute([':id' => $id]);
+        $owner = $chk->fetchColumn();
+        if ($owner === false) {
+            jsonError('Không tìm thấy ca thi.', 404);
+        }
+        if (!$isMaster && (string) $owner !== $actorId) {
+            jsonError('Không thể xóa ca thi mẫu hoặc ca thi của giảng viên khác.', 403);
+        }
+
+        // Delete attempts belonging ONLY to this shift; parent exam in `exams` stays untouched
+        $attStmt = $pdo->prepare('SELECT id FROM exam_attempts WHERE shift_id = :sid');
+        $attStmt->execute([':sid' => $id]);
+        $attIds = $attStmt->fetchAll(PDO::FETCH_COLUMN);
+        if (count($attIds) > 0) {
+            foreach (array_chunk($attIds, 200) as $chunk) {
+                $in = implode(',', array_fill(0, count($chunk), '?'));
+                $pdo->prepare("DELETE FROM attempt_answers WHERE attempt_id IN ($in)")->execute($chunk);
+                $pdo->prepare("DELETE FROM violation_logs WHERE attempt_id IN ($in)")->execute($chunk);
+                $pdo->prepare("DELETE FROM exam_attempts WHERE id IN ($in)")->execute($chunk);
+            }
+        }
+        $pdo->prepare('DELETE FROM exam_shifts WHERE id = :id')->execute([':id' => $id]);
+        jsonResponse(['ok' => true]);
+    }
+
     if ($action === 'delete_exam') {
         $official = requireOfficialInstructor();
         $actorId = (string) $official['instructorId'];
@@ -773,6 +927,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         if ($owner !== false && !$isMaster && (string) $owner !== $actorId) {
             jsonError('Không thể xóa đề thi mẫu hoặc đề của giảng viên khác.', 403);
         }
+        $pdo->prepare('DELETE FROM exam_shifts WHERE exam_id = :id')->execute([':id' => $id]);
         $pdo->prepare('DELETE FROM exams WHERE id = :id')->execute([':id' => $id]);
         jsonResponse(['ok' => true]);
     }

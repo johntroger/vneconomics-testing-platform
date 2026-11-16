@@ -19,7 +19,8 @@ function ensureExamSchema(PDO $pdo, string $driver): void
         $pdo->query('SELECT owner_id FROM courses LIMIT 1');
         $pdo->query('SELECT owner_id FROM questions LIMIT 1');
         $pdo->query('SELECT id, auth_provider FROM instructors LIMIT 1');
-        $pdo->query('SELECT flagged_question_ids_json, email_edit_count, device_label, location_lat, location_lng, location_accuracy, login_devices_json FROM exam_attempts LIMIT 1');
+        $pdo->query('SELECT flagged_question_ids_json, email_edit_count, device_label, location_lat, location_lng, location_accuracy, login_devices_json, shift_id FROM exam_attempts LIMIT 1');
+        $pdo->query('SELECT id FROM exam_shifts LIMIT 1');
         $pdo->query('SELECT grading_rubric_json, numerical_formula, blank_slots_json, blank_all_or_nothing, variant_group FROM questions LIMIT 1');
         $pdo->query('SELECT status FROM email_queue LIMIT 1');
         $pdo->query('SELECT id FROM demo_mailer_quota LIMIT 1');
@@ -427,6 +428,57 @@ function ensureExamSchema(PDO $pdo, string $driver): void
         $pdo->exec("CREATE INDEX IF NOT EXISTS idx_inst_google ON instructors(google_sub)");
     }
 
+                "CREATE TABLE IF NOT EXISTS exam_shifts (
+                    id VARCHAR(64) PRIMARY KEY,
+                    exam_id VARCHAR(64) NOT NULL,
+                    owner_id VARCHAR(64) NOT NULL DEFAULT 'SYSTEM_DEMO',
+                    title VARCHAR(255) NOT NULL,
+                    room_pin VARCHAR(32) NOT NULL,
+                    unlock_pin VARCHAR(32) NOT NULL DEFAULT '8888',
+                    status VARCHAR(32) NOT NULL DEFAULT 'DRAFT',
+                    roster_whitelist_json LONGTEXT NULL,
+                    roster_entries_json LONGTEXT NULL,
+                    report_sent_status VARCHAR(32) NOT NULL DEFAULT 'PENDING',
+                    report_sent_at VARCHAR(40) NULL,
+                    created_at VARCHAR(40) NOT NULL,
+                    INDEX idx_shifts_exam (exam_id),
+                    INDEX idx_shifts_pin (room_pin)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+                "CREATE TABLE IF NOT EXISTS schema_migrations (
+                    version VARCHAR(64) PRIMARY KEY,
+                    applied_at VARCHAR(40) NOT NULL
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+            ]
+            : [
+                "CREATE TABLE IF NOT EXISTS exam_shifts (
+                    id TEXT PRIMARY KEY,
+                    exam_id TEXT NOT NULL,
+                    owner_id TEXT NOT NULL DEFAULT 'SYSTEM_DEMO',
+                    title TEXT NOT NULL,
+                    room_pin TEXT NOT NULL,
+                    unlock_pin TEXT NOT NULL DEFAULT '8888',
+                    status TEXT NOT NULL DEFAULT 'DRAFT',
+                    roster_whitelist_json TEXT NULL,
+                    roster_entries_json TEXT NULL,
+                    report_sent_status TEXT NOT NULL DEFAULT 'PENDING',
+                    report_sent_at TEXT NULL,
+                    created_at TEXT NOT NULL
+                )",
+                "CREATE INDEX IF NOT EXISTS idx_shifts_exam ON exam_shifts(exam_id)",
+                "CREATE INDEX IF NOT EXISTS idx_shifts_pin ON exam_shifts(room_pin)",
+                "CREATE TABLE IF NOT EXISTS schema_migrations (
+                    version TEXT PRIMARY KEY,
+                    applied_at TEXT NOT NULL
+                )"
+            ];
+        foreach ($shiftTables as $sql) {
+            $pdo->exec($sql);
+        }
+        unset($shiftTables);
+    } catch (Throwable) {
+        // Non-fatal
+    }
+
     $ownerMigrations = $driver === 'mysql'
         ? [
             "ALTER TABLE courses ADD COLUMN owner_id VARCHAR(64) NOT NULL DEFAULT 'SYSTEM_DEMO'",
@@ -438,6 +490,7 @@ function ensureExamSchema(PDO $pdo, string $driver): void
             "ALTER TABLE exam_attempts ADD COLUMN location_lng DOUBLE NULL",
             "ALTER TABLE exam_attempts ADD COLUMN location_accuracy DOUBLE NULL",
             "ALTER TABLE exam_attempts ADD COLUMN login_devices_json LONGTEXT NULL",
+            "ALTER TABLE exam_attempts ADD COLUMN shift_id VARCHAR(64) NULL",
             "ALTER TABLE questions ADD COLUMN blank_slots_json LONGTEXT NULL",
             "ALTER TABLE questions ADD COLUMN blank_all_or_nothing TINYINT(1) NOT NULL DEFAULT 0",
             "ALTER TABLE questions ADD COLUMN variant_group VARCHAR(120) NULL",
@@ -454,6 +507,7 @@ function ensureExamSchema(PDO $pdo, string $driver): void
             "ALTER TABLE exam_attempts ADD COLUMN location_lng REAL NULL",
             "ALTER TABLE exam_attempts ADD COLUMN location_accuracy REAL NULL",
             "ALTER TABLE exam_attempts ADD COLUMN login_devices_json TEXT NULL",
+            "ALTER TABLE exam_attempts ADD COLUMN shift_id TEXT NULL",
             "ALTER TABLE questions ADD COLUMN blank_slots_json TEXT NULL",
             "ALTER TABLE questions ADD COLUMN blank_all_or_nothing INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE questions ADD COLUMN variant_group TEXT NULL",
@@ -488,6 +542,41 @@ function ensureExamSchema(PDO $pdo, string $driver): void
             );
             $pdo->prepare("INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (:v, :at)")
                 ->execute([':v' => 'v2026_11_16_01_fill_blank_and_review', ':at' => nowIso()]);
+        }
+
+        // One-time backfill: create 1 exam_shift per existing exam and link exam_attempts.shift_id
+        $hasShiftMig = (bool) $pdo->query("SELECT 1 FROM schema_migrations WHERE version = 'v2026_11_16_02_exam_shifts' LIMIT 1")->fetchColumn();
+        if (!$hasShiftMig) {
+            $allExams = $pdo->query('SELECT * FROM exams')->fetchAll();
+            $insShiftSql = $driver === 'mysql'
+                ? 'INSERT IGNORE INTO exam_shifts (id, exam_id, owner_id, title, room_pin, unlock_pin, status, roster_whitelist_json, roster_entries_json, report_sent_status, report_sent_at, created_at)
+                   VALUES (:id, :exam_id, :owner_id, :title, :room_pin, :unlock_pin, :status, :rw, :re, :rss, :rsa, :ca)'
+                : 'INSERT OR IGNORE INTO exam_shifts (id, exam_id, owner_id, title, room_pin, unlock_pin, status, roster_whitelist_json, roster_entries_json, report_sent_status, report_sent_at, created_at)
+                   VALUES (:id, :exam_id, :owner_id, :title, :room_pin, :unlock_pin, :status, :rw, :re, :rss, :rsa, :ca)';
+            $insShift = $pdo->prepare($insShiftSql);
+            foreach ($allExams as $ex) {
+                $sid = 'shift_' . (string) $ex['id'];
+                $insShift->execute([
+                    ':id' => $sid,
+                    ':exam_id' => (string) $ex['id'],
+                    ':owner_id' => (string) ($ex['owner_id'] ?? 'SYSTEM_DEMO'),
+                    ':title' => (string) ($ex['title'] ?? 'Ca thi 1'),
+                    ':room_pin' => (string) ($ex['room_pin'] ?? ''),
+                    ':unlock_pin' => (string) ($ex['unlock_pin'] ?? '8888'),
+                    ':status' => (string) ($ex['status'] ?? 'DRAFT'),
+                    ':rw' => $ex['roster_whitelist_json'] ?? '[]',
+                    ':re' => $ex['roster_entries_json'] ?? '[]',
+                    ':rss' => (string) ($ex['report_sent_status'] ?? 'PENDING'),
+                    ':rsa' => $ex['report_sent_at'] ?? null,
+                    ':ca' => (string) ($ex['created_at'] ?? nowIso()),
+                ]);
+                $pdo->prepare('UPDATE exam_attempts SET shift_id = :sid WHERE exam_id = :eid AND (shift_id IS NULL OR shift_id = \'\')')
+                    ->execute([':sid' => $sid, ':eid' => (string) $ex['id']]);
+            }
+            $migSql = $driver === 'mysql'
+                ? 'INSERT IGNORE INTO schema_migrations (version, applied_at) VALUES (:v, :at)'
+                : 'INSERT OR IGNORE INTO schema_migrations (version, applied_at) VALUES (:v, :at)';
+            $pdo->prepare($migSql)->execute([':v' => 'v2026_11_16_02_exam_shifts', ':at' => nowIso()]);
         }
     } catch (Throwable) {
         // Non-fatal
@@ -644,6 +733,7 @@ function seedDefaultEconomicsData(PDO $pdo, bool $forceReset = false): void
                 }
             }
 
+            $pdo->prepare("DELETE FROM exam_shifts WHERE exam_id IN ($examIn)")->execute($targetExamIds);
             $pdo->prepare("DELETE FROM exams WHERE id IN ($examIn)")->execute($targetExamIds);
             $pdo->exec("DELETE FROM questions WHERE course_id IN ($demoCoursePh)");
             $pdo->exec("DELETE FROM courses WHERE id IN ($demoCoursePh)");
@@ -1360,6 +1450,17 @@ function seedDefaultEconomicsData(PDO $pdo, bool $forceReset = false): void
                 ':roster_whitelist_json' => json_encode([], JSON_UNESCAPED_UNICODE),
                 ':status' => 'OPEN',
                 ':report_sent_status' => 'PENDING',
+                ':created_at' => $now,
+            ]);
+            $pdo->prepare(
+                'INSERT INTO exam_shifts (id, exam_id, owner_id, title, room_pin, unlock_pin, status, roster_whitelist_json, roster_entries_json, report_sent_status, created_at)
+                 VALUES (:id, :exam_id, \'SYSTEM_DEMO\', :title, :room_pin, :unlock_pin, \'OPEN\', \'[]\', \'[]\', \'PENDING\', :created_at)'
+            )->execute([
+                ':id' => 'shift_' . $ex['id'],
+                ':exam_id' => $ex['id'],
+                ':title' => $ex['title'],
+                ':room_pin' => $ex['room_pin'],
+                ':unlock_pin' => $ex['unlock_pin'],
                 ':created_at' => $now,
             ]);
         }

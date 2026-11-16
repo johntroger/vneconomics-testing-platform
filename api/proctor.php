@@ -213,6 +213,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             $attOut[] = [
                 'id' => $r['id'],
                 'examId' => $r['exam_id'],
+                'shiftId' => !empty($r['shift_id']) ? (string) $r['shift_id'] : null,
                 'studentCode' => $r['student_code'],
                 'studentName' => $r['student_name'],
                 'studentEmail' => $r['student_email'],

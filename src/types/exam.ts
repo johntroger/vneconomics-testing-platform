@@ -146,9 +146,27 @@ export interface Exam {
   emailDeliveryMode: EmailDeliveryMode;
   rosterWhitelist: string[];
   rosterEntries?: StudentRosterEntry[];
+  requiresWhitelist?: boolean;
   requiresRosterVerification?: boolean;
   status: 'DRAFT' | 'OPEN' | 'CLOSED';
   reportSentStatus: 'PENDING' | 'SENT' | 'FAILED';
+  reportSentAt?: string;
+  createdAt: string;
+}
+
+export interface ExamShift {
+  id: string;
+  examId: string;
+  ownerId?: string;
+  title: string;
+  roomPin: string;
+  unlockPin: string;
+  status: 'DRAFT' | 'OPEN' | 'CLOSED';
+  rosterWhitelist: string[];
+  rosterEntries?: StudentRosterEntry[];
+  requiresWhitelist?: boolean;
+  requiresRosterVerification?: boolean;
+  reportSentStatus: 'PENDING' | 'SENT' | 'FAILED' | 'DEMO_SKIPPED';
   reportSentAt?: string;
   createdAt: string;
 }
@@ -223,6 +241,7 @@ export interface LoginDeviceEntry {
 export interface ExamAttempt {
   id: string;
   examId: string;
+  shiftId?: string;
   studentCode: string;
   studentName: string;
   studentEmail: string;

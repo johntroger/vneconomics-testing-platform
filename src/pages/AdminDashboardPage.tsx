@@ -84,6 +84,7 @@ export const AdminDashboardPage: React.FC = () => {
     courses,
     questions,
     exams,
+    shifts,
     attempts,
     emailLogs,
     isAdminAuthenticated,
@@ -109,6 +110,9 @@ export const AdminDashboardPage: React.FC = () => {
     upsertExam,
     deleteExam,
     cloneExam,
+    upsertShift,
+    deleteShift,
+    createShiftForExam,
     resendStudentScoreEmail,
     checkDemoMailerQuota,
     sendTestMailer,
@@ -139,6 +143,7 @@ export const AdminDashboardPage: React.FC = () => {
   const [newExamStatus, setNewExamStatus] = useState<'OPEN' | 'DRAFT'>('OPEN');
   const [selectedCourseId, setSelectedCourseId] = useState(courses[0]?.id ?? '');
   const [selectedExamId, setSelectedExamId] = useState(exams[0]?.id ?? '');
+  const [selectedShiftId, setSelectedShiftId] = useState('');
   const [activeTab, setActiveTab] = useState<AdminTab>(() =>
     exams.length > 0 ? 'LIVE' : 'COURSES',
   );
@@ -286,6 +291,40 @@ export const AdminDashboardPage: React.FC = () => {
     () => questions.filter((q) => q.courseId === selectedCourse?.id),
     [questions, selectedCourse],
   );
+  const courseShifts = useMemo(() => {
+    const courseExamIds = new Set(
+      exams.filter((e) => e.courseId === selectedCourse?.id).map((e) => e.id),
+    );
+    return shifts.filter((s) => courseExamIds.has(s.examId));
+  }, [exams, selectedCourse?.id, shifts]);
+  const selectedShift = useMemo(
+    () => courseShifts.find((s) => s.id === selectedShiftId) ?? courseShifts[0] ?? null,
+    [courseShifts, selectedShiftId],
+  );
+  const shiftScopedExam = useMemo(() => {
+    if (!selectedShift) return selectedExam;
+    const parent = exams.find((e) => e.id === selectedShift.examId) ?? selectedExam;
+    if (!parent) return undefined;
+    return {
+      ...parent,
+      title: selectedShift.title,
+      roomPin: selectedShift.roomPin,
+      unlockPin: selectedShift.unlockPin,
+      status: selectedShift.status,
+      rosterWhitelist: selectedShift.rosterWhitelist,
+      rosterEntries: selectedShift.rosterEntries,
+      requiresWhitelist: selectedShift.requiresWhitelist,
+      requiresRosterVerification: selectedShift.requiresRosterVerification,
+    };
+  }, [exams, selectedExam, selectedShift]);
+  const shiftScopedAttempts = useMemo(() => {
+    if (!selectedShift) return [];
+    return attempts.filter(
+      (a) =>
+        a.shiftId === selectedShift.id ||
+        (!a.shiftId && a.examId === selectedShift.examId),
+    );
+  }, [attempts, selectedShift]);
 
   const chapterGroups = useMemo(() => {
     const map = new Map<string, Question[]>();
@@ -927,13 +966,13 @@ export const AdminDashboardPage: React.FC = () => {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  {selectedExam.status === 'DRAFT' && (
+                  {selectedShift && selectedShift.status === 'DRAFT' && (
                     <button
                       type="button"
                       onClick={() => {
                         if (!requireOfficialOrPrompt()) return;
-                        upsertExam({ ...selectedExam, status: 'OPEN' });
-                        showToast(`Đã mở phòng thi ${selectedExam.title} (PIN ${selectedExam.roomPin}).`);
+                        void upsertShift({ ...selectedShift, status: 'OPEN' });
+                        showToast(`Đã mở phòng thi ${selectedShift.title} (PIN ${selectedShift.roomPin}).`);
                       }}
                       className="h-9 px-3 rounded-xl bg-support-600 hover:bg-support-700 text-white text-xs font-bold"
                     >
@@ -943,18 +982,18 @@ export const AdminDashboardPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={async () => {
-                      if (!requireOfficialOrPrompt()) return;
-                      const sameCourseCount = exams.filter((e) => e.courseId === selectedExam.courseId).length;
-                      const defaultName = `${selectedExam.title.replace(/\s*\(Ca.*\)$/i, '')} - Ca ${sameCourseCount + 1}`;
-                      const entered = window.prompt('Nhập tên Ca thi mới (giữ nguyên cấu trúc đề, danh sách SV riêng):', defaultName);
+                      if (!requireOfficialOrPrompt() || !selectedExam) return;
+                      const sameExamShifts = courseShifts.filter((s) => s.examId === selectedExam.id).length;
+                      const defaultName = `${selectedExam.title.replace(/\s*[—-]\s*Ca.*$/i, '')} — Ca ${sameExamShifts + 1}`;
+                      const entered = window.prompt('Nhập tên Ca thi mới (giữ nguyên Đề thi gốc, danh sách SV riêng):', defaultName);
                       if (entered === null) return;
-                      const res = await cloneExam(selectedExam.id, entered.trim() || defaultName);
-                      if (!res.exam) {
-                        showToast(res.error || 'Không thể lưu ca thi mới lên máy chủ.');
+                      const res = await createShiftForExam(selectedExam.id, entered.trim() || defaultName, 'OPEN');
+                      if (!res.shift) {
+                        showToast(res.error || 'Không thể tạo ca thi mới trên máy chủ.');
                         return;
                       }
-                      setSelectedExamId(res.exam.id);
-                      showToast(`Đã tạo "${res.exam.title}" (PIN ${res.exam.roomPin}) với danh sách sinh viên riêng.`);
+                      setSelectedShiftId(res.shift.id);
+                      showToast(`Đã mở ca thi "${res.shift.title}" (PIN ${res.shift.roomPin}).`);
                     }}
                     className="h-9 px-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5"
                   >
@@ -963,79 +1002,86 @@ export const AdminDashboardPage: React.FC = () => {
                 </div>
               </div>
 
+              {courseShifts.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50/70 p-4 text-xs text-ink-600 flex flex-wrap items-center justify-between gap-2">
+                  <span>
+                    Chưa có Ca thi nào cho học phần này (<strong>Đề thi gốc ở Tab 3 vẫn được giữ nguyên</strong>). Bấm <strong>+ Tạo Ca thi mới</strong> để mở phòng thi cho sinh viên.
+                  </span>
+                </div>
+              ) : (
               <div className="flex flex-wrap gap-2">
-                {exams
-                  .filter((ex) => ex.courseId === selectedExam.courseId)
-                  .map((ex) => {
-                    const active = ex.id === selectedExam.id;
-                    const rosterCount = ex.rosterEntries?.length ?? 0;
-                    return (
-                      <div
-                        key={ex.id}
-                        className={`inline-flex items-stretch rounded-xl border transition overflow-hidden ${
+                {courseShifts.map((sh) => {
+                  const active = selectedShift ? sh.id === selectedShift.id : false;
+                  const rosterCount = sh.rosterEntries?.length ?? 0;
+                  return (
+                    <div
+                      key={sh.id}
+                      className={`inline-flex items-stretch rounded-xl border transition overflow-hidden ${
+                        active
+                          ? 'bg-brand-600 text-white border-brand-600 shadow-xs'
+                          : 'bg-slate-50 text-ink-800 border-slate-200 hover:border-brand-300'
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setSelectedShiftId(sh.id)}
+                        className="px-3 py-2 text-left text-xs"
+                      >
+                        <div className="font-bold flex items-center gap-1.5">
+                          <span>{sh.title}</span>
+                          <span
+                            className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                              active
+                                ? 'bg-white/20 text-white'
+                                : sh.status === 'OPEN'
+                                  ? 'bg-support-100 text-support-700'
+                                  : sh.status === 'CLOSED'
+                                    ? 'bg-slate-200 text-ink-600'
+                                    : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {sh.status === 'OPEN' ? 'MỞ' : sh.status === 'CLOSED' ? 'ĐÓNG' : 'NHÁP'}
+                          </span>
+                        </div>
+                        <div className={`text-[11px] mt-0.5 font-mono ${active ? 'text-brand-100' : 'text-ink-500'}`}>
+                          PIN {sh.roomPin} • {rosterCount > 0 ? `${rosterCount} SV` : 'Chưa import DS'}
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        title={`Xóa ca thi "${sh.title}" (PIN ${sh.roomPin}) — giữ nguyên Đề thi gốc`}
+                        aria-label={`Xóa ca thi ${sh.title}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!requireOfficialOrPrompt()) return;
+                          if (!window.confirm(`Xóa ca thi "${sh.title}" (PIN ${sh.roomPin}) và bài làm của ca này? (Đề thi gốc vẫn được giữ nguyên)`)) return;
+                          void deleteShift(sh.id).then((res) => {
+                            if (!res.ok) {
+                              showToast(res.error || 'Không thể xóa ca thi.');
+                            } else {
+                              showToast(`Đã xóa ca thi "${sh.title}" (Đề thi gốc vẫn còn nguyên).`);
+                            }
+                          });
+                        }}
+                        className={`px-2 flex items-center justify-center border-l transition ${
                           active
-                            ? 'bg-brand-600 text-white border-brand-600 shadow-xs'
-                            : 'bg-slate-50 text-ink-800 border-slate-200 hover:border-brand-300'
+                            ? 'border-white/20 text-white/80 hover:bg-rose-600 hover:text-white'
+                            : 'border-slate-200 text-ink-400 hover:bg-rose-50 hover:text-rose-600'
                         }`}
                       >
-                        <button
-                          type="button"
-                          onClick={() => setSelectedExamId(ex.id)}
-                          className="px-3 py-2 text-left text-xs"
-                        >
-                          <div className="font-bold flex items-center gap-1.5">
-                            <span>{ex.title}</span>
-                            <span
-                              className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                active
-                                  ? 'bg-white/20 text-white'
-                                  : ex.status === 'OPEN'
-                                    ? 'bg-support-100 text-support-700'
-                                    : ex.status === 'CLOSED'
-                                      ? 'bg-slate-200 text-ink-600'
-                                      : 'bg-amber-100 text-amber-800'
-                              }`}
-                            >
-                              {ex.status === 'OPEN' ? 'MỞ' : ex.status === 'CLOSED' ? 'ĐÓNG' : 'NHÁP'}
-                            </span>
-                          </div>
-                          <div className={`text-[11px] mt-0.5 font-mono ${active ? 'text-brand-100' : 'text-ink-500'}`}>
-                            PIN {ex.roomPin} • {rosterCount > 0 ? `${rosterCount} SV` : 'Chưa import DS'}
-                          </div>
-                        </button>
-                        <button
-                          type="button"
-                          title={`Xóa ca thi "${ex.title}" (PIN ${ex.roomPin})`}
-                          aria-label={`Xóa ca thi ${ex.title}`}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            if (!requireOfficialOrPrompt()) return;
-                            if (!window.confirm(`Xóa ca thi "${ex.title}" (PIN ${ex.roomPin}) và toàn bộ bài làm của ca thi này?`)) return;
-                            void deleteExam(ex.id).then((res) => {
-                              if (!res.ok) {
-                                showToast(res.error || 'Không thể xóa ca thi.');
-                              } else {
-                                showToast(`Đã xóa ca thi "${ex.title}".`);
-                              }
-                            });
-                          }}
-                          className={`px-2 flex items-center justify-center border-l transition ${
-                            active
-                              ? 'border-white/20 text-white/80 hover:bg-rose-600 hover:text-white'
-                              : 'border-slate-200 text-ink-400 hover:bg-rose-50 hover:text-rose-600'
-                          }`}
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    );
-                  })}
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
+              )}
             </div>
 
+            {selectedShift && shiftScopedExam && (
             <LiveProctorTable
-            exam={selectedExam}
-            attempts={attempts}
+            exam={shiftScopedExam}
+            attempts={shiftScopedAttempts}
             onProctorDecision={(id, dec, sec) => {
               proctorDecision(id, dec, sec);
               showToast(
@@ -1053,11 +1099,11 @@ export const AdminDashboardPage: React.FC = () => {
               showToast(`Đã cộng thêm +${sec} giây cho thí sinh.`);
             }}
             onCloseExamAndSweep={(eid) => {
-              const res = closeExamAndSweep(eid);
+              const res = closeExamAndSweep(eid, selectedShift.id);
               showToast(
                 isDemoMode
                   ? `Đã đóng ca thi Demo & thu tự động ${res.sweptCount} bài còn treo (Chế độ Demo: không gửi email thực tế).`
-                  : `Đã đóng ca thi, thu tự động ${res.sweptCount} bài còn treo & xuất Email tổng hợp cho ${selectedExam.instructorEmail}`,
+                  : `Đã đóng ca thi, thu tự động ${res.sweptCount} bài còn treo & xuất Email tổng hợp cho ${shiftScopedExam.instructorEmail}`,
               );
             }}
             onOpenEssayReview={(attId) => setEssayModalAttemptId(attId)}
@@ -1070,9 +1116,9 @@ export const AdminDashboardPage: React.FC = () => {
               );
             }}
             onUpdateRoster={(_eid, entries) => {
-              if (!requireOfficialOrPrompt() || !selectedExam) return;
-              upsertExam({
-                ...selectedExam,
+              if (!requireOfficialOrPrompt() || !selectedShift) return;
+              void upsertShift({
+                ...selectedShift,
                 rosterEntries: entries,
                 rosterWhitelist: entries.map((item) => item.studentCode),
                 requiresRosterVerification: entries.length > 0,
@@ -1084,6 +1130,7 @@ export const AdminDashboardPage: React.FC = () => {
               );
             }}
           />
+            )}
           </div>
         )}
 
@@ -1119,6 +1166,28 @@ export const AdminDashboardPage: React.FC = () => {
                       '• Tạo một phòng thi hoàn toàn mới cho Học phần đang chọn.\n• Hệ thống tự cấp Mã PIN 6 số ngẫu nhiên; thầy/cô có thể tự đổi lại số dễ nhớ (ví dụ: 202601) ở bảng cài đặt bên dưới.'
                     }
                   />
+                </button>
+                <button
+                  type="button"
+                  disabled={!selectedExam}
+                  onClick={async () => {
+                    if (!requireOfficialOrPrompt() || !selectedExam) return;
+                    const sameExamShifts = shifts.filter((s) => s.examId === selectedExam.id).length;
+                    const defaultName = `${selectedExam.title.replace(/\s*[—-]\s*Ca.*$/i, '')} — Ca ${sameExamShifts + 1}`;
+                    const entered = window.prompt('Nhập tên Ca thi mới mở từ Đề thi này:', defaultName);
+                    if (entered === null) return;
+                    const res = await createShiftForExam(selectedExam.id, entered.trim() || defaultName, 'OPEN');
+                    if (!res.shift) {
+                      showToast(res.error || 'Không thể mở ca thi mới.');
+                      return;
+                    }
+                    setSelectedShiftId(res.shift.id);
+                    setActiveTab('LIVE');
+                    showToast(`Đã mở ca thi "${res.shift.title}" (PIN ${res.shift.roomPin}).`);
+                  }}
+                  className="h-9 px-3 rounded-xl bg-support-600 hover:bg-support-700 text-white text-xs font-bold flex items-center gap-1.5 disabled:opacity-40"
+                >
+                  <Plus className="w-3.5 h-3.5" /> Mở Ca thi mới
                 </button>
                 <button
                   type="button"
@@ -2285,13 +2354,16 @@ export const AdminDashboardPage: React.FC = () => {
                 Chọn Ca thi cần xem thống kê &amp; xuất điểm:
               </span>
               <div className="flex flex-wrap gap-1.5">
-                {exams
-                  .filter((ex) => ex.courseId === selectedExam.courseId)
-                  .map((ex) => {
-                    const active = ex.id === selectedExam.id;
+                {courseShifts.length === 0 ? (
+                  <span className="text-xs text-ink-500">
+                    Chưa có Ca thi nào (Đề thi gốc ở Tab 3 vẫn giữ nguyên).
+                  </span>
+                ) : (
+                  courseShifts.map((sh) => {
+                    const active = selectedShift ? sh.id === selectedShift.id : false;
                     return (
                       <div
-                        key={ex.id}
+                        key={sh.id}
                         className={`inline-flex items-stretch rounded-xl border text-xs font-bold transition overflow-hidden ${
                           active
                             ? 'bg-brand-600 text-white border-brand-600 shadow-xs'
@@ -2300,24 +2372,24 @@ export const AdminDashboardPage: React.FC = () => {
                       >
                         <button
                           type="button"
-                          onClick={() => setSelectedExamId(ex.id)}
+                          onClick={() => setSelectedShiftId(sh.id)}
                           className="px-3 py-1.5"
                         >
-                          {ex.title} (PIN {ex.roomPin})
+                          {sh.title} (PIN {sh.roomPin})
                         </button>
                         <button
                           type="button"
-                          title={`Xóa ca thi "${ex.title}" (PIN ${ex.roomPin})`}
-                          aria-label={`Xóa ca thi ${ex.title}`}
+                          title={`Xóa ca thi "${sh.title}" (PIN ${sh.roomPin}) — giữ nguyên Đề thi gốc`}
+                          aria-label={`Xóa ca thi ${sh.title}`}
                           onClick={(e) => {
                             e.stopPropagation();
                             if (!requireOfficialOrPrompt()) return;
-                            if (!window.confirm(`Xóa ca thi "${ex.title}" (PIN ${ex.roomPin}) và toàn bộ bài làm của ca thi này?`)) return;
-                            void deleteExam(ex.id).then((res) => {
+                            if (!window.confirm(`Xóa ca thi "${sh.title}" (PIN ${sh.roomPin}) và bài làm của ca này? (Đề thi gốc vẫn được giữ nguyên)`)) return;
+                            void deleteShift(sh.id).then((res) => {
                               if (!res.ok) {
                                 showToast(res.error || 'Không thể xóa ca thi.');
                               } else {
-                                showToast(`Đã xóa ca thi "${ex.title}".`);
+                                showToast(`Đã xóa ca thi "${sh.title}" (Đề thi gốc vẫn còn nguyên).`);
                               }
                             });
                           }}
@@ -2331,13 +2403,14 @@ export const AdminDashboardPage: React.FC = () => {
                         </button>
                       </div>
                     );
-                  })}
+                  })
+                )}
               </div>
             </div>
 
             <ExamAnalyticsCharts
-              exam={selectedExam}
-              attempts={attempts}
+              exam={shiftScopedExam ?? selectedExam}
+              attempts={shiftScopedAttempts}
               itemAnalysisRows={itemAnalysisRows}
             />
 
@@ -2513,8 +2586,8 @@ export const AdminDashboardPage: React.FC = () => {
 
             {/* Per-Student Per-Question Matrix */}
             <StudentQuestionMatrixCard
-              exam={selectedExam}
-              attempts={attempts}
+              exam={shiftScopedExam ?? selectedExam}
+              attempts={shiftScopedAttempts}
               questions={questions}
             />
 
@@ -2940,6 +3013,7 @@ export const AdminDashboardPage: React.FC = () => {
                   showToast(saveRes.error || 'Không thể lưu đề thi lên máy chủ.');
                   return;
                 }
+                await createShiftForExam(newId, `${createdExam.title} — Ca 1`, newExamStatus === 'OPEN' ? 'OPEN' : 'DRAFT');
                 setSelectedExamId(newId);
                 setCreateExamModalOpen(false);
                 showToast(`Đã tạo đề thi chính thức [${createdExam.roomPin}]!`);

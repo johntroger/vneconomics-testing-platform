@@ -681,6 +681,25 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         }
 
         $exam = formatExamRow($examRow, false);
+        $requestedShiftId = trim((string) ($body['shiftId'] ?? ''));
+        $shiftRow = null;
+        if ($requestedShiftId !== '') {
+            $sStmt = $pdo->prepare('SELECT * FROM exam_shifts WHERE id = :sid AND exam_id = :eid LIMIT 1');
+            $sStmt->execute([':sid' => $requestedShiftId, ':eid' => $exam['id']]);
+            $shiftRow = $sStmt->fetch() ?: null;
+        }
+        if (!$shiftRow) {
+            $sStmt = $pdo->prepare("SELECT * FROM exam_shifts WHERE exam_id = :eid ORDER BY (CASE WHEN status = 'OPEN' THEN 0 ELSE 1 END), created_at DESC LIMIT 1");
+            $sStmt->execute([':eid' => $exam['id']]);
+            $shiftRow = $sStmt->fetch() ?: null;
+        }
+        $resolvedShiftId = $shiftRow ? (string) $shiftRow['id'] : null;
+        if ($shiftRow) {
+            $exam['status'] = (string) ($shiftRow['status'] ?? $exam['status']);
+            $exam['roomPin'] = (string) ($shiftRow['room_pin'] ?? $exam['roomPin']);
+            $exam['rosterWhitelist'] = decodeJsonSafe($shiftRow['roster_whitelist_json'] ?? null, []);
+            $exam['rosterEntries'] = decodeJsonSafe($shiftRow['roster_entries_json'] ?? null, []);
+        }
         if ($exam['status'] !== 'OPEN') {
             jsonError('Phòng thi hiện không ở trạng thái MỞ.', 403);
         }
@@ -720,8 +739,13 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             }
         }
 
-        $existingStmt = $pdo->prepare('SELECT * FROM exam_attempts WHERE exam_id = :eid AND UPPER(student_code) = :sc LIMIT 1');
-        $existingStmt->execute([':eid' => $exam['id'], ':sc' => $studentCode]);
+        if ($resolvedShiftId !== null) {
+            $existingStmt = $pdo->prepare('SELECT * FROM exam_attempts WHERE shift_id = :sid AND UPPER(student_code) = :sc LIMIT 1');
+            $existingStmt->execute([':sid' => $resolvedShiftId, ':sc' => $studentCode]);
+        } else {
+            $existingStmt = $pdo->prepare('SELECT * FROM exam_attempts WHERE exam_id = :eid AND UPPER(student_code) = :sc LIMIT 1');
+            $existingStmt->execute([':eid' => $exam['id'], ':sc' => $studentCode]);
+        }
         $existing = $existingStmt->fetch();
 
         if ($existing) {
@@ -861,12 +885,13 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
 
         $initialDevices = appendLoginDevicePhp(null, $deviceToken, $deviceLabel, $locationLat, $locationLng);
         $ins = $pdo->prepare(
-            'INSERT INTO exam_attempts (id, exam_id, student_code, student_name, student_email, class_name, device_token, device_label, location_lat, location_lng, location_accuracy, login_devices_json, assigned_questions_json, flagged_question_ids_json, status, max_total_score, started_at)
-             VALUES (:id, :exam_id, :student_code, :student_name, :student_email, :class_name, :device_token, :device_label, :location_lat, :location_lng, :location_accuracy, :login_devices_json, :assigned_json, :flagged_json, :status, :max_total, :started_at)'
+            'INSERT INTO exam_attempts (id, exam_id, shift_id, student_code, student_name, student_email, class_name, device_token, device_label, location_lat, location_lng, location_accuracy, login_devices_json, assigned_questions_json, flagged_question_ids_json, status, max_total_score, started_at)
+             VALUES (:id, :exam_id, :shift_id, :student_code, :student_name, :student_email, :class_name, :device_token, :device_label, :location_lat, :location_lng, :location_accuracy, :login_devices_json, :assigned_json, :flagged_json, :status, :max_total, :started_at)'
         );
         $ins->execute([
             ':id' => $attemptId,
             ':exam_id' => $exam['id'],
+            ':shift_id' => $resolvedShiftId,
             ':student_code' => $studentCode,
             ':student_name' => $studentName ?: $studentCode,
             ':student_email' => $studentEmail,
@@ -1044,6 +1069,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
     if ($action === 'sweep') {
         $auth = requireAdminAuth();
         $examId = trim((string) ($body['examId'] ?? ''));
+        $shiftId = trim((string) ($body['shiftId'] ?? ''));
         $examStmt = $pdo->prepare('SELECT * FROM exams WHERE id = :id LIMIT 1');
         $examStmt->execute([':id' => $examId]);
         $examRow = $examStmt->fetch();
@@ -1052,9 +1078,16 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         }
         $isDemoContext = (($auth['role'] ?? 'DEMO') !== 'OFFICIAL') || isDemoExamRecord($examRow);
 
-        $pdo->prepare("UPDATE exams SET status = 'CLOSED' WHERE id = :id")->execute([':id' => $examId]);
-        $openStmt = $pdo->prepare("SELECT id FROM exam_attempts WHERE exam_id = :eid AND status IN ('IN_PROGRESS', 'PAUSED', 'LOCKED')");
-        $openStmt->execute([':eid' => $examId]);
+        if ($shiftId !== '') {
+            $pdo->prepare("UPDATE exam_shifts SET status = 'CLOSED' WHERE id = :sid")->execute([':sid' => $shiftId]);
+            $openStmt = $pdo->prepare("SELECT id FROM exam_attempts WHERE shift_id = :sid AND status IN ('IN_PROGRESS', 'PAUSED', 'LOCKED')");
+            $openStmt->execute([':sid' => $shiftId]);
+        } else {
+            $pdo->prepare("UPDATE exams SET status = 'CLOSED' WHERE id = :id")->execute([':id' => $examId]);
+            $pdo->prepare("UPDATE exam_shifts SET status = 'CLOSED' WHERE exam_id = :id")->execute([':id' => $examId]);
+            $openStmt = $pdo->prepare("SELECT id FROM exam_attempts WHERE exam_id = :eid AND status IN ('IN_PROGRESS', 'PAUSED', 'LOCKED')");
+            $openStmt->execute([':eid' => $examId]);
+        }
         $openIds = $openStmt->fetchAll(PDO::FETCH_COLUMN);
 
         $emailPayloads = [];
