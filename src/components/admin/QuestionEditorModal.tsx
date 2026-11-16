@@ -910,6 +910,10 @@ export const QuestionEditorModal: React.FC<QuestionEditorModalProps> = ({
                   </button>
                 </div>
 
+                <p className="text-[11px] text-ink-600 leading-relaxed">
+                  Nhập từ khóa cần có vào ô <strong>Cụm từ chấp nhận</strong> (ngăn cách dấu phẩy, không phân biệt HOA/thường). Nếu để trống ô này, hệ thống sẽ tự dùng <strong>Tên ý / Từ khóa</strong> ở dòng trên để chấm.
+                </p>
+
                 {gradingRubric.map((slot, idx) => (
                   <div
                     key={slot.id}

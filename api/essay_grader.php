@@ -178,6 +178,33 @@ function gradeMicroEssayRubricPhp(array $question, string $rawAnswer, array $see
         $clauses = [$normalized];
     }
 
+    // Direct exact match against sampleAnswer (case-insensitive, normalized)
+    $rawSample = trim((string) ($question['sampleAnswer'] ?? ''));
+    $normSample = $rawSample !== '' ? normalizeVietnameseEssay(interpolateTemplateVars($rawSample, $seedVars)) : '';
+    if ($normSample !== '' && $normalized === $normSample && !$honeypotTriggered) {
+        $perSlot = count($rubric) > 0 ? round($maxPoints / count($rubric), 2) : $maxPoints;
+        $bd = [];
+        foreach ($rubric as $r) {
+            $bd[] = [
+                'slotId' => (string) ($r['id'] ?? ''),
+                'label' => (string) ($r['label'] ?? ''),
+                'earnedPoints' => $perSlot,
+                'maxPoints' => (float) ($r['points'] ?? 0),
+                'matched' => true,
+                'matchedText' => $rawSample,
+            ];
+        }
+        return [
+            'earnedPoints' => $maxPoints,
+            'maxPoints' => $maxPoints,
+            'breakdown' => $bd,
+            'feedback' => 'Khớp chính xác đáp án mẫu (không phân biệt HOA/thường)',
+            'matchedHighlights' => [$rawSample],
+            'blockedHighlights' => [],
+            'honeypotTriggered' => false,
+        ];
+    }
+
     $totalWeight = 0.0;
     foreach ($rubric as $r) {
         $totalWeight += (float) ($r['points'] ?? 0);
@@ -193,10 +220,15 @@ function gradeMicroEssayRubricPhp(array $question, string $rawAnswer, array $see
 
     foreach ($rubric as $slot) {
         $slotMax = round(((float) ($slot['points'] ?? 0)) * $scaleFactor, 2);
-        $phrases = array_map(
-            static fn ($p): string => interpolateTemplateVars((string) $p, $seedVars),
-            is_array($slot['acceptedPhrases'] ?? null) ? $slot['acceptedPhrases'] : []
-        );
+        $rawPhrases = [];
+        if (is_array($slot['acceptedPhrases'] ?? null)) {
+            foreach ($slot['acceptedPhrases'] as $p) {
+                $tp = trim(interpolateTemplateVars((string) $p, $seedVars));
+                if ($tp !== '') {
+                    $rawPhrases[] = $tp;
+                }
+            }
+        }
 
         $pairs = [];
         if (is_array($slot['requiredPairs'] ?? null)) {
@@ -207,6 +239,11 @@ function gradeMicroEssayRubricPhp(array $question, string $rawAnswer, array $see
                 $pairs[] = array_map(static fn ($t): string => interpolateTemplateVars((string) $t, $seedVars), $group);
             }
         }
+
+        $cleanLabelFallback = trim((string) preg_replace('/^Ý\s*\d+\s*:\s*/iu', '', (string) ($slot['label'] ?? '')));
+        $phrases = count($rawPhrases) > 0
+            ? $rawPhrases
+            : (count($pairs) === 0 && $cleanLabelFallback !== '' ? [interpolateTemplateVars($cleanLabelFallback, $seedVars)] : []);
 
         $opposites = array_map(
             static fn ($t): string => interpolateTemplateVars((string) $t, $seedVars),

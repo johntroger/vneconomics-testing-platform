@@ -520,6 +520,29 @@ export function gradeMicroEssayRubric(
   const clauses = splitIntoClauses(normalized);
   const fullPlusClauses = clauses.length > 0 ? clauses : [normalized];
 
+  // Direct exact match against sampleAnswer (case-insensitive, normalized)
+  const normSample = question.sampleAnswer
+    ? normalizeVietnameseEssay(interpolateText(question.sampleAnswer, seedVars))
+    : '';
+  if (normSample && normalized === normSample && !honeypotTriggered) {
+    return {
+      earnedPoints: maxPoints,
+      maxPoints,
+      breakdown: rubric.map((slot) => ({
+        slotId: slot.id,
+        label: slot.label,
+        earnedPoints: Math.round((maxPoints / Math.max(1, rubric.length)) * 100) / 100,
+        maxPoints: slot.points,
+        matched: true,
+        matchedText: question.sampleAnswer,
+      })),
+      feedback: 'Khớp chính xác đáp án mẫu (không phân biệt HOA/thường)',
+      matchedHighlights: [question.sampleAnswer ?? ''],
+      blockedHighlights: [],
+      honeypotTriggered: false,
+    };
+  }
+
   const totalRubricWeight =
     rubric.reduce((sum, r) => sum + r.points, 0) || maxPoints;
   const scaleFactor = totalRubricWeight > 0 ? maxPoints / totalRubricWeight : 1;
@@ -530,9 +553,16 @@ export function gradeMicroEssayRubric(
 
   for (const slot of rubric) {
     const slotMax = Math.round(slot.points * scaleFactor * 100) / 100;
-    const interpolatedPhrases = slot.acceptedPhrases.map((p) =>
-      interpolateText(p, seedVars),
-    );
+    const rawAccepted = slot.acceptedPhrases
+      .map((p) => interpolateText(p, seedVars).trim())
+      .filter((p) => p.length > 0);
+    const cleanLabelFallback = slot.label.replace(/^Ý\s*\d+\s*:\s*/i, '').trim();
+    const interpolatedPhrases =
+      rawAccepted.length > 0
+        ? rawAccepted
+        : (slot.requiredPairs ?? []).length === 0 && cleanLabelFallback.length > 0
+          ? [interpolateText(cleanLabelFallback, seedVars)]
+          : [];
     const interpolatedPairs = (slot.requiredPairs ?? []).map((group) =>
       group.map((term) => interpolateText(term, seedVars)),
     );

@@ -153,3 +153,34 @@ test('buildAssignedQuestions prioritizes distinct variantGroup', () => {
   const pickedIds = new Set(picked.map((p) => p.questionId));
   assert.equal(pickedIds.has('q2'), true);
 });
+
+test('ESSAY Rubric falls back to slot.label, matches sampleAnswer, and is case-insensitive', () => {
+  const q: Question = {
+    id: 'q_essay_1',
+    courseId: 'c1',
+    chapterCategory: 'Ch1',
+    difficulty: 'MEDIUM',
+    type: 'ESSAY',
+    content: 'What are the two steps?',
+    sampleAnswer: 'unloading and pallet check',
+    gradingRubric: [
+      { id: 's1', label: 'unloading', points: 1, acceptedPhrases: [] },
+      { id: 's2', label: 'check', points: 1, acceptedPhrases: [] },
+    ],
+    points: 1,
+  };
+
+  // Exact sampleAnswer with different casing
+  const resExact = gradeAnswer(q, makeSnapshot(q), 'UNLOADING and Pallet CHECK');
+  assert.equal(resExact.earnedPoints, 1);
+  assert.equal(resExact.isCorrect, true);
+
+  // Paraphrased answer containing both slot labels (even when acceptedPhrases is empty)
+  const resParaphrase = gradeAnswer(
+    q,
+    makeSnapshot(q),
+    'First do UNLOADING then perform a quick CHECK',
+  );
+  assert.equal(resParaphrase.earnedPoints, 1);
+  assert.equal(resParaphrase.isCorrect, true);
+});
