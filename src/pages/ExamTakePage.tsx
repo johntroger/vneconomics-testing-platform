@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   Calculator,
@@ -62,6 +62,8 @@ export const ExamTakePage: React.FC = () => {
   const attempt = attempts.find((a) => a.id === attemptId);
 
   const [fontSizePx, setFontSizePx] = useState(16);
+  const [viewMode, setViewMode] = useState<'ONE' | 'TEN' | 'ALL'>('ONE');
+  const mainScrollRef = useRef<HTMLElement | null>(null);
   const [calcOpen, setCalcOpen] = useState(false);
   const [gridOpen, setGridOpen] = useState(false);
   const [confirmSubmitOpen, setConfirmSubmitOpen] = useState(false);
@@ -172,31 +174,57 @@ export const ExamTakePage: React.FC = () => {
   }
 
   const isLocked = attempt.status === 'LOCKED';
-  const currentAnswer = attempt.answers[currentQuestion.id];
   const maxLeavesAllowed = exam.maxLeaveCount + attempt.extraLeaveAllowance;
   const answeredCount = attempt.assignedQuestions.filter((snap) =>
     isAnswerPayloadFilled(attempt.answers[snap.questionId]?.answerPayload),
   ).length;
   const isFlagged = attempt.flaggedQuestionIds.includes(currentQuestion.id);
 
-  const handleAnswerChange = (
+  const handleQuestionAnswerChange = (
+    targetQuestion: NonNullable<typeof currentQuestion>,
+    targetIdx: number,
     payload: string | string[] | Record<string, boolean>,
     telemetry?: KeystrokeTelemetry,
   ) => {
-    saveAnswer(attempt.id, currentQuestion.id, payload, telemetry, currentIndex);
+    saveAnswer(attempt.id, targetQuestion.id, payload, telemetry, targetIdx);
     if (
-      currentQuestion.type === 'SINGLE_CHOICE' &&
-      currentQuestion.aiHoneypotOptionId &&
-      payload === currentQuestion.aiHoneypotOptionId
+      targetQuestion.type === 'SINGLE_CHOICE' &&
+      targetQuestion.aiHoneypotOptionId &&
+      payload === targetQuestion.aiHoneypotOptionId
     ) {
       recordViolation(attempt.id, {
         severity: 'HONEYPOT',
         eventType: 'AI_HONEYPOT_OPTION',
         durationSeconds: 0,
-        detail: `Chọn đúng đáp án Bẫy AI ở câu ${currentIndex + 1}`,
+        detail: `Chọn đúng đáp án Bẫy AI ở câu ${targetIdx + 1}`,
       });
     }
   };
+
+  const effectiveViewMode: 'ONE' | 'TEN' | 'ALL' = exam.oneWayMode ? 'ONE' : viewMode;
+  const totalQuestions = attempt.assignedQuestions.length;
+  const pageSize = 10;
+  const currentPage = Math.floor(currentIndex / pageSize);
+  const totalPages = Math.max(1, Math.ceil(totalQuestions / pageSize));
+  const visibleSliceStart =
+    effectiveViewMode === 'ONE'
+      ? currentIndex
+      : effectiveViewMode === 'TEN'
+        ? currentPage * pageSize
+        : 0;
+  const visibleSliceEnd =
+    effectiveViewMode === 'ONE'
+      ? currentIndex + 1
+      : effectiveViewMode === 'TEN'
+        ? Math.min(totalQuestions, (currentPage + 1) * pageSize)
+        : totalQuestions;
+  const visibleEntries = attempt.assignedQuestions
+    .slice(visibleSliceStart, visibleSliceEnd)
+    .map((snap, offset) => ({
+      snap,
+      idx: visibleSliceStart + offset,
+      qObj: questionMap.get(snap.questionId),
+    }));
 
   const handleConfirmSubmit = async () => {
     setConfirmSubmitOpen(false);
@@ -293,6 +321,45 @@ export const ExamTakePage: React.FC = () => {
         </div>
       </header>
 
+      {/* View Mode Switcher Bar (1 câu / 10 câu / Tất cả) */}
+      {!exam.oneWayMode && (
+        <div className="bg-slate-50 border-b border-slate-200 px-2.5 sm:px-4 py-1.5 flex items-center justify-between gap-2 z-30 shrink-0">
+          <span className="text-[11px] font-semibold text-ink-600 hidden sm:inline">
+            Chế độ hiển thị:
+          </span>
+          <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-0.5 mx-auto sm:mx-0">
+            {(
+              [
+                ['ONE', '1 câu'],
+                ['TEN', '10 câu / trang'],
+                ['ALL', `Tất cả (${totalQuestions})`],
+              ] as const
+            ).map(([modeKey, label]) => (
+              <button
+                key={modeKey}
+                type="button"
+                onClick={() => {
+                  setViewMode(modeKey);
+                  mainScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                }}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition whitespace-nowrap ${
+                  effectiveViewMode === modeKey
+                    ? 'bg-brand-600 text-white shadow-2xs'
+                    : 'text-ink-600 hover:bg-slate-50'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {effectiveViewMode === 'TEN' && (
+            <span className="text-[11px] font-mono font-bold text-brand-700 whitespace-nowrap">
+              Trang {currentPage + 1}/{totalPages}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* One-way micro-timer bar */}
       {exam.oneWayMode && (
         <div className="bg-amber-50 border-b border-amber-200 px-3 sm:px-4 py-1.5 flex items-center justify-between gap-2 text-[11px] font-semibold text-amber-900 z-30 shrink-0">
@@ -303,45 +370,88 @@ export const ExamTakePage: React.FC = () => {
         </div>
       )}
 
-      {/* Main Scrollable Question Card */}
-      <main className="flex-1 overflow-y-auto px-3 sm:px-4 pt-3.5 pb-6 z-30">
-        <div className="max-w-xl mx-auto space-y-3">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-4 sm:p-6">
-            <div className="flex items-center justify-between gap-2 mb-3 pb-2.5 border-b border-slate-100">
-              <span className="text-xs font-mono font-extrabold text-brand-600 uppercase">
-                Câu hỏi số {currentIndex + 1}
-              </span>
-              <span className="text-[11px] text-support-600 font-medium shrink-0">
-                {currentAnswer ? '✓ Đã tự lưu câu này' : 'Chưa trả lời'}
-              </span>
-            </div>
+      {/* Main Scrollable Question Card(s) */}
+      <main ref={mainScrollRef} className="flex-1 overflow-y-auto px-3 sm:px-4 pt-3.5 pb-6 z-30">
+        <div className="max-w-xl mx-auto space-y-4">
+          {visibleEntries.map(({ snap, idx, qObj }) => {
+            if (!qObj) return null;
+            const ans = attempt.answers[qObj.id];
+            const isAnsDone = isAnswerPayloadFilled(ans?.answerPayload);
+            const itemFlagged = attempt.flaggedQuestionIds.includes(qObj.id);
+            return (
+              <div
+                key={snap.questionId}
+                id={`exam-q-${idx}`}
+                className="bg-white rounded-2xl border border-slate-200 shadow-card p-4 sm:p-6"
+              >
+                <div className="flex items-center justify-between gap-2 mb-3 pb-2.5 border-b border-slate-100">
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-mono font-extrabold text-brand-600 uppercase">
+                      Câu hỏi số {idx + 1}
+                    </span>
+                    {effectiveViewMode !== 'ONE' && (
+                      <button
+                        type="button"
+                        onClick={() => toggleFlagQuestion(attempt.id, qObj.id)}
+                        className={`p-1 rounded-lg border text-[10px] font-bold flex items-center gap-1 ${
+                          itemFlagged
+                            ? 'bg-amber-50 border-amber-400 text-amber-700'
+                            : 'bg-white border-slate-200 text-ink-500 hover:bg-slate-50'
+                        }`}
+                        title="Đánh dấu xem lại"
+                      >
+                        <Flag className="w-3 h-3" />
+                      </button>
+                    )}
+                  </div>
+                  <span
+                    className={`text-[11px] font-medium shrink-0 ${
+                      isAnsDone ? 'text-support-600' : 'text-ink-400'
+                    }`}
+                  >
+                    {isAnsDone ? '✓ Đã tự lưu câu này' : 'Chưa trả lời'}
+                  </span>
+                </div>
 
-            <QuestionRenderer
-              question={currentQuestion}
-              snapshot={currentSnapshot}
-              value={currentAnswer?.answerPayload}
-              fontSizePx={fontSizePx}
-              canvasAntiOcr={exam.canvasAntiOcr}
-              watermarkLabel={`${attempt.studentCode} - ${attempt.studentName}`}
-              onChange={handleAnswerChange}
-            />
-          </div>
+                <QuestionRenderer
+                  question={qObj}
+                  snapshot={snap}
+                  value={ans?.answerPayload}
+                  fontSizePx={fontSizePx}
+                  canvasAntiOcr={exam.canvasAntiOcr}
+                  watermarkLabel={`${attempt.studentCode} - ${attempt.studentName}`}
+                  onChange={(payload, telemetry) =>
+                    handleQuestionAnswerChange(qObj, idx, payload, telemetry)
+                  }
+                />
+              </div>
+            );
+          })}
         </div>
       </main>
 
       {/* Fixed Bottom Navigation Thumb-Zone */}
       <footer className="min-h-[60px] pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] shrink-0 bg-white border-t border-slate-200 px-2.5 sm:px-4 flex items-center justify-between gap-1.5 z-30">
         <div className="flex items-center gap-1 sm:gap-1.5 min-w-0">
-          {!exam.oneWayMode && (
+          {!exam.oneWayMode && effectiveViewMode !== 'ALL' && (
             <button
               type="button"
-              disabled={currentIndex === 0}
-              onClick={() => updateCurrentIndex(attempt.id, currentIndex - 1)}
-              aria-label="Câu trước"
+              disabled={effectiveViewMode === 'ONE' ? currentIndex === 0 : currentPage === 0}
+              onClick={() => {
+                if (effectiveViewMode === 'ONE') {
+                  updateCurrentIndex(attempt.id, currentIndex - 1);
+                } else {
+                  updateCurrentIndex(attempt.id, Math.max(0, (currentPage - 1) * pageSize));
+                  mainScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+              }}
+              aria-label={effectiveViewMode === 'ONE' ? 'Câu trước' : 'Trang trước'}
               className="h-10 px-2 sm:px-3 rounded-xl border border-slate-200 bg-slate-50 text-ink-800 disabled:opacity-40 text-xs font-bold flex items-center gap-1 shrink-0 whitespace-nowrap"
             >
               <ChevronLeft className="w-4 h-4" />
-              <span className="hidden min-[360px]:inline">Trước</span>
+              <span className="hidden min-[360px]:inline">
+                {effectiveViewMode === 'ONE' ? 'Trước' : 'Trang trước'}
+              </span>
             </button>
           )}
           <button
@@ -382,13 +492,25 @@ export const ExamTakePage: React.FC = () => {
           </button>
         </div>
 
-        {currentIndex < attempt.assignedQuestions.length - 1 ? (
+        {effectiveViewMode === 'ONE' && currentIndex < totalQuestions - 1 ? (
           <button
             type="button"
             onClick={() => updateCurrentIndex(attempt.id, currentIndex + 1)}
             className="h-10 px-3.5 sm:px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm shrink-0 whitespace-nowrap"
           >
             Câu tiếp
+            <ChevronRight className="w-4 h-4" />
+          </button>
+        ) : effectiveViewMode === 'TEN' && currentPage < totalPages - 1 ? (
+          <button
+            type="button"
+            onClick={() => {
+              updateCurrentIndex(attempt.id, Math.min(totalQuestions - 1, (currentPage + 1) * pageSize));
+              mainScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="h-10 px-3.5 sm:px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm shrink-0 whitespace-nowrap"
+          >
+            Trang tiếp
             <ChevronRight className="w-4 h-4" />
           </button>
         ) : (
@@ -456,6 +578,13 @@ export const ExamTakePage: React.FC = () => {
                       onClick={() => {
                         updateCurrentIndex(attempt.id, idx);
                         setGridOpen(false);
+                        if (effectiveViewMode !== 'ONE') {
+                          window.requestAnimationFrame(() => {
+                            document
+                              .getElementById(`exam-q-${idx}`)
+                              ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                          });
+                        }
                       }}
                       className={`h-11 rounded-xl font-mono text-xs font-bold border-2 relative transition disabled:opacity-35 ${
                         isCur
