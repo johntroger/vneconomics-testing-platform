@@ -4,6 +4,7 @@ import type { ViolationEvent } from '../../types/exam';
 import {
   detectScreenshotShortcut,
   isPreemptiveModifierKey,
+  shouldThrottleScreenshotDeterrent,
 } from '../../utils/antiScreenshot';
 
 interface AntiCheatGuardProps {
@@ -36,6 +37,7 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
   const noticeTimerRef = useRef<number | null>(null);
   const screenshotBlackoutTimerRef = useRef<number | null>(null);
   const modifierTimerRef = useRef<number | null>(null);
+  const lastShotDeterrentAtRef = useRef<number>(0);
   const lastExtendedWarnAtRef = useRef<number>(0);
   const hadFullscreenRef = useRef<boolean>(false);
   const baseViewportWidthRef = useRef<number>(
@@ -227,6 +229,12 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
     };
 
     const triggerScreenshotDeterrent = (shortcutLabel: string) => {
+      const now = Date.now();
+      if (shouldThrottleScreenshotDeterrent(lastShotDeterrentAtRef.current, now, 1200)) {
+        return;
+      }
+      lastShotDeterrentAtRef.current = now;
+
       setBlackout(true);
       setModifierShield(false);
       if (modifierTimerRef.current !== null) {
@@ -249,7 +257,7 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
       } catch {
         // Clipboard API may not be permitted
       }
-      showQuickNotice('Phát hiện thao tác chụp/quay màn hình — Đã ghi nhận vi phạm!', 2400);
+      showQuickNotice('Phát hiện thao tác chụp/quay màn hình — Đã ghi nhận vi phạm!', 3600);
       onViolation({
         severity: 'DEVTOOLS',
         eventType: 'SCREENSHOT_ATTEMPT',
@@ -322,19 +330,23 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
-      const shotUp = detectScreenshotShortcut(e);
-      if (shotUp) {
-        triggerScreenshotDeterrent(shotUp);
+      if (
+        e.key === 'PrintScreen' ||
+        e.code === 'PrintScreen' ||
+        e.key === 'F13' ||
+        e.code === 'F13'
+      ) {
+        triggerScreenshotDeterrent('PrintScreen');
         return;
       }
-      if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+      if (!e.metaKey && !(e.ctrlKey && e.shiftKey) && !(e.altKey && e.shiftKey)) {
         if (modifierTimerRef.current !== null) {
           window.clearTimeout(modifierTimerRef.current);
         }
         modifierTimerRef.current = window.setTimeout(() => {
           setModifierShield(false);
           modifierTimerRef.current = null;
-        }, 250);
+        }, 650);
       }
     };
 
@@ -581,7 +593,7 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
 
       {isBlackoutActive && (
         <div
-          aria-hidden="true"
+          role="status"
           onClick={handleReturnSignal}
           onTouchEnd={handleReturnSignal}
           className="fixed inset-0 z-[90] bg-ink-900 flex flex-col items-center justify-center p-6 text-center text-white select-none cursor-pointer"
@@ -601,8 +613,8 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
         </div>
       )}
 
-      {minorNotice && !isBlackoutActive && (
-        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-[65] w-auto max-w-[92%] sm:max-w-sm bg-ink-900/95 text-white text-[11px] font-medium px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2 pointer-events-none animate-fadeIn">
+      {minorNotice && (
+        <div className="fixed top-14 left-1/2 -translate-x-1/2 z-[95] w-auto max-w-[92%] sm:max-w-sm bg-ink-900/95 border border-white/15 text-white text-[11px] font-medium px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2 pointer-events-none animate-fadeIn">
           <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
           <span className="truncate">{minorNotice}</span>
         </div>

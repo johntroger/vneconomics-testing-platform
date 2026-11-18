@@ -122,3 +122,15 @@ export function shouldLockSingleQuestionViewport(exam: {
 }): boolean {
   return Boolean(exam.oneWayMode || exam.canvasAntiOcr);
 }
+
+/**
+ * Deduplicates rapid duplicate triggers (e.g. keydown + keyup for the same PrintScreen/shortcut press)
+ * so one keypress logs exactly one violation instead of locking out immediately.
+ */
+export function shouldThrottleScreenshotDeterrent(
+  lastTriggeredAtMs: number,
+  nowMs: number,
+  cooldownMs = 1200,
+): boolean {
+  return lastTriggeredAtMs > 0 && nowMs - lastTriggeredAtMs < cooldownMs;
+}

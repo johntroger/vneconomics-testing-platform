@@ -5,6 +5,7 @@ import {
   detectScreenshotShortcut,
   isPreemptiveModifierKey,
   shouldLockSingleQuestionViewport,
+  shouldThrottleScreenshotDeterrent,
 } from '../src/utils/antiScreenshot.ts';
 
 test('computeForensicCode produces deterministic FX-XXXX-YYYY tags and isolates distinct attempts', () => {
@@ -99,4 +100,11 @@ test('shouldLockSingleQuestionViewport locks viewport to 1 question when canvasA
   assert.equal(shouldLockSingleQuestionViewport({ canvasAntiOcr: true, oneWayMode: true }), true);
   assert.equal(shouldLockSingleQuestionViewport({ canvasAntiOcr: false, oneWayMode: false }), false);
   assert.equal(shouldLockSingleQuestionViewport({}), false);
+});
+
+test('shouldThrottleScreenshotDeterrent blocks rapid keydown/keyup duplicate violations within cooldown', () => {
+  assert.equal(shouldThrottleScreenshotDeterrent(0, 1000, 1200), false);
+  assert.equal(shouldThrottleScreenshotDeterrent(1000, 1015, 1200), true);
+  assert.equal(shouldThrottleScreenshotDeterrent(1000, 2199, 1200), true);
+  assert.equal(shouldThrottleScreenshotDeterrent(1000, 2200, 1200), false);
 });
