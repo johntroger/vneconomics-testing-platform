@@ -5,6 +5,7 @@ import {
   ArrowRight,
   BookOpen,
   CheckCircle2,
+  ChevronDown,
   ExternalLink,
   Gamepad2,
   Lock,
@@ -97,7 +98,11 @@ export const HomePortalPage: React.FC = () => {
   const [pinMatches, setPinMatches] = useState<RoomMatchOption[]>([]);
   const [selectedExamId, setSelectedExamId] = useState('');
   const [error, setError] = useState('');
+  const [locationDenied, setLocationDenied] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showDemoSandbox, setShowDemoSandbox] = useState(false);
+
+  const isIOSDevice = useMemo(() => /iPhone|iPad|iPod/i.test(navigator.userAgent || ''), []);
 
   const isInAppWebView = useMemo(() => {
     const ua = navigator.userAgent || '';
@@ -259,6 +264,7 @@ export const HomePortalPage: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setLocationDenied(false);
 
     if (!/^\d{6}$/.test(pin.trim())) {
       setError('Vui lòng nhập đúng Mã phòng thi 6 chữ số.');
@@ -295,6 +301,7 @@ export const HomePortalPage: React.FC = () => {
     if (!loc.ok) {
       setLoading(false);
       setError(loc.error);
+      setLocationDenied(true);
       return;
     }
 
@@ -383,74 +390,7 @@ export const HomePortalPage: React.FC = () => {
 
       <main className="flex-1 flex flex-col justify-center px-3 sm:px-6 pt-5 sm:pt-8 pb-[max(2rem,env(safe-area-inset-bottom))]">
         <div className="max-w-5xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-          {/* Public Demo Sandbox Quick-Access Banner (Right column on desktop, top on mobile) */}
-          <div className="lg:col-span-5 lg:order-2 bg-gradient-to-br from-brand-50 via-white to-support-50 rounded-2xl border border-brand-200/90 shadow-sm p-4 sm:p-5 space-y-3.5">
-            <div className="flex items-start justify-between gap-2">
-              <div>
-                <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-brand-700 bg-brand-100/80 px-2.5 py-0.5 rounded-full">
-                  <Sparkles className="w-3 h-3" /> Trải nghiệm Công khai (Demo 1-Chạm)
-                </span>
-                <h2 className="text-sm sm:text-base font-extrabold text-ink-900 mt-2">
-                  Dùng thử Hệ thống cho Sinh viên &amp; Giảng viên bất kỳ
-                </h2>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3">
-              {/* Student Demo Card */}
-              <div className="bg-white/95 rounded-xl border border-brand-200/80 p-3.5 flex flex-col justify-between gap-2.5 shadow-2xs">
-                <div>
-                  <p className="text-xs font-extrabold text-brand-900 flex items-center gap-1.5">
-                    <UserCheck className="w-4 h-4 text-brand-600 shrink-0" />
-                    Tài khoản Sinh viên Demo
-                  </p>
-                  <p className="text-[11px] text-ink-600 mt-1 leading-relaxed">
-                    Tự động cấp MSSV <span className="font-mono font-bold text-brand-700">DEMOxxxxxx</span> mới tinh không trùng người thi khác để bạn vào thi thử nhiều lần trên mọi thiết bị.
-                  </p>
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <button
-                    type="button"
-                    disabled={loading}
-                    onClick={() => void startQuickDemoStudent('101202')}
-                    className="w-full py-2 px-3 rounded-lg bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition"
-                  >
-                    {loading ? 'Đang tạo phiên thi Demo...' : 'Thi thử ngay (SV Demo • 101202)'}
-                    <ArrowRight className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => fillDemoStudent('101202', true)}
-                    className="text-[11px] font-semibold text-brand-700 hover:underline text-center"
-                  >
-                    Chỉ điền sẵn SV Demo (để tự đổi Email nhận điểm)
-                  </button>
-                </div>
-              </div>
-
-              {/* Instructor Demo Card */}
-              <div className="bg-white/95 rounded-xl border border-support-200/90 p-3.5 flex flex-col justify-between gap-2.5 shadow-2xs">
-                <div>
-                  <p className="text-xs font-extrabold text-ink-900 flex items-center gap-1.5">
-                    <ShieldCheck className="w-4 h-4 text-support-600 shrink-0" />
-                    Tài khoản Giảng viên Demo
-                  </p>
-                  <p className="text-[11px] text-ink-600 mt-1 leading-relaxed">
-                    Vào ngay Cổng Quản trị (<span className="font-mono font-bold">vne2026</span>) để test Tạo đề Ma trận, Ngân hàng câu hỏi, Giám sát Live &amp; Chấm Rubric.
-                  </p>
-                </div>
-                <Link
-                  to="/admin?demo=1"
-                  className="w-full py-2 px-3 rounded-lg bg-support-600 hover:bg-support-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition"
-                >
-                  <Lock className="w-3.5 h-3.5" />
-                  Vào Quản trị Giảng viên Demo
-                </Link>
-              </div>
-            </div>
-          </div>
-
-          <div className="lg:col-span-7 lg:order-1 space-y-4">
+          <div className="lg:col-span-7 order-1 space-y-4">
 
           {/* Zalo/Messenger In-App Browser Guard */}
           {isInAppWebView && !bypassWebViewNotice && (
@@ -519,26 +459,28 @@ export const HomePortalPage: React.FC = () => {
                   placeholder="Ví dụ: 101202"
                   className="w-full h-12 px-3.5 rounded-xl border border-slate-300 font-mono text-lg font-bold tracking-[0.2em] text-ink-900 placeholder:text-slate-300 placeholder:font-normal focus:outline-none focus:ring-2 focus:ring-brand-500"
                 />
-                {/* Quick Demo PIN pills for rapid testing */}
-                <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                  <span className="text-[11px] text-ink-500">Phòng thi mở mẫu:</span>
-                  {exams
-                    .filter((ex) => ex.status === 'OPEN')
-                    .map((ex) => (
-                      <button
-                        key={ex.id}
-                        type="button"
-                        onClick={() => selectDemoRoomPin(ex.roomPin)}
-                        className={`text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md border transition ${
-                          pin === ex.roomPin
-                            ? 'bg-brand-600 text-white border-brand-600'
-                            : 'bg-slate-50 text-brand-700 border-slate-200 hover:border-brand-300'
-                        }`}
-                      >
-                        {ex.roomPin}
-                      </button>
-                    ))}
-                </div>
+                {/* Quick Demo PIN pills (only visible when Sandbox Demo mode is expanded) */}
+                {(showDemoSandbox || studentCode.trim().toUpperCase().startsWith('DEMO')) && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                    <span className="text-[11px] text-ink-500">Phòng thi mở mẫu:</span>
+                    {exams
+                      .filter((ex) => ex.status === 'OPEN')
+                      .map((ex) => (
+                        <button
+                          key={ex.id}
+                          type="button"
+                          onClick={() => selectDemoRoomPin(ex.roomPin)}
+                          className={`text-[11px] font-mono font-semibold px-2 py-0.5 rounded-md border transition ${
+                            pin === ex.roomPin
+                              ? 'bg-brand-600 text-white border-brand-600'
+                              : 'bg-slate-50 text-brand-700 border-slate-200 hover:border-brand-300'
+                          }`}
+                        >
+                          {ex.roomPin}
+                        </button>
+                      ))}
+                  </div>
+                )}
                 {pinMatches.length > 1 && (
                   <div className="mt-2 p-2.5 rounded-xl bg-amber-50 border border-amber-200 space-y-1.5">
                     <div className="text-[11px] font-bold text-amber-900">
@@ -579,16 +521,18 @@ export const HomePortalPage: React.FC = () => {
 
               {/* MSSV + Class */}
               <div className="space-y-1.5">
-                <div className="flex items-center justify-end">
-                  <button
-                    type="button"
-                    onClick={() => fillDemoStudent(undefined, true)}
-                    className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-700 hover:text-brand-800 hover:underline"
-                  >
-                    <RefreshCw className="w-3 h-3" />
-                    Cấp MSSV Demo mới ngẫu nhiên
-                  </button>
-                </div>
+                {(showDemoSandbox || studentCode.trim().toUpperCase().startsWith('DEMO')) && (
+                  <div className="flex items-center justify-end">
+                    <button
+                      type="button"
+                      onClick={() => fillDemoStudent(undefined, true)}
+                      className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-700 hover:text-brand-800 hover:underline"
+                    >
+                      <RefreshCw className="w-3 h-3" />
+                      Cấp MSSV Demo mới ngẫu nhiên
+                    </button>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-2.5 sm:gap-3">
                   <div className="min-w-0">
                     <label className="block text-xs font-semibold text-ink-700 mb-1">
@@ -744,9 +688,44 @@ export const HomePortalPage: React.FC = () => {
               </div>
 
               {error && (
-                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700 flex items-start gap-2">
-                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{error}</span>
+                <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs font-semibold text-rose-700 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                    <span>{error}</span>
+                  </div>
+                  {locationDenied && (
+                    <div className="rounded-lg bg-white border border-rose-200 p-2.5 text-[11px] text-ink-800 font-normal space-y-1.5">
+                      <p className="font-bold text-rose-800">
+                        Hướng dẫn mở nhanh Vị trí ({isIOSDevice ? 'iPhone / iPad Safari' : 'Android / Chrome'}):
+                      </p>
+                      {isIOSDevice ? (
+                        <ol className="list-decimal list-inside space-y-1 leading-relaxed">
+                          <li>Bấm vào chữ <strong>AA</strong> (hoặc biểu tượng ổ khóa / mảnh ghép) ngay cạnh thanh địa chỉ Safari → chọn <strong>Cài đặt trang web (Website Settings)</strong> → Vị trí chọn <strong>Cho phép (Allow)</strong>.</li>
+                          <li>Hoặc mở <strong>Cài đặt iPhone → Quyền riêng tư &amp; Bảo mật → Dịch vụ định vị → Trang web Safari</strong> chọn <em>Khi dùng ứng dụng</em>.</li>
+                        </ol>
+                      ) : (
+                        <ol className="list-decimal list-inside space-y-1 leading-relaxed">
+                          <li>Bấm vào biểu tượng <strong>Ổ khóa / Cài đặt</strong> ngay bên trái thanh địa chỉ trình duyệt.</li>
+                          <li>Bật công tắc <strong>Vị trí (Location)</strong> sang <em>Cho phép</em>, sau đó bấm nút kiểm tra lại bên dưới.</li>
+                        </ol>
+                      )}
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const retry = await requestStudentLocation();
+                          if (retry.ok) {
+                            setLocationDenied(false);
+                            setError('');
+                          } else {
+                            setError(retry.error);
+                          }
+                        }}
+                        className="mt-1 px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white font-bold text-[11px] inline-flex items-center gap-1"
+                      >
+                        <RefreshCw className="w-3 h-3" /> Thử kiểm tra lại Vị trí
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -774,6 +753,90 @@ export const HomePortalPage: React.FC = () => {
               Điểm số &amp; biên nhận sẽ được gửi tự động về Email bạn cung cấp ngay sau khi hoàn thành (cho phép tự sửa lại email trong 5 phút nếu gõ nhầm).
             </span>
           </div>
+          </div>
+
+          {/* Collapsible Demo Sandbox Card (Placed below Student Form on mobile, right column on desktop) */}
+          <div className="lg:col-span-5 order-2 bg-gradient-to-br from-brand-50 via-white to-support-50 rounded-2xl border border-brand-200/90 shadow-sm p-4 sm:p-5 space-y-3">
+            <button
+              type="button"
+              onClick={() => setShowDemoSandbox((prev) => !prev)}
+              className="w-full flex items-center justify-between gap-2 text-left"
+              aria-expanded={showDemoSandbox}
+            >
+              <div>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-brand-700 bg-brand-100/80 px-2.5 py-0.5 rounded-full">
+                  <Sparkles className="w-3 h-3" /> Khu vực Dùng thử Demo
+                </span>
+                <h2 className="text-sm font-extrabold text-ink-900 mt-1.5">
+                  Dành cho Giảng viên / Khách trải nghiệm thử
+                </h2>
+                {!showDemoSandbox && (
+                  <p className="text-[11px] text-ink-500 mt-0.5">
+                    Sinh viên thi thật không bấm vào mục này. Bấm để mở nếu muốn thi thử hoặc test quản trị.
+                  </p>
+                )}
+              </div>
+              <span className="w-8 h-8 rounded-xl bg-white border border-brand-200 flex items-center justify-center shrink-0 text-brand-700">
+                <ChevronDown
+                  className={`w-4 h-4 transition-transform ${showDemoSandbox ? 'rotate-180' : ''}`}
+                />
+              </span>
+            </button>
+
+            {showDemoSandbox && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3 pt-1">
+                {/* Student Demo Card */}
+                <div className="bg-white/95 rounded-xl border border-brand-200/80 p-3.5 flex flex-col justify-between gap-2.5 shadow-2xs">
+                  <div>
+                    <p className="text-xs font-extrabold text-brand-900 flex items-center gap-1.5">
+                      <UserCheck className="w-4 h-4 text-brand-600 shrink-0" />
+                      Tài khoản Sinh viên Demo
+                    </p>
+                    <p className="text-[11px] text-ink-600 mt-1 leading-relaxed">
+                      Tự động cấp MSSV <span className="font-mono font-bold text-brand-700">DEMOxxxxxx</span> mới tinh không trùng người thi khác để vào thi thử.
+                    </p>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <button
+                      type="button"
+                      disabled={loading}
+                      onClick={() => void startQuickDemoStudent('101202')}
+                      className="w-full py-2 px-3 rounded-lg bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition"
+                    >
+                      {loading ? 'Đang tạo phiên thi Demo...' : 'Thi thử ngay (SV Demo • 101202)'}
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => fillDemoStudent('101202', true)}
+                      className="text-[11px] font-semibold text-brand-700 hover:underline text-center"
+                    >
+                      Chỉ điền sẵn SV Demo (để tự đổi Email nhận điểm)
+                    </button>
+                  </div>
+                </div>
+
+                {/* Instructor Demo Card */}
+                <div className="bg-white/95 rounded-xl border border-support-200/90 p-3.5 flex flex-col justify-between gap-2.5 shadow-2xs">
+                  <div>
+                    <p className="text-xs font-extrabold text-ink-900 flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-support-600 shrink-0" />
+                      Tài khoản Giảng viên Demo
+                    </p>
+                    <p className="text-[11px] text-ink-600 mt-1 leading-relaxed">
+                      Vào ngay Cổng Quản trị (<span className="font-mono font-bold">vne2026</span>) để test Tạo đề Ma trận, Ngân hàng câu hỏi &amp; Giám sát Live.
+                    </p>
+                  </div>
+                  <Link
+                    to="/admin?demo=1"
+                    className="w-full py-2 px-3 rounded-lg bg-support-600 hover:bg-support-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition"
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                    Vào Quản trị Giảng viên Demo
+                  </Link>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </main>

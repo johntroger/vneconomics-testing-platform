@@ -28,18 +28,18 @@ export interface GuideReleaseNote {
   highlights: string[];
 }
 
-export const GUIDE_VERSION = '2026.11.16';
+export const GUIDE_VERSION = '2026.11.18';
 
 export const GUIDE_RELEASE_NOTES: GuideReleaseNote[] = [
   {
-    date: '16/11/2026',
+    date: '18/11/2026',
     title: 'Cập nhật mới nhất trên hệ thống VNEconomics Testing',
     highlights: [
-      'Tách độc lập Đề thi gốc và Ca thi: bấm biểu tượng Thùng rác xóa hết Ca thi cũ/thử nghiệm mà Đề thi gốc vẫn còn nguyên.',
-      'Thêm nút "Lưu cấu hình ca thi" rõ ràng ở Tab 3 để lưu toàn bộ cài đặt thời gian, ma trận và chống gian lận.',
-      'Sinh viên được tự chọn chế độ hiển thị: Từng câu, 10 câu/lượt, hoặc Xem tất cả câu trên 1 màn hình.',
-      'Hạ bàn phím trên điện thoại (iPhone/Android) không bị báo gian lận oan; bổ sung cảnh báo & làm mờ khi chụp màn hình.',
-      'Thống kê & file Excel xuất về hiển thị thêm ma trận Đúng/Sai từng câu hỏi của từng thí sinh.',
+      'Tab 3 bổ sung 3 gói Cài đặt nhanh 1-chạm (Kiểm tra chuẩn / Thi nghiêm ngặt / Ôn tập mở) và thu gọn phần tùy chỉnh kỹ thuật để giảng viên dễ thao tác.',
+      'Tab 4 thêm nút "Chiếu Mã PIN & QR" toàn màn hình cho máy chiếu giảng đường (sinh viên quét QR tự điền sẵn PIN) và huy hiệu đỏ báo ngay số sinh viên bị khóa cần duyệt.',
+      'Trang chủ ưu tiên Form vào thi thật lên trên, thu gọn khu vực Demo tránh bấm nhầm và thêm hướng dẫn bật GPS chi tiết cho iPhone/Android.',
+      'Trong phòng thi luôn hiện nút "Nộp bài" khi sinh viên quay lại kiểm tra câu cũ, không cần bấm tới tận câu cuối.',
+      'Tách độc lập Đề thi gốc & Ca thi, hạ bàn phím không báo gian lận oan, và xuất Excel thống kê chi tiết Đúng/Sai từng câu của từng thí sinh.',
     ],
   },
 ];
@@ -103,8 +103,8 @@ export const ADMIN_TAB_REGISTRY: AdminTabGuideSpec[] = [
       'Bấm vào thẻ "3. Tạo & Cấu hình Đề thi" → bấm "Tạo Đề thi mới".',
       'Đặt tên đề thi (ví dụ: Kiểm tra Giữa kỳ — Kinh tế Vi mô). Hệ thống tự cấp Mã PIN 6 số (thầy/cô có thể sửa lại cho dễ nhớ).',
       'Ở bảng Ma trận Chương, nhập số lượng câu cần lấy từ mỗi chương.',
-      'Cài đặt Thời gian làm bài (phút), bật "Trộn A/B/C/D", bật xác minh danh sách lớp (nếu cần), và đặt mức Chống gian lận (khuyến nghị: Số lần rời màn hình tối đa = 3, Tổng giây vắng mặt = 30).',
-      'BẮT BUỘC: Kéo xuống cuối bảng và bấm nút "Lưu cấu hình ca thi" để lưu toàn bộ thay đổi lên máy chủ.',
+      'Chọn nhanh 1 trong 3 gói mẫu 1-chạm ("Kiểm tra chuẩn", "Thi nghiêm ngặt", hoặc "Ôn tập / Luyện tập"), rồi chỉnh Thời lượng & Trạng thái ĐANG MỞ. Nếu cần chỉnh sâu hơn mới bấm mở "Tùy chỉnh bảo mật & trộn đề nâng cao".',
+      'BẮT BUỘC: Kiểm tra dòng trạng thái đồng bộ ở cuối khung hoặc bấm nút "Lưu cấu hình ca thi" để xác nhận lưu lên máy chủ.',
     ],
     exampleTitle: 'Ví dụ minh họa — Đề kiểm tra 15 phút gồm 10 câu',
     exampleLines: [
@@ -127,8 +127,8 @@ export const ADMIN_TAB_REGISTRY: AdminTabGuideSpec[] = [
     actions: [
       'Bấm vào thẻ "4. Giám sát Live & Duyệt".',
       'Bấm nút "+ Tạo Ca thi mới", đặt tên lớp/ca (ví dụ: Giữa kỳ — Lớp Thứ 2). Hệ thống tạo ngay Mã PIN 6 số ở trạng thái "OPEN" (Đang mở).',
-      'Đọc hoặc chiếu Mã PIN 6 số lên bảng. Sinh viên vào trang chủ, nhập PIN, Họ tên, MSSV, Email là vào thi ngay (có thể chọn xem từng câu, 10 câu/lượt hoặc tất cả câu).',
-      'Theo dõi tiến độ làm bài trực tiếp. Nếu sinh viên bị khóa đỏ do lỡ thoát app hoặc đổi máy giữa chừng, thầy/cô bấm mở khóa / giải phóng Device Lock hoặc cộng thêm giờ ngay tại bảng.',
+      'Bấm nút "Chiếu Mã PIN & QR" để phóng to Mã PIN 6 số + Mã QR lên máy chiếu cho cả lớp quét vào phòng thi ngay (sinh viên có thể chọn xem từng câu, 10 câu/lượt hoặc tất cả câu).',
+      'Theo dõi tiến độ làm bài trực tiếp. Nếu có sinh viên bị khóa đỏ (thanh Tab 4 sẽ hiện huy hiệu đỏ báo số bài cần duyệt), thầy/cô bấm mở khóa / giải phóng Device Lock hoặc cộng thêm giờ ngay tại bảng.',
     ],
     exampleTitle: 'Ví dụ minh họa — Dạy 2 lớp dùng chung 1 đề gốc',
     exampleLines: [

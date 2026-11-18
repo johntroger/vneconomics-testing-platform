@@ -5,6 +5,7 @@ import {
   BarChart3,
   BookOpen,
   CheckCircle2,
+  ChevronDown,
   Copy,
   Download,
   Eye,
@@ -15,9 +16,11 @@ import {
   LogOut,
   Mail,
   Plus,
+  QrCode,
   RefreshCw,
   Save,
   Search,
+  SlidersHorizontal,
   Smartphone,
   Trash2,
   Upload,
@@ -426,12 +429,35 @@ export const AdminDashboardPage: React.FC = () => {
   };
 
   const [savingExamConfig, setSavingExamConfig] = useState(false);
+  const [showAdvancedExamSettings, setShowAdvancedExamSettings] = useState(false);
+  const [projectorModalOpen, setProjectorModalOpen] = useState(false);
+  const [projectorCopied, setProjectorCopied] = useState(false);
+  const [lastSavedTimeLabel, setLastSavedTimeLabel] = useState('');
+
+  const lockedAttemptsCount = useMemo(
+    () =>
+      attempts.filter(
+        (a) => (!selectedExam || a.examId === selectedExam.id) && a.status === 'LOCKED',
+      ).length,
+    [attempts, selectedExam],
+  );
+
+  const stampSavedNow = () =>
+    setLastSavedTimeLabel(
+      new Date().toLocaleTimeString('vi-VN', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      }),
+    );
 
   const saveExamSetting = (nextExam: typeof exams[number]) => {
     if (!requireOfficialOrPrompt()) return;
     void upsertExam(nextExam).then((res) => {
       if (!res.ok) {
         showToast(res.error || 'Không thể lưu thay đổi lên máy chủ.');
+      } else {
+        stampSavedNow();
       }
     });
   };
@@ -444,6 +470,7 @@ export const AdminDashboardPage: React.FC = () => {
     if (!res.ok) {
       showToast(res.error || 'Không thể lưu cấu hình lên máy chủ.');
     } else {
+      stampSavedNow();
       showToast(`Đã lưu cấu hình ca thi "${selectedExam.title}" (PIN ${selectedExam.roomPin}).`);
     }
   };
@@ -894,7 +921,12 @@ export const AdminDashboardPage: React.FC = () => {
                 }`}
               >
                 <Icon className="w-3.5 h-3.5" />
-                {label}
+                <span>{label}</span>
+                {spec.id === 'LIVE' && lockedAttemptsCount > 0 && (
+                  <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-extrabold leading-none animate-pulse">
+                    {lockedAttemptsCount} cần duyệt
+                  </span>
+                )}
               </button>
             );
           })}
@@ -993,6 +1025,19 @@ export const AdminDashboardPage: React.FC = () => {
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
+                  {(selectedShift || selectedExam) && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProjectorCopied(false);
+                        setProjectorModalOpen(true);
+                      }}
+                      className="h-9 px-3 rounded-xl border border-brand-200 bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-bold flex items-center gap-1.5"
+                    >
+                      <QrCode className="w-3.5 h-3.5" />
+                      <span>Chiếu Mã PIN &amp; QR</span>
+                    </button>
+                  )}
                   {selectedShift && selectedShift.status === 'DRAFT' && (
                     <button
                       type="button"
@@ -1448,15 +1493,107 @@ export const AdminDashboardPage: React.FC = () => {
                 {/* Shuffle & Exam Policy */}
                 <div className="space-y-3">
                   <h3 className="text-sm font-extrabold text-ink-900 flex items-center gap-1.5">
-                    <span>Chính sách Trộn Đề Đa tầng &amp; Ca thi</span>
+                    <span>Cấu hình Phòng thi &amp; Bảo mật</span>
                     <InfoHint
                       title="Cài đặt chung cho phòng thi này"
                       text={
-                        '• Quy định mã PIN vào phòng, thời gian làm bài, cách trộn câu hỏi/đáp án và chế độ giám sát chống rời màn hình.\n• Mọi thay đổi ở bảng này được lưu tự động ngay lập tức.'
+                        '• Thầy/cô có thể bấm chọn 1 trong 3 gói Cài đặt nhanh bên dưới, hoặc tự chỉnh các thông số cơ bản và nâng cao.\n• Các thay đổi sẽ đồng bộ tự động lên máy chủ, hoặc bấm "Lưu cấu hình ca thi" ở cuối khung để xác nhận lưu ngay.'
                       }
                     />
                   </h3>
-                  <div className="grid grid-cols-2 gap-2.5">
+
+                  {/* 1-Click Presets */}
+                  <div className="rounded-xl bg-slate-50 border border-slate-200 p-3 space-y-2">
+                    <p className="text-[11px] font-bold text-ink-700">
+                      Chọn nhanh chế độ mẫu (1 chạm — khuyên dùng cho Giảng viên):
+                    </p>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          saveExamSetting({
+                            ...selectedExam,
+                            shuffleMode: 'FULL_RANDOM',
+                            shuffleQuestions: true,
+                            shuffleOptions: true,
+                            maxLeaveCount: 3,
+                            maxAwaySeconds: 45,
+                            canvasAntiOcr: false,
+                            requireFullscreen: false,
+                            oneWayMode: false,
+                            allowReviewAfterSubmit: false,
+                            emailDeliveryMode: 'IMMEDIATE',
+                          });
+                          showToast('Đã áp dụng gói "Kiểm tra chuẩn trên lớp".');
+                        }}
+                        className="px-2.5 py-2 rounded-lg border border-brand-200 bg-white hover:bg-brand-50 text-left transition"
+                      >
+                        <div className="text-[11px] font-extrabold text-brand-700">
+                          Kiểm tra chuẩn
+                        </div>
+                        <div className="text-[10px] text-ink-500">
+                          Trộn đề • Rời tối đa 3 lần
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          saveExamSetting({
+                            ...selectedExam,
+                            shuffleMode: 'FULL_RANDOM+ESSAY_LAST',
+                            shuffleQuestions: true,
+                            shuffleOptions: true,
+                            maxLeaveCount: 2,
+                            maxAwaySeconds: 25,
+                            canvasAntiOcr: true,
+                            requireFullscreen: true,
+                            oneWayMode: false,
+                            allowReviewAfterSubmit: false,
+                            emailDeliveryMode: 'DELAYED_BATCH',
+                          });
+                          showToast('Đã áp dụng gói "Thi nghiêm ngặt chống gian lận".');
+                        }}
+                        className="px-2.5 py-2 rounded-lg border border-rose-200 bg-white hover:bg-rose-50 text-left transition"
+                      >
+                        <div className="text-[11px] font-extrabold text-rose-700">
+                          Thi nghiêm ngặt
+                        </div>
+                        <div className="text-[10px] text-ink-500">
+                          Chống OCR • Giữ điểm khi đóng ca
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          saveExamSetting({
+                            ...selectedExam,
+                            shuffleMode: 'BY_CHAPTER',
+                            shuffleQuestions: true,
+                            shuffleOptions: true,
+                            maxLeaveCount: 10,
+                            maxAwaySeconds: 300,
+                            canvasAntiOcr: false,
+                            requireFullscreen: false,
+                            oneWayMode: false,
+                            allowReviewAfterSubmit: true,
+                            emailDeliveryMode: 'IMMEDIATE',
+                          });
+                          showToast('Đã áp dụng gói "Luyện tập / Ôn tập mở".');
+                        }}
+                        className="px-2.5 py-2 rounded-lg border border-support-200 bg-white hover:bg-support-50 text-left transition"
+                      >
+                        <div className="text-[11px] font-extrabold text-support-700">
+                          Ôn tập / Luyện tập
+                        </div>
+                        <div className="text-[10px] text-ink-500">
+                          Thoải mái • Xem lại bài sau nộp
+                        </div>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Basic Always-Visible Settings (4 key controls) */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                     <div>
                       <label className="flex items-center gap-1.5 font-semibold mb-1">
                         <span>Mã phòng thi (6 số)</span>
@@ -1506,7 +1643,103 @@ export const AdminDashboardPage: React.FC = () => {
                         className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-mono font-bold"
                       />
                     </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 font-semibold mb-1">
+                        <span>Số lần rời màn hình tối đa</span>
+                        <InfoHint
+                          title="Ngưỡng khóa theo Số lần chuyển tab / thoát trình duyệt"
+                          text={
+                            '• Ví dụ đặt = 3: Sinh viên bấm sang app khác (Zalo, Chrome, Messenger...) tới lần thứ 4 sẽ bị hệ thống khóa màn hình thi lại.\n• Bài khóa sẽ báo đỏ lên Tab Giám sát để thầy/cô duyệt cho thi tiếp hoặc thu bài.'
+                          }
+                        />
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={20}
+                        value={selectedExam.maxLeaveCount}
+                        onChange={(e) =>
+                          saveExamSetting({
+                            ...selectedExam,
+                            maxLeaveCount: Math.max(1, Number(e.target.value) || 1),
+                          })
+                        }
+                        className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 font-semibold mb-1">
+                        <span>Trạng thái phòng thi</span>
+                        <InfoHint
+                          title="Điều khiển đóng / mở phòng thi"
+                          text={
+                            '• NHÁP: Đang soạn đề, sinh viên chưa thể vào phòng.\n• ĐANG MỞ: Phòng thi hoạt động, sinh viên nhập mã PIN 6 số để làm bài ngay.\n• ĐÃ ĐÓNG: Đã kết thúc ca thi, không cho thí sinh mới vào thêm.'
+                          }
+                        />
+                      </label>
+                      <select
+                        value={selectedExam.status}
+                        onChange={(e) =>
+                          saveExamSetting({
+                            ...selectedExam,
+                            status: e.target.value as 'DRAFT' | 'OPEN' | 'CLOSED',
+                          })
+                        }
+                        className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-bold"
+                      >
+                        <option value="DRAFT">NHÁP (Chưa mở)</option>
+                        <option value="OPEN">ĐANG MỞ (Cho SV vào thi)</option>
+                        <option value="CLOSED">ĐÃ ĐÓNG (Kết thúc)</option>
+                      </select>
+                    </div>
                   </div>
+
+                  <div>
+                    <label className="flex items-center gap-1.5 font-semibold mb-1">
+                      <span>Email giảng viên nhận báo cáo ca thi</span>
+                      <InfoHint
+                        title="Email nhận Bảng điểm Tổng hợp của giảng viên"
+                        text={
+                          '• Nhập Email cá nhân/cơ quan của thầy/cô.\n• Khi kết thúc ca thi, hệ thống sẽ gửi thư tổng kết ca thi kèm file Excel thống kê về địa chỉ Email này.'
+                        }
+                      />
+                    </label>
+                    <input
+                      type="email"
+                      value={selectedExam.instructorEmail}
+                      onChange={(e) =>
+                        saveExamSetting({
+                          ...selectedExam,
+                          instructorEmail: e.target.value,
+                        })
+                      }
+                      placeholder="giangvien@ueh.edu.vn"
+                      className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-semibold"
+                    />
+                  </div>
+
+                  {/* Collapsible Advanced Exam Settings Toggle */}
+                  <div className="border-t border-slate-100 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setShowAdvancedExamSettings((prev) => !prev)}
+                      aria-expanded={showAdvancedExamSettings}
+                      className="w-full h-9 px-3 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-ink-700 text-xs font-bold flex items-center justify-between gap-2 transition"
+                    >
+                      <span className="flex items-center gap-1.5">
+                        <SlidersHorizontal className="w-3.5 h-3.5 text-brand-600" />
+                        <span>Tùy chỉnh bảo mật &amp; trộn đề nâng cao</span>
+                      </span>
+                      <ChevronDown
+                        className={`w-4 h-4 text-ink-500 transition-transform ${
+                          showAdvancedExamSettings ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {showAdvancedExamSettings && (
+                  <div className="space-y-3 pt-1">
                   <div className="space-y-2.5">
                     <div>
                       <label className="flex items-center gap-1.5 font-semibold mb-1.5">
@@ -1652,53 +1885,6 @@ export const AdminDashboardPage: React.FC = () => {
                     </div>
                     <div>
                       <label className="flex items-center gap-1.5 font-semibold mb-1">
-                        <span>Email nhận báo cáo ca thi</span>
-                        <InfoHint
-                          title="Email nhận Bảng điểm Tổng hợp của giảng viên"
-                          text={
-                            '• Nhập Email cá nhân/cơ quan của thầy/cô.\n• Khi kết thúc ca thi, hệ thống sẽ gửi thư tổng kết ca thi kèm danh sách điểm toàn lớp về địa chỉ Email này.'
-                          }
-                        />
-                      </label>
-                      <input
-                        type="email"
-                        value={selectedExam.instructorEmail}
-                        onChange={(e) =>
-                          saveExamSetting({
-                            ...selectedExam,
-                            instructorEmail: e.target.value,
-                          })
-                        }
-                        placeholder="giangvien@ueh.edu.vn"
-                        className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-semibold"
-                      />
-                    </div>
-                    <div>
-                      <label className="flex items-center gap-1.5 font-semibold mb-1">
-                        <span>Số lần rời màn hình tối đa</span>
-                        <InfoHint
-                          title="Ngưỡng khóa theo Số lần chuyển tab / thoát trình duyệt"
-                          text={
-                            '• Ví dụ đặt = 3: Sinh viên bấm sang app khác (Zalo, Chrome, Messenger...) tới lần thứ 4 sẽ bị hệ thống khóa màn hình thi lại.\n• Bài khóa sẽ báo đỏ lên Tab Giám sát để thầy/cô duyệt cho thi tiếp hoặc thu bài.'
-                          }
-                        />
-                      </label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={20}
-                        value={selectedExam.maxLeaveCount}
-                        onChange={(e) =>
-                          saveExamSetting({
-                            ...selectedExam,
-                            maxLeaveCount: Math.max(1, Number(e.target.value) || 1),
-                          })
-                        }
-                        className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-mono font-bold"
-                      />
-                    </div>
-                    <div>
-                      <label className="flex items-center gap-1.5 font-semibold mb-1">
                         <span>Tổng giây vắng mặt tối đa</span>
                         <InfoHint
                           title="Ngưỡng khóa theo Tổng thời gian ở ngoài màn hình thi"
@@ -1723,7 +1909,7 @@ export const AdminDashboardPage: React.FC = () => {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <label className="flex items-center gap-2 font-semibold">
                       <input
                         type="checkbox"
@@ -1819,28 +2005,6 @@ export const AdminDashboardPage: React.FC = () => {
                         }
                       />
                     </label>
-                    <div className="flex items-center gap-1.5">
-                      <select
-                        value={selectedExam.status}
-                        onChange={(e) =>
-                          saveExamSetting({
-                            ...selectedExam,
-                            status: e.target.value as 'DRAFT' | 'OPEN' | 'CLOSED',
-                          })
-                        }
-                        className="w-full h-8 px-2 rounded-lg border font-bold"
-                      >
-                        <option value="DRAFT">Trạng thái: NHÁP</option>
-                        <option value="OPEN">Trạng thái: ĐANG MỞ</option>
-                        <option value="CLOSED">Trạng thái: ĐÃ ĐÓNG</option>
-                      </select>
-                      <InfoHint
-                        title="Điều khiển đóng / mở phòng thi"
-                        text={
-                          '• NHÁP: Đang soạn đề, sinh viên chưa thể vào phòng.\n• ĐANG MỞ: Phòng thi hoạt động, sinh viên nhập mã PIN 6 số để làm bài ngay.\n• ĐÃ ĐÓNG: Đã kết thúc ca thi, không cho thí sinh mới vào thêm.'
-                        }
-                      />
-                    </div>
                   </div>
 
                   <div>
@@ -1869,10 +2033,19 @@ export const AdminDashboardPage: React.FC = () => {
                       className="w-full p-2 rounded-lg border border-slate-300 font-mono text-[11px]"
                     />
                   </div>
+                  </div>
+                  )}
                 </div>
-                <div className="pt-3 border-t border-slate-100 flex items-center justify-between gap-2">
-                  <span className="text-[11px] text-ink-500">
-                    Mọi thay đổi được tự động lưu, hoặc bấm nút để lưu ngay.
+                <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                  <span
+                    className={`text-[11px] font-semibold flex items-center gap-1 ${
+                      lastSavedTimeLabel ? 'text-support-700' : 'text-ink-500'
+                    }`}
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                    {lastSavedTimeLabel
+                      ? `Đã đồng bộ lên máy chủ lúc ${lastSavedTimeLabel}`
+                      : 'Tự động lưu khi sửa hoặc bấm nút bên phải để xác nhận ngay'}
                   </span>
                   <button
                     type="button"
@@ -3529,6 +3702,81 @@ export const AdminDashboardPage: React.FC = () => {
           sourceQuestions={gameModalConfig.questions}
         />
       )}
+
+      {projectorModalOpen && (selectedShift || selectedExam) && (() => {
+        const activePin = selectedShift?.roomPin ?? selectedExam?.roomPin ?? '';
+        const activeTitle = selectedShift?.title ?? selectedExam?.title ?? '';
+        const activeStatus = selectedShift?.status ?? selectedExam?.status ?? 'OPEN';
+        const joinUrl = `${window.location.origin}/?pin=${activePin}`;
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-950/95 text-white flex flex-col items-center justify-center p-4 sm:p-8">
+            <button
+              type="button"
+              onClick={() => setProjectorModalOpen(false)}
+              className="absolute top-4 right-4 h-10 px-4 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1.5"
+            >
+              <X className="w-4 h-4" /> Đóng màn hình chiếu
+            </button>
+
+            <div className="max-w-4xl w-full bg-slate-900/90 border border-white/15 rounded-3xl p-6 sm:p-10 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-8 text-center md:text-left">
+              <div className="flex-1 space-y-4">
+                <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/20 border border-brand-400/30 text-brand-200 text-xs font-bold">
+                  {selectedCourse ? `${selectedCourse.code} — ${selectedCourse.name}` : 'Phòng thi trực tuyến'}
+                </div>
+                <h2 className="text-xl sm:text-2xl font-extrabold text-white">
+                  {activeTitle}
+                </h2>
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-slate-400">
+                    Sinh viên quét mã QR hoặc nhập Mã phòng thi (6 số):
+                  </p>
+                  <div className="text-6xl sm:text-8xl font-mono font-black tracking-[0.18em] text-amber-300 mt-2 select-all">
+                    {activePin}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center justify-center md:justify-start gap-2.5 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard?.writeText(joinUrl).then(() => {
+                        setProjectorCopied(true);
+                        window.setTimeout(() => setProjectorCopied(false), 2000);
+                      }).catch(() => {});
+                    }}
+                    className="h-10 px-4 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-xs font-bold flex items-center gap-2"
+                  >
+                    <Copy className="w-4 h-4" />
+                    {projectorCopied ? 'Đã sao chép đường dẫn!' : 'Sao chép link vào phòng'}
+                  </button>
+                  <span
+                    className={`px-3 py-2 rounded-xl text-xs font-bold ${
+                      activeStatus === 'OPEN'
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
+                        : 'bg-amber-500/20 text-amber-200 border border-amber-400/30'
+                    }`}
+                  >
+                    {activeStatus === 'OPEN' ? '● Đang mở cho sinh viên' : `Trạng thái: ${activeStatus}`}
+                  </span>
+                </div>
+                <p className="text-xs font-mono text-slate-400 break-all">
+                  {joinUrl}
+                </p>
+              </div>
+
+              <div className="bg-white p-4 rounded-3xl shadow-xl shrink-0">
+                <img
+                  src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(joinUrl)}`}
+                  alt={`QR vào phòng ${activePin}`}
+                  className="w-52 h-52 sm:w-60 sm:h-60 rounded-xl"
+                />
+                <p className="text-[11px] font-bold text-ink-700 text-center mt-2">
+                  Quét Camera để điền sẵn PIN {activePin}
+                </p>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

@@ -494,26 +494,48 @@ export const ExamTakePage: React.FC = () => {
         </div>
 
         {effectiveViewMode === 'ONE' && currentIndex < totalQuestions - 1 ? (
-          <button
-            type="button"
-            onClick={() => updateCurrentIndex(attempt.id, currentIndex + 1)}
-            className="h-10 px-3.5 sm:px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm shrink-0 whitespace-nowrap"
-          >
-            Câu tiếp
-            <ChevronRight className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setConfirmSubmitOpen(true)}
+              className="h-10 px-2.5 sm:px-3 rounded-xl bg-support-600 hover:bg-support-700 text-white text-xs font-bold flex items-center gap-1 shadow-sm shrink-0 whitespace-nowrap"
+              title="Nộp bài ngay"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>Nộp<span className="hidden min-[420px]:inline"> bài</span></span>
+            </button>
+            <button
+              type="button"
+              onClick={() => updateCurrentIndex(attempt.id, currentIndex + 1)}
+              className="h-10 px-3 sm:px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1 shadow-sm shrink-0 whitespace-nowrap"
+            >
+              <span>Câu tiếp</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         ) : effectiveViewMode === 'TEN' && currentPage < totalPages - 1 ? (
-          <button
-            type="button"
-            onClick={() => {
-              updateCurrentIndex(attempt.id, Math.min(totalQuestions - 1, (currentPage + 1) * pageSize));
-              mainScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-            }}
-            className="h-10 px-3.5 sm:px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm shrink-0 whitespace-nowrap"
-          >
-            Trang tiếp
-            <ChevronRight className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => setConfirmSubmitOpen(true)}
+              className="h-10 px-2.5 sm:px-3 rounded-xl bg-support-600 hover:bg-support-700 text-white text-xs font-bold flex items-center gap-1 shadow-sm shrink-0 whitespace-nowrap"
+              title="Nộp bài ngay"
+            >
+              <Send className="w-3.5 h-3.5" />
+              <span>Nộp<span className="hidden min-[420px]:inline"> bài</span></span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                updateCurrentIndex(attempt.id, Math.min(totalQuestions - 1, (currentPage + 1) * pageSize));
+                mainScrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="h-10 px-3 sm:px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1 shadow-sm shrink-0 whitespace-nowrap"
+            >
+              <span>Trang tiếp</span>
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
         ) : (
           <button
             type="button"
