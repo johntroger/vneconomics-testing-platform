@@ -371,6 +371,38 @@ function loadInitialState(): ExamPlatformState {
 }
 
 const INSTRUCTOR_USER_KEY = 'vne_instructor_user_v1';
+const DEMO_STATUS_OVERRIDES_KEY = 'vne_demo_status_overrides_v1';
+
+function readDemoStatusOverrides(): Record<string, Exam['status']> {
+  try {
+    const raw = localStorage.getItem(DEMO_STATUS_OVERRIDES_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, Exam['status']>;
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function writeDemoStatusOverrides(ids: string[], status: Exam['status']): void {
+  try {
+    const current = readDemoStatusOverrides();
+    for (const id of ids) {
+      if (id) current[id] = status;
+    }
+    localStorage.setItem(DEMO_STATUS_OVERRIDES_KEY, JSON.stringify(current));
+  } catch {
+    // Ignore storage quota errors
+  }
+}
+
+function clearDemoStatusOverrides(): void {
+  try {
+    localStorage.removeItem(DEMO_STATUS_OVERRIDES_KEY);
+  } catch {
+    // Ignore
+  }
+}
 
 function loadStoredInstructorUser(): InstructorUser | null {
   try {
@@ -419,6 +451,8 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
   const [instructorUser, setInstructorUser] = useState<InstructorUser | null>(
     loadStoredInstructorUser,
   );
+  const isOfficialInstructorRef = useRef(instructorUser?.role === 'OFFICIAL');
+  isOfficialInstructorRef.current = instructorUser?.role === 'OFFICIAL';
   const [googleClientId, setGoogleClientId] = useState('');
 
   const persistState = useCallback((next: ExamPlatformState) => {
@@ -564,13 +598,25 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
             return;
           }
           if (bootRes.ok && bootRes.data?.ok) {
+            const overrides = isOfficialInstructorRef.current
+              ? {}
+              : readDemoStatusOverrides();
             nextCourses = bootRes.data.courses;
             nextQuestions = bootRes.data.questions;
             nextExams = Array.isArray(bootRes.data.exams)
-              ? bootRes.data.exams.map(normalizeServerExam)
+              ? bootRes.data.exams.map((ex) => {
+                  const normalized = normalizeServerExam(ex);
+                  return overrides[normalized.id]
+                    ? { ...normalized, status: overrides[normalized.id] }
+                    : normalized;
+                })
               : undefined;
             nextShifts = Array.isArray(bootRes.data.shifts)
-              ? bootRes.data.shifts.map(normalizeServerShift)
+              ? bootRes.data.shifts.map((sh) => {
+                  const normalized = normalizeServerShift(sh);
+                  const ov = overrides[normalized.id] ?? overrides[normalized.examId];
+                  return ov ? { ...normalized, status: ov } : normalized;
+                })
               : undefined;
             nextEmailLogs = Array.isArray(bootRes.data.emailLogs)
               ? bootRes.data.emailLogs.map(normalizeServerEmailLog)
@@ -627,6 +673,9 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
   }, [backendConnected, isAdminAuthenticated, updateState]);
 
   const saveAuthSession = useCallback((token: string, user: InstructorUser) => {
+    if (user.role === 'OFFICIAL') {
+      clearDemoStatusOverrides();
+    }
     sessionStorage.setItem(ADMIN_TOKEN_KEY, token);
     sessionStorage.setItem(INSTRUCTOR_USER_KEY, JSON.stringify(user));
     setInstructorUser(user);
@@ -846,6 +895,19 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
               };
             } else if (!Number.isNaN(schedStartMs) && nowMs >= schedStartMs && effectiveStatus === 'DRAFT') {
               effectiveStatus = 'OPEN';
+            }
+          }
+          const isDemoServerExam =
+            !serverExam.ownerId ||
+            serverExam.ownerId === 'SYSTEM_DEMO' ||
+            serverExam.id.startsWith('exm_demo_');
+          if (isDemoServerExam) {
+            const demoOverrides = readDemoStatusOverrides();
+            const ov =
+              (roomRes.data.shift && demoOverrides[roomRes.data.shift.id]) ??
+              demoOverrides[serverExam.id];
+            if (ov) {
+              effectiveStatus = ov;
             }
           }
           if (!canStudentEnterLobby(effectiveStatus)) {
@@ -1878,16 +1940,33 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
           ? stateRef.current.shifts.find((sh) => sh.id === curr.shiftId)
           : undefined;
 
+        const isDemoPollRoom = Boolean(
+          currExam &&
+            (!currExam.ownerId ||
+              currExam.ownerId === 'SYSTEM_DEMO' ||
+              currExam.id.startsWith('exm_demo_')),
+        );
+        const demoOverrides = isDemoPollRoom ? readDemoStatusOverrides() : {};
+        const demoOverrideStatus = isDemoPollRoom
+          ? (currShift && demoOverrides[currShift.id]) ??
+            (currExam ? demoOverrides[currExam.id] : undefined)
+          : undefined;
+        const effectivePollExamStatus = demoOverrideStatus ?? e;
+
         const attemptChanged =
           curr &&
           (curr.status !== s ||
             (b !== undefined && curr.bonusSeconds !== b) ||
             (x !== undefined && curr.extraLeaveAllowance !== x) ||
             (w !== undefined && curr.lockedWaitSeconds !== w) ||
-            Boolean(sa && curr.startedAt !== sa));
+            Boolean(!demoOverrideStatus && sa && curr.startedAt !== sa));
         const examChanged = Boolean(
-          (currExam && e && currExam.status !== e) ||
-            (currShift && e && currShift.status !== e),
+          (currExam &&
+            effectivePollExamStatus &&
+            currExam.status !== effectivePollExamStatus) ||
+            (currShift &&
+              effectivePollExamStatus &&
+              currShift.status !== effectivePollExamStatus),
         );
 
         if (!attemptChanged && !examChanged) return;
@@ -1895,15 +1974,15 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         updateState((prev) => ({
           ...prev,
           exams:
-            examChanged && currExam && e
+            examChanged && currExam && effectivePollExamStatus
               ? prev.exams.map((ex) =>
-                  ex.id === currExam.id ? { ...ex, status: e } : ex,
+                  ex.id === currExam.id ? { ...ex, status: effectivePollExamStatus } : ex,
                 )
               : prev.exams,
           shifts:
-            examChanged && currShift && e
+            examChanged && currShift && effectivePollExamStatus
               ? prev.shifts.map((sh) =>
-                  sh.id === currShift.id ? { ...sh, status: e } : sh,
+                  sh.id === currShift.id ? { ...sh, status: effectivePollExamStatus } : sh,
                 )
               : prev.shifts,
           attempts: attemptChanged
@@ -1916,7 +1995,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
                   bonusSeconds: b ?? a.bonusSeconds,
                   extraLeaveAllowance: x ?? a.extraLeaveAllowance,
                   lockedWaitSeconds: w ?? a.lockedWaitSeconds,
-                  startedAt: sa || a.startedAt,
+                  startedAt: !demoOverrideStatus && sa ? sa : a.startedAt,
                 };
               })
             : prev.attempts,
@@ -1961,6 +2040,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
+    void tickPoll();
     scheduleNext();
 
     return () => {
@@ -2719,6 +2799,9 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         prevExam && prevExam.status !== 'OPEN' && exam.status === 'OPEN',
       );
       const releasedIso = new Date().toISOString();
+      const relatedShiftIds = stateRef.current.shifts
+        .filter((s) => s.examId === exam.id)
+        .map((s) => s.id);
       updateState((prev) => {
         const exists = prev.exams.some((e) => e.id === exam.id);
         return {
@@ -2726,6 +2809,9 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
           exams: exists
             ? prev.exams.map((e) => (e.id === exam.id ? exam : e))
             : [exam, ...prev.exams],
+          shifts: prev.shifts.map((s) =>
+            s.examId === exam.id ? { ...s, status: exam.status } : s,
+          ),
           attempts: transitioningToOpen
             ? prev.attempts.map((a) =>
                 a.examId === exam.id && isAttemptEligibleForClockReset(a, false)
@@ -2735,6 +2821,11 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
             : prev.attempts,
         };
       });
+
+      if (!isOfficialInstructorRef.current) {
+        writeDemoStatusOverrides([exam.id, ...relatedShiftIds], exam.status);
+        return { ok: true };
+      }
 
       if (backendConnected) {
         const res = await apiRequestDetailed<{ ok: boolean; exam?: Exam; error?: string }>(
@@ -2822,6 +2913,9 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
           shifts: exists
             ? prev.shifts.map((s) => (s.id === shift.id ? shift : s))
             : [shift, ...prev.shifts],
+          exams: prev.exams.map((e) =>
+            e.id === shift.examId ? { ...e, status: shift.status } : e,
+          ),
           attempts: transitioningToOpen
             ? prev.attempts.map((a) =>
                 (a.shiftId === shift.id || (!a.shiftId && a.examId === shift.examId)) &&
@@ -2832,6 +2926,11 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
             : prev.attempts,
         };
       });
+
+      if (!isOfficialInstructorRef.current) {
+        writeDemoStatusOverrides([shift.examId, shift.id], shift.status);
+        return { ok: true, shift };
+      }
 
       if (backendConnected) {
         const res = await apiRequestDetailed<{
@@ -3135,6 +3234,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const resetDemoData = useCallback(() => {
+    clearDemoStatusOverrides();
     const fresh: ExamPlatformState = {
       courses: SEED_COURSES,
       questions: SEED_QUESTIONS,

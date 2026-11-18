@@ -719,6 +719,11 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             }
         }
 
+        if ($isUpdate && $prevExamStatus !== $requestedStatus) {
+            $pdo->prepare('UPDATE exam_shifts SET status = :st WHERE exam_id = :eid')
+                ->execute([':st' => $requestedStatus, ':eid' => $id]);
+        }
+
         if ($isUpdate && $prevExamStatus !== 'OPEN' && $requestedStatus === 'OPEN') {
             resetUntouchedWaitingRoomClocks($pdo, 'exam_id', $id);
         }
@@ -802,6 +807,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         }
         $prevStatus = (string) ($prevRow['status'] ?? 'DRAFT');
         $pdo->prepare('UPDATE exams SET status = :st WHERE id = :id')->execute([':st' => $status, ':id' => $examId]);
+        $pdo->prepare('UPDATE exam_shifts SET status = :st WHERE exam_id = :eid')->execute([':st' => $status, ':eid' => $examId]);
         if ($prevStatus !== 'OPEN' && $status === 'OPEN') {
             resetUntouchedWaitingRoomClocks($pdo, 'exam_id', $examId);
         }
@@ -1011,6 +1017,8 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
                     VALUES (:id, :exam_id, :owner_id, :title, :room_pin, :unlock_pin, :status, :late_entry_minutes, :scheduled_start_at, :scheduled_end_at, :rw, :re, :rss, :ca)';
         }
         $pdo->prepare($sql)->execute($params);
+        $pdo->prepare('UPDATE exams SET status = :st WHERE id = :eid')
+            ->execute([':st' => $shiftStatus, ':eid' => $examId]);
 
         if ($isUpdate && $prevShiftStatus !== 'OPEN' && $shiftStatus === 'OPEN') {
             resetUntouchedWaitingRoomClocks($pdo, 'shift_id', $id);

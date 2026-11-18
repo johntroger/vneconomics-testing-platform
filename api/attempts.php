@@ -772,6 +772,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
                 403
             );
         }
+        $examRow['status'] = $exam['status'];
 
         $whitelist = array_map(static fn ($s) => strtoupper(trim((string) $s)), $exam['rosterWhitelist'] ?? []);
         if (count($whitelist) > 0 && !in_array($studentCode, $whitelist, true)) {

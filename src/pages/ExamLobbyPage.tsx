@@ -33,7 +33,9 @@ export const ExamLobbyPage: React.FC = () => {
   const attempt = attempts.find((a) => a.id === attemptId);
   const activeShift = attempt?.shiftId
     ? shifts.find((s) => s.id === attempt.shiftId)
-    : undefined;
+    : exam
+      ? shifts.find((s) => s.examId === exam.id && s.roomPin === exam.roomPin)
+      : undefined;
   const effectiveRoomStatus = activeShift?.status ?? exam?.status ?? 'OPEN';
   const isWaitingRoom = effectiveRoomStatus === 'WAITING';
 

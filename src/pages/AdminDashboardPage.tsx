@@ -1172,66 +1172,49 @@ export const AdminDashboardPage: React.FC = () => {
                       <span>Chiếu Mã PIN &amp; QR</span>
                     </button>
                   )}
-                  {selectedShift && selectedShift.status === 'DRAFT' && (
-                    <>
+                  {selectedShift && selectedShift.status !== 'CLOSED' && (
+                    <div className="inline-flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl border border-slate-200">
                       <button
                         type="button"
                         onClick={() => {
-                          if (!requireOfficialOrPrompt()) return;
                           void upsertShift({ ...selectedShift, status: 'WAITING' });
                           showToast(
-                            `Đã mở Phòng chờ Điểm danh "${selectedShift.title}" (PIN ${selectedShift.roomPin}).`,
+                            isDemoMode
+                              ? `Chế độ Demo: Đã bật Phòng chờ Điểm danh "${selectedShift.title}" (PIN ${selectedShift.roomPin}). Sinh viên vào sẽ được giữ chờ tại Lobby.`
+                              : `Đã bật Phòng chờ Điểm danh "${selectedShift.title}" (PIN ${selectedShift.roomPin}).`,
                           );
                         }}
-                        className="h-9 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold"
+                        className={`h-8 px-3 rounded-lg text-xs font-bold transition ${
+                          selectedShift.status === 'WAITING'
+                            ? 'bg-indigo-600 text-white shadow-xs'
+                            : 'text-ink-700 hover:bg-white'
+                        }`}
                       >
-                        1. Mở Phòng chờ Điểm danh
+                        Chế độ Phòng chờ (Giữ SV chờ phát đề)
                       </button>
                       <button
                         type="button"
                         onClick={() => {
-                          if (!requireOfficialOrPrompt()) return;
                           void upsertShift({ ...selectedShift, status: 'OPEN' });
-                          showToast(`Đã mở phòng thi ${selectedShift.title} (PIN ${selectedShift.roomPin}).`);
-                        }}
-                        className="h-9 px-3 rounded-xl bg-support-600 hover:bg-support-700 text-white text-xs font-bold"
-                      >
-                        Mở đề thi ngay
-                      </button>
-                    </>
-                  )}
-                  {selectedShift && selectedShift.status === 'WAITING' && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (!requireOfficialOrPrompt()) return;
-                        void upsertShift({ ...selectedShift, status: 'OPEN' });
-                        showToast(
-                          `Đã phát đề & bắt đầu thi đồng loạt cho ${shiftScopedAttempts.length} thí sinh (${selectedShift.title})!`,
-                        );
-                      }}
-                      className="h-9 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold shadow-xs"
-                    >
-                      Phát đề &amp; Bắt đầu thi đồng loạt ({shiftScopedAttempts.length} SV)
-                    </button>
-                  )}
-                  {selectedShift &&
-                    selectedShift.status === 'OPEN' &&
-                    shiftScopedAttempts.every((a) => a.status === 'IN_PROGRESS') && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!requireOfficialOrPrompt()) return;
-                          void upsertShift({ ...selectedShift, status: 'WAITING' });
                           showToast(
-                            `Đã chuyển "${selectedShift.title}" về trạng thái Phòng chờ Điểm danh.`,
+                            isDemoMode
+                              ? `Chế độ Demo: Đã phát đề & mở thi đồng loạt cho ${shiftScopedAttempts.length} thí sinh (${selectedShift.title})!`
+                              : `Đã phát đề & mở thi đồng loạt cho ${shiftScopedAttempts.length} thí sinh (${selectedShift.title})!`,
                           );
                         }}
-                        className="h-9 px-3 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold"
+                        className={`h-8 px-3 rounded-lg text-xs font-extrabold transition ${
+                          selectedShift.status === 'OPEN'
+                            ? 'bg-support-600 text-white shadow-xs'
+                            : 'bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs'
+                        }`}
                       >
-                        Chuyển về Phòng chờ
+                        Phát đề &amp; Mở thi đồng loạt
+                        {selectedShift.status === 'WAITING'
+                          ? ` (${shiftScopedAttempts.length} SV)`
+                          : ''}
                       </button>
-                    )}
+                    </div>
+                  )}
                   <button
                     type="button"
                     onClick={async () => {
@@ -1240,13 +1223,13 @@ export const AdminDashboardPage: React.FC = () => {
                       const defaultName = `${selectedExam.title.replace(/\s*[—-]\s*Ca.*$/i, '')} — Ca ${sameExamShifts + 1}`;
                       const entered = window.prompt('Nhập tên Ca thi mới (giữ nguyên Đề thi gốc, danh sách SV riêng):', defaultName);
                       if (entered === null) return;
-                      const res = await createShiftForExam(selectedExam.id, entered.trim() || defaultName, 'OPEN');
+                      const res = await createShiftForExam(selectedExam.id, entered.trim() || defaultName, 'WAITING');
                       if (!res.shift) {
                         showToast(res.error || 'Không thể tạo ca thi mới trên máy chủ.');
                         return;
                       }
                       setSelectedShiftId(res.shift.id);
-                      showToast(`Đã mở ca thi "${res.shift.title}" (PIN ${res.shift.roomPin}).`);
+                      showToast(`Đã tạo ca thi "${res.shift.title}" ở trạng thái Phòng chờ (PIN ${res.shift.roomPin}).`);
                     }}
                     className="h-9 px-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5"
                   >
@@ -1391,12 +1374,12 @@ export const AdminDashboardPage: React.FC = () => {
               );
             }}
             onChangeExamStatus={(nextStatus) => {
-              if (!requireOfficialOrPrompt() || !selectedShift) return;
+              if (!selectedShift) return;
               void upsertShift({ ...selectedShift, status: nextStatus });
               showToast(
                 nextStatus === 'OPEN'
                   ? `Đã phát đề & bắt đầu tính giờ đồng loạt cho ${shiftScopedAttempts.length} thí sinh (${selectedShift.title})!`
-                  : `Đã mở Phòng chờ Điểm danh cho "${selectedShift.title}" (PIN ${selectedShift.roomPin}).`,
+                  : `Đã bật Phòng chờ Điểm danh cho "${selectedShift.title}" (PIN ${selectedShift.roomPin}).`,
               );
             }}
           />
@@ -1948,12 +1931,39 @@ export const AdminDashboardPage: React.FC = () => {
                       </label>
                       <select
                         value={selectedExam.status}
-                        onChange={(e) =>
-                          saveExamSetting({
+                        onChange={(e) => {
+                          const nextStatus = e.target.value as
+                            | 'DRAFT'
+                            | 'WAITING'
+                            | 'OPEN'
+                            | 'CLOSED';
+                          if (
+                            isDemoMode &&
+                            nextStatus !== 'WAITING' &&
+                            nextStatus !== 'OPEN'
+                          ) {
+                            if (!requireOfficialOrPrompt()) return;
+                          }
+                          void upsertExam({
                             ...selectedExam,
-                            status: e.target.value as 'DRAFT' | 'WAITING' | 'OPEN' | 'CLOSED',
-                          })
-                        }
+                            status: nextStatus,
+                          }).then((res) => {
+                            if (!res.ok) {
+                              showToast(
+                                res.error || 'Không thể lưu trạng thái phòng thi lên máy chủ.',
+                              );
+                            } else {
+                              stampSavedNow();
+                              showToast(
+                                nextStatus === 'WAITING'
+                                  ? `Đã bật Phòng chờ Điểm danh cho "${selectedExam.title}" (PIN ${selectedExam.roomPin}).`
+                                  : nextStatus === 'OPEN'
+                                    ? `Đã phát đề & mở thi đồng loạt cho "${selectedExam.title}"!`
+                                    : `Đã cập nhật trạng thái "${selectedExam.title}".`,
+                              );
+                            }
+                          });
+                        }}
                         className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-bold"
                       >
                         <option value="DRAFT">NHÁP (Chưa mở)</option>

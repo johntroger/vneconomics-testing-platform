@@ -404,6 +404,17 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
               </button>
             </>
           )}
+          {exam.status === 'OPEN' && onChangeExamStatus && (
+            <button
+              type="button"
+              onClick={() => onChangeExamStatus('WAITING')}
+              className="px-3.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold flex items-center gap-1.5 transition"
+              title="Đưa các sinh viên chưa làm bài về Phòng chờ điểm danh trước khi phát đề đồng loạt"
+            >
+              <Radio className="w-3.5 h-3.5" />
+              <span>Chuyển sang Phòng chờ (Giữ SV tại Lobby)</span>
+            </button>
+          )}
           {(countInProgress + countLocked) > 0 && (
             <>
               <button
