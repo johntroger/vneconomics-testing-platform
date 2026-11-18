@@ -530,186 +530,197 @@ export const AdminDashboardPage: React.FC = () => {
     };
 
     return (
-      <div className="min-h-screen bg-surface-100 flex items-center justify-center p-4 py-8">
-        <div className="w-full max-w-md bg-white rounded-2xl border border-slate-200 shadow-card p-6 space-y-4">
-          <div className="w-14 h-14 rounded-2xl bg-white border border-slate-200 flex items-center justify-center p-1.5 shadow-sm mx-auto overflow-hidden">
-            <img src="/logo.png" alt="VNEconomics Logo" className="w-full h-full object-contain" />
-          </div>
-          <div className="text-center">
-            <h1 className="text-lg font-extrabold text-ink-900">
-              Cổng Giảng viên (/admin)
-            </h1>
-            <p className="text-xs text-ink-500 mt-1">
-              Đăng ký / Đăng nhập tài khoản để tạo &amp; quản lý đề thi chính thức
-            </p>
-          </div>
-
-          {/* Official Instructor Auth Tabs */}
-          <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl text-xs font-bold">
-            <button
-              type="button"
-              onClick={() => {
-                setAuthTab('LOGIN');
-                setAuthError('');
-              }}
-              className={`py-2 rounded-lg transition ${
-                authTab === 'LOGIN'
-                  ? 'bg-white text-brand-700 shadow-2xs'
-                  : 'text-ink-600 hover:text-ink-900'
-              }`}
-            >
-              Đăng nhập Giảng viên
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setAuthTab('REGISTER');
-                setAuthError('');
-              }}
-              className={`py-2 rounded-lg transition ${
-                authTab === 'REGISTER'
-                  ? 'bg-white text-brand-700 shadow-2xs'
-                  : 'text-ink-600 hover:text-ink-900'
-              }`}
-            >
-              Đăng ký tài khoản mới
-            </button>
-          </div>
-
-          {/* Google Sign-In */}
-          <GoogleSignInButton
-            googleClientId={googleClientId}
-            disabled={authLoading}
-            onCredential={handleGoogleCredential}
-          />
-
-          <div className="flex items-center gap-2 text-[11px] text-ink-400">
-            <div className="h-px bg-slate-200 flex-1" />
-            <span>Hoặc dùng Email &amp; Mật khẩu</span>
-            <div className="h-px bg-slate-200 flex-1" />
-          </div>
-
-          <form onSubmit={handleEmailAuth} className="space-y-2.5">
-            {authTab === 'REGISTER' && (
-              <input
-                type="text"
-                required
-                value={authFullName}
-                onChange={(e) => setAuthFullName(e.target.value)}
-                placeholder="Họ và tên giảng viên (VD: TS. Nguyễn Văn A)"
-                className="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-sm"
-              />
-            )}
-            <input
-              type="email"
-              required
-              value={authEmail}
-              onChange={(e) => setAuthEmail(e.target.value)}
-              placeholder="Email giảng viên (@vneconomics.com, @gmail.com...)"
-              className="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-sm"
-            />
-            <input
-              type="password"
-              required
-              minLength={6}
-              value={authPassword}
-              onChange={(e) => setAuthPassword(e.target.value)}
-              placeholder="Mật khẩu (tối thiểu 6 ký tự)"
-              className="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-sm"
-            />
-            <CaptchaField
-              answer={captchaAnswer}
-              onAnswerChange={setCaptchaAnswer}
-              onTokenChange={setCaptchaToken}
-              refreshKey={captchaRefreshKey}
-              disabled={authLoading}
-            />
-            {authError && (
-              <p className="text-xs text-rose-600 font-semibold">{authError}</p>
-            )}
-            <button
-              type="submit"
-              disabled={authLoading}
-              className="w-full h-11 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white text-xs font-bold"
-            >
-              {authLoading
-                ? 'Đang xử lý...'
-                : authTab === 'REGISTER'
-                  ? 'Đăng ký & Vào tạo đề chính thức'
-                  : 'Đăng nhập Giảng viên'}
-            </button>
-          </form>
-
-          {/* 1-Tap Public Demo Instructor Box */}
-          <div className="rounded-xl border border-amber-200 bg-amber-50/80 p-3.5 space-y-2">
-            <div>
-              <p className="text-xs font-extrabold text-amber-900">
-                Chỉ muốn xem thử? Dùng Tài khoản Demo (vne2026)
+      <div className="min-h-screen bg-gradient-to-b from-slate-50 via-surface-100 to-slate-100 flex items-center justify-center p-4 sm:p-6 lg:p-8">
+        <div className="w-full max-w-md lg:max-w-4xl bg-white rounded-3xl border border-slate-200 shadow-card overflow-hidden grid grid-cols-1 lg:grid-cols-12">
+          {/* Left Panel: Brand, Context, Demo & Quick Links */}
+          <div className="lg:col-span-5 bg-gradient-to-br from-slate-50 via-brand-50/40 to-support-50/50 border-b lg:border-b-0 lg:border-r border-slate-200 p-6 sm:p-7 flex flex-col justify-between gap-5">
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-white border border-slate-200 flex items-center justify-center p-1.5 shadow-sm shrink-0 overflow-hidden">
+                  <img src="/logo.png" alt="VNEconomics Logo" className="w-full h-full object-contain" />
+                </div>
+                <div>
+                  <h1 className="text-lg font-extrabold text-ink-900 leading-tight">
+                    Cổng Giảng viên
+                  </h1>
+                  <p className="text-[11px] font-mono text-ink-500">/admin</p>
+                </div>
+              </div>
+              <p className="text-xs text-ink-600 leading-relaxed">
+                Đăng ký hoặc đăng nhập tài khoản giảng viên để tạo đề thi ma trận, quản lý ngân hàng câu hỏi, giám sát phòng thi trực tuyến &amp; chấm điểm tự động.
               </p>
-              <p className="text-[11px] text-amber-800 mt-0.5 leading-relaxed">
-                Chế độ Demo chỉ cho phép trải nghiệm 3 phòng mẫu (<span className="font-mono">101202</span>, <span className="font-mono">202303</span>, <span className="font-mono">303404</span>) và không được tạo đề thi chính thức mới.
-              </p>
+
+              {/* 1-Tap Public Demo Instructor Box */}
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/90 p-3.5 space-y-2.5">
+                <div>
+                  <p className="text-xs font-extrabold text-amber-900">
+                    Chỉ muốn xem thử? Dùng Tài khoản Demo (vne2026)
+                  </p>
+                  <p className="text-[11px] text-amber-800 mt-1 leading-relaxed">
+                    Chế độ Demo chỉ cho phép trải nghiệm 3 phòng mẫu (<span className="font-mono">101202</span>, <span className="font-mono">202303</span>, <span className="font-mono">303404</span>) và không được tạo đề thi chính thức mới.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={authLoading}
+                  onClick={() => void handleDemoLogin()}
+                  className="w-full h-9 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white text-xs font-bold shadow-xs transition"
+                >
+                  Vào trải nghiệm Chế độ Demo (vne2026)
+                </button>
+              </div>
             </div>
-            <button
-              type="button"
-              disabled={authLoading}
-              onClick={() => void handleDemoLogin()}
-              className="w-full h-9 rounded-xl bg-amber-600 hover:bg-amber-700 disabled:opacity-60 text-white text-xs font-bold shadow-xs transition"
-            >
-              Vào trải nghiệm Chế độ Demo (vne2026)
-            </button>
+
+            <div className="space-y-2.5 pt-2 border-t border-slate-200/80">
+              <div className="flex items-center justify-between text-xs gap-2 flex-wrap">
+                <Link to="/" className="font-semibold text-brand-600 hover:underline">
+                  ← Cổng thi Sinh viên
+                </Link>
+                <Link
+                  to="/huong-dan"
+                  className="font-semibold text-support-700 hover:underline inline-flex items-center gap-1"
+                >
+                  <BookOpen className="w-3.5 h-3.5" />
+                  Xem Hướng dẫn GV
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setShowPasscodeBox((prev) => !prev)}
+                  className="font-semibold text-ink-500 hover:text-ink-800"
+                >
+                  {showPasscodeBox ? 'Ẩn mã khóa riêng' : 'Dùng mã khóa quản trị'}
+                </button>
+              </div>
+
+              {showPasscodeBox && (
+                <form onSubmit={handleAuth} className="space-y-2 pt-1">
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      value={passcode}
+                      onChange={(e) => setPasscode(e.target.value)}
+                      placeholder="Nhập mã khóa..."
+                      className="flex-1 h-9 px-3 rounded-lg border border-slate-300 bg-white text-xs font-mono"
+                    />
+                    <button
+                      type="submit"
+                      disabled={authLoading}
+                      className="h-9 px-3 rounded-lg bg-slate-800 text-white text-xs font-bold"
+                    >
+                      Vào
+                    </button>
+                  </div>
+                  {passcode.trim() !== 'vne2026' && (
+                    <CaptchaField
+                      answer={captchaAnswer}
+                      onAnswerChange={setCaptchaAnswer}
+                      onTokenChange={setCaptchaToken}
+                      refreshKey={captchaRefreshKey}
+                      disabled={authLoading}
+                    />
+                  )}
+                </form>
+              )}
+            </div>
           </div>
 
-          <div className="space-y-2 pt-1">
-            <div className="flex items-center justify-between text-xs gap-2 flex-wrap">
-              <Link to="/" className="font-semibold text-brand-600 hover:underline">
-                ← Cổng thi Sinh viên
-              </Link>
-              <Link
-                to="/huong-dan"
-                className="font-semibold text-support-700 hover:underline inline-flex items-center gap-1"
-              >
-                <BookOpen className="w-3.5 h-3.5" />
-                Xem Hướng dẫn GV
-              </Link>
+          {/* Right Panel: Official Instructor Login / Register Form */}
+          <div className="lg:col-span-7 p-6 sm:p-8 flex flex-col justify-center space-y-4">
+            {/* Official Instructor Auth Tabs */}
+            <div className="grid grid-cols-2 p-1 bg-slate-100 rounded-xl text-xs font-bold">
               <button
                 type="button"
-                onClick={() => setShowPasscodeBox((prev) => !prev)}
-                className="font-semibold text-ink-500 hover:text-ink-800"
+                onClick={() => {
+                  setAuthTab('LOGIN');
+                  setAuthError('');
+                }}
+                className={`py-2.5 rounded-lg transition ${
+                  authTab === 'LOGIN'
+                    ? 'bg-white text-brand-700 shadow-2xs'
+                    : 'text-ink-600 hover:text-ink-900'
+                }`}
               >
-                {showPasscodeBox ? 'Ẩn mã khóa riêng' : 'Dùng mã khóa quản trị'}
+                Đăng nhập Giảng viên
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAuthTab('REGISTER');
+                  setAuthError('');
+                }}
+                className={`py-2.5 rounded-lg transition ${
+                  authTab === 'REGISTER'
+                    ? 'bg-white text-brand-700 shadow-2xs'
+                    : 'text-ink-600 hover:text-ink-900'
+                }`}
+              >
+                Đăng ký tài khoản mới
               </button>
             </div>
 
-            {showPasscodeBox && (
-              <form onSubmit={handleAuth} className="space-y-2 pt-1">
-                <div className="flex gap-2">
-                  <input
-                    type="password"
-                    value={passcode}
-                    onChange={(e) => setPasscode(e.target.value)}
-                    placeholder="Nhập mã khóa..."
-                    className="flex-1 h-9 px-3 rounded-lg border border-slate-300 text-xs font-mono"
-                  />
-                  <button
-                    type="submit"
-                    disabled={authLoading}
-                    className="h-9 px-3 rounded-lg bg-slate-800 text-white text-xs font-bold"
-                  >
-                    Vào
-                  </button>
-                </div>
-                {passcode.trim() !== 'vne2026' && (
-                  <CaptchaField
-                    answer={captchaAnswer}
-                    onAnswerChange={setCaptchaAnswer}
-                    onTokenChange={setCaptchaToken}
-                    refreshKey={captchaRefreshKey}
-                    disabled={authLoading}
-                  />
-                )}
-              </form>
-            )}
+            {/* Google Sign-In */}
+            <GoogleSignInButton
+              googleClientId={googleClientId}
+              disabled={authLoading}
+              onCredential={handleGoogleCredential}
+            />
+
+            <div className="flex items-center gap-2 text-[11px] text-ink-400">
+              <div className="h-px bg-slate-200 flex-1" />
+              <span>Hoặc dùng Email &amp; Mật khẩu</span>
+              <div className="h-px bg-slate-200 flex-1" />
+            </div>
+
+            <form onSubmit={handleEmailAuth} className="space-y-3">
+              {authTab === 'REGISTER' && (
+                <input
+                  type="text"
+                  required
+                  value={authFullName}
+                  onChange={(e) => setAuthFullName(e.target.value)}
+                  placeholder="Họ và tên giảng viên (VD: TS. Nguyễn Văn A)"
+                  className="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+                />
+              )}
+              <input
+                type="email"
+                required
+                value={authEmail}
+                onChange={(e) => setAuthEmail(e.target.value)}
+                placeholder="Email giảng viên (@vneconomics.com, @gmail.com...)"
+                className="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+              <input
+                type="password"
+                required
+                minLength={6}
+                value={authPassword}
+                onChange={(e) => setAuthPassword(e.target.value)}
+                placeholder="Mật khẩu (tối thiểu 6 ký tự)"
+                className="w-full h-11 px-3.5 rounded-xl border border-slate-300 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+              <CaptchaField
+                answer={captchaAnswer}
+                onAnswerChange={setCaptchaAnswer}
+                onTokenChange={setCaptchaToken}
+                refreshKey={captchaRefreshKey}
+                disabled={authLoading}
+              />
+              {authError && (
+                <p className="text-xs text-rose-600 font-semibold">{authError}</p>
+              )}
+              <button
+                type="submit"
+                disabled={authLoading}
+                className="w-full h-11 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-60 text-white text-xs font-bold shadow-sm transition"
+              >
+                {authLoading
+                  ? 'Đang xử lý...'
+                  : authTab === 'REGISTER'
+                    ? 'Đăng ký & Vào tạo đề chính thức'
+                    : 'Đăng nhập Giảng viên'}
+              </button>
+            </form>
           </div>
         </div>
       </div>
