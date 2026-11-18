@@ -25,6 +25,7 @@ import type { Exam, ExamAttempt, StudentRosterEntry } from '../../types/exam';
 import { exportExamGradebookXlsx } from '../../utils/csvExport';
 import { computeChapterMastery } from '../../utils/dynamicQuestionEngine';
 import { InfoHint } from '../common/InfoHint';
+import { PaginationBar, paginateSlice } from '../common/PaginationBar';
 import {
   downloadStudentRosterTemplateXlsx,
   parseStudentRosterXlsx,
@@ -61,9 +62,20 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
   const [editingEmailId, setEditingEmailId] = useState<string | null>(null);
   const [emailDraft, setEmailDraft] = useState('');
   const [showRosterTable, setShowRosterTable] = useState(false);
+  const [rosterSearch, setRosterSearch] = useState('');
+  const [rosterPage, setRosterPage] = useState(1);
+  const [rosterPageSize, setRosterPageSize] = useState(15);
   const [showProctorReportModal, setShowProctorReportModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [filterMode, setFilterMode] = useState<'ALL' | 'IN_PROGRESS' | 'ALERTS' | 'ABSENT'>('ALL');
+  const [filterMode, setFilterMode] = useState<
+    'ALL' | 'IN_PROGRESS' | 'LOCKED' | 'SUBMITTED' | 'ALERTS' | 'ABSENT'
+  >('ALL');
+  const [classFilter, setClassFilter] = useState('ALL');
+  const [sortBy, setSortBy] = useState<
+    'DEFAULT' | 'CODE' | 'SCORE_DESC' | 'SCORE_ASC' | 'LEAVES_DESC'
+  >('DEFAULT');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
   const [rosterNotice, setRosterNotice] = useState<{
     type: 'ok' | 'err';
     text: string;
@@ -158,9 +170,23 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
   const absentRosterStudents = rosterEntries.filter(
     (entry) => !joinedCodeSet.has(entry.studentCode.trim().toUpperCase()),
   );
+  const classOptions = Array.from(
+    new Set(examAttempts.map((a) => a.className.trim()).filter(Boolean)),
+  ).sort((a, b) => a.localeCompare(b, 'vi'));
+
   const normalizedSearch = searchQuery.trim().toLowerCase();
-  const filteredAttempts = examAttempts.filter((a) => {
+  const filteredAttemptsRaw = examAttempts.filter((a) => {
     if (filterMode === 'IN_PROGRESS' && a.status !== 'IN_PROGRESS' && a.status !== 'LOCKED') {
+      return false;
+    }
+    if (filterMode === 'LOCKED' && a.status !== 'LOCKED') {
+      return false;
+    }
+    if (
+      filterMode === 'SUBMITTED' &&
+      a.status !== 'SUBMITTED' &&
+      a.status !== 'AUTO_SUBMITTED'
+    ) {
       return false;
     }
     if (
@@ -171,12 +197,67 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
     ) {
       return false;
     }
+    if (classFilter !== 'ALL' && a.className.trim() !== classFilter) {
+      return false;
+    }
     if (!normalizedSearch) return true;
     return (
       a.studentCode.toLowerCase().includes(normalizedSearch) ||
-      a.studentName.toLowerCase().includes(normalizedSearch)
+      a.studentName.toLowerCase().includes(normalizedSearch) ||
+      a.className.toLowerCase().includes(normalizedSearch)
     );
   });
+
+  const filteredAttempts = (() => {
+    if (sortBy === 'CODE') {
+      return [...filteredAttemptsRaw].sort((a, b) =>
+        a.studentCode.localeCompare(b.studentCode, 'vi'),
+      );
+    }
+    if (sortBy === 'SCORE_DESC') {
+      return [...filteredAttemptsRaw].sort((a, b) => b.scale10Score - a.scale10Score);
+    }
+    if (sortBy === 'SCORE_ASC') {
+      return [...filteredAttemptsRaw].sort((a, b) => a.scale10Score - b.scale10Score);
+    }
+    if (sortBy === 'LEAVES_DESC') {
+      return [...filteredAttemptsRaw].sort(
+        (a, b) => b.leaveCount - a.leaveCount || b.totalAwaySeconds - a.totalAwaySeconds,
+      );
+    }
+    return filteredAttemptsRaw;
+  })();
+
+  const { pageItems: pagedAttempts, safePage } = paginateSlice(
+    filteredAttempts,
+    page,
+    pageSize,
+  );
+
+  const filteredAbsentRoster = absentRosterStudents.filter((st) =>
+    !normalizedSearch
+      ? true
+      : st.studentCode.toLowerCase().includes(normalizedSearch) ||
+        `${st.lastName} ${st.firstName}`.toLowerCase().includes(normalizedSearch),
+  );
+  const { pageItems: pagedAbsentRoster, safePage: safeAbsentPage } = paginateSlice(
+    filteredAbsentRoster,
+    page,
+    pageSize,
+  );
+
+  const normalizedRosterSearch = rosterSearch.trim().toLowerCase();
+  const filteredRosterList = rosterEntries.filter((st) =>
+    !normalizedRosterSearch
+      ? true
+      : st.studentCode.toLowerCase().includes(normalizedRosterSearch) ||
+        `${st.lastName} ${st.firstName}`.toLowerCase().includes(normalizedRosterSearch),
+  );
+  const { pageItems: pagedRosterList, safePage: safeRosterPage } = paginateSlice(
+    filteredRosterList,
+    rosterPage,
+    rosterPageSize,
+  );
 
   const countInProgress = examAttempts.filter((a) => a.status === 'IN_PROGRESS').length;
   const countLocked = lockedQueue.length;
@@ -454,31 +535,57 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
         )}
 
         {showRosterTable && rosterEntries.length > 0 && (
-          <div className="max-h-60 overflow-auto border border-slate-200 rounded-xl">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-slate-50 text-[11px] font-bold text-ink-600 sticky top-0 border-b border-slate-200">
-                <tr>
-                  <th className="px-3 py-2">STT</th>
-                  <th className="px-3 py-2">Mã sinh viên</th>
-                  <th className="px-3 py-2">Họ đệm</th>
-                  <th className="px-3 py-2">Tên</th>
-                  <th className="px-3 py-2">Giới tính</th>
-                  <th className="px-3 py-2">Ngày sinh</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {rosterEntries.map((st, idx) => (
-                  <tr key={st.studentCode} className="hover:bg-slate-50/70">
-                    <td className="px-3 py-1.5 text-ink-500">{idx + 1}</td>
-                    <td className="px-3 py-1.5 font-mono font-bold text-brand-700">{st.studentCode}</td>
-                    <td className="px-3 py-1.5 text-ink-800">{st.lastName}</td>
-                    <td className="px-3 py-1.5 font-semibold text-ink-900">{st.firstName}</td>
-                    <td className="px-3 py-1.5 text-ink-700">{st.gender}</td>
-                    <td className="px-3 py-1.5 font-mono text-ink-700">{st.dob}</td>
+          <div className="space-y-2.5">
+            <div className="relative max-w-xs">
+              <Search className="w-3.5 h-3.5 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={rosterSearch}
+                onChange={(e) => {
+                  setRosterSearch(e.target.value);
+                  setRosterPage(1);
+                }}
+                placeholder="Tìm MSSV hoặc Họ tên trong danh sách..."
+                className="w-full h-8 pl-8 pr-3 rounded-lg border border-slate-200 bg-white text-xs"
+              />
+            </div>
+            <div className="overflow-auto border border-slate-200 rounded-xl">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-slate-50 text-[11px] font-bold text-ink-600 sticky top-0 border-b border-slate-200">
+                  <tr>
+                    <th className="px-3 py-2">STT</th>
+                    <th className="px-3 py-2">Mã sinh viên</th>
+                    <th className="px-3 py-2">Họ đệm</th>
+                    <th className="px-3 py-2">Tên</th>
+                    <th className="px-3 py-2">Giới tính</th>
+                    <th className="px-3 py-2">Ngày sinh</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {pagedRosterList.map((st, idx) => (
+                    <tr key={st.studentCode} className="hover:bg-slate-50/70">
+                      <td className="px-3 py-1.5 text-ink-500">
+                        {(safeRosterPage - 1) * rosterPageSize + idx + 1}
+                      </td>
+                      <td className="px-3 py-1.5 font-mono font-bold text-brand-700">{st.studentCode}</td>
+                      <td className="px-3 py-1.5 text-ink-800">{st.lastName}</td>
+                      <td className="px-3 py-1.5 font-semibold text-ink-900">{st.firstName}</td>
+                      <td className="px-3 py-1.5 text-ink-700">{st.gender}</td>
+                      <td className="px-3 py-1.5 font-mono text-ink-700">{st.dob}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <PaginationBar
+              currentPage={safeRosterPage}
+              totalItems={filteredRosterList.length}
+              pageSize={rosterPageSize}
+              onPageChange={setRosterPage}
+              onPageSizeChange={setRosterPageSize}
+              pageSizeOptions={[15, 30, 50]}
+              itemLabel="sinh viên trong danh sách"
+            />
           </div>
         )}
       </div>
@@ -662,21 +769,68 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
 
       {/* Full Candidate Monitoring Table */}
       <div className="bg-white rounded-2xl border border-slate-200 shadow-card overflow-hidden">
-        <div className="p-3.5 border-b border-slate-200 bg-slate-50/70 flex flex-wrap items-center justify-between gap-2.5">
-          <div className="relative flex-1 min-w-[200px] max-w-xs">
-            <Search className="w-3.5 h-3.5 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Tìm theo MSSV hoặc Họ tên..."
-              className="w-full h-8 pl-8 pr-3 rounded-lg border border-slate-200 bg-white text-xs text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
-            />
+        <div className="p-3.5 border-b border-slate-200 bg-slate-50/70 space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="relative flex-1 min-w-[200px] max-w-xs">
+              <Search className="w-3.5 h-3.5 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setPage(1);
+                }}
+                placeholder="Tìm theo MSSV, Họ tên hoặc Lớp..."
+                className="w-full h-8 pl-8 pr-3 rounded-lg border border-slate-200 bg-white text-xs text-ink-900 focus:outline-none focus:ring-2 focus:ring-brand-500"
+              />
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              {classOptions.length > 0 && filterMode !== 'ABSENT' && (
+                <select
+                  value={classFilter}
+                  onChange={(e) => {
+                    setClassFilter(e.target.value);
+                    setPage(1);
+                  }}
+                  aria-label="Lọc theo lớp"
+                  className="h-8 px-2.5 rounded-lg border border-slate-200 bg-white font-semibold text-ink-800"
+                >
+                  <option value="ALL">Tất cả lớp</option>
+                  {classOptions.map((cls) => (
+                    <option key={cls} value={cls}>
+                      Lớp {cls}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {filterMode !== 'ABSENT' && (
+                <select
+                  value={sortBy}
+                  onChange={(e) => {
+                    setSortBy(e.target.value as typeof sortBy);
+                    setPage(1);
+                  }}
+                  aria-label="Sắp xếp thí sinh"
+                  className="h-8 px-2.5 rounded-lg border border-slate-200 bg-white font-semibold text-ink-800"
+                >
+                  <option value="DEFAULT">Sắp xếp: Mới nhất</option>
+                  <option value="CODE">MSSV A → Z</option>
+                  <option value="SCORE_DESC">Điểm cao → thấp</option>
+                  <option value="SCORE_ASC">Điểm thấp → cao</option>
+                  <option value="LEAVES_DESC">Vi phạm nhiều → ít</option>
+                </select>
+              )}
+            </div>
           </div>
+
           <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
             <button
               type="button"
-              onClick={() => setFilterMode('ALL')}
+              onClick={() => {
+                setFilterMode('ALL');
+                setPage(1);
+              }}
               className={`px-2.5 py-1 rounded-lg font-bold border transition ${
                 filterMode === 'ALL'
                   ? 'bg-brand-600 text-white border-brand-600'
@@ -687,7 +841,10 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => setFilterMode('IN_PROGRESS')}
+              onClick={() => {
+                setFilterMode('IN_PROGRESS');
+                setPage(1);
+              }}
               className={`px-2.5 py-1 rounded-lg font-bold border transition ${
                 filterMode === 'IN_PROGRESS'
                   ? 'bg-emerald-600 text-white border-emerald-600'
@@ -698,11 +855,42 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
             </button>
             <button
               type="button"
-              onClick={() => setFilterMode('ALERTS')}
+              onClick={() => {
+                setFilterMode('LOCKED');
+                setPage(1);
+              }}
+              className={`px-2.5 py-1 rounded-lg font-bold border transition ${
+                filterMode === 'LOCKED'
+                  ? 'bg-rose-600 text-white border-rose-600'
+                  : 'bg-white text-rose-700 border-rose-200 hover:border-rose-400'
+              }`}
+            >
+              Đang khóa ({countLocked})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFilterMode('SUBMITTED');
+                setPage(1);
+              }}
+              className={`px-2.5 py-1 rounded-lg font-bold border transition ${
+                filterMode === 'SUBMITTED'
+                  ? 'bg-brand-700 text-white border-brand-700'
+                  : 'bg-white text-ink-700 border-slate-200 hover:border-brand-300'
+              }`}
+            >
+              Đã nộp ({countSubmitted})
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setFilterMode('ALERTS');
+                setPage(1);
+              }}
               className={`px-2.5 py-1 rounded-lg font-bold border transition ${
                 filterMode === 'ALERTS'
-                  ? 'bg-rose-600 text-white border-rose-600'
-                  : 'bg-white text-ink-700 border-slate-200 hover:border-rose-300'
+                  ? 'bg-amber-600 text-white border-amber-600'
+                  : 'bg-white text-ink-700 border-slate-200 hover:border-amber-300'
               }`}
             >
               Cảnh báo ({farLocationAttempts.length + multiDeviceAttempts.length})
@@ -710,7 +898,10 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
             {rosterEntries.length > 0 && (
               <button
                 type="button"
-                onClick={() => setFilterMode('ABSENT')}
+                onClick={() => {
+                  setFilterMode('ABSENT');
+                  setPage(1);
+                }}
                 className={`px-2.5 py-1 rounded-lg font-bold border transition ${
                   filterMode === 'ABSENT'
                     ? 'bg-amber-600 text-white border-amber-600'
@@ -724,6 +915,7 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
         </div>
 
         {filterMode === 'ABSENT' ? (
+          <div className="space-y-3">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse text-xs">
               <thead>
@@ -737,16 +929,11 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {absentRosterStudents
-                  .filter((st) =>
-                    !normalizedSearch
-                      ? true
-                      : st.studentCode.toLowerCase().includes(normalizedSearch) ||
-                        `${st.lastName} ${st.firstName}`.toLowerCase().includes(normalizedSearch),
-                  )
-                  .map((st, idx) => (
+                {pagedAbsentRoster.map((st, idx) => (
                     <tr key={st.studentCode} className="hover:bg-amber-50/30">
-                      <td className="py-2 px-3.5 text-ink-500">{idx + 1}</td>
+                      <td className="py-2 px-3.5 text-ink-500">
+                        {(safeAbsentPage - 1) * pageSize + idx + 1}
+                      </td>
                       <td className="py-2 px-3.5 font-mono font-bold text-brand-700">{st.studentCode}</td>
                       <td className="py-2 px-3.5 text-ink-800">{st.lastName}</td>
                       <td className="py-2 px-3.5 font-semibold text-ink-900">{st.firstName}</td>
@@ -754,17 +941,34 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
                       <td className="py-2 px-3.5 font-mono text-ink-700">{st.dob}</td>
                     </tr>
                   ))}
-                {absentRosterStudents.length === 0 && (
+                {filteredAbsentRoster.length === 0 && (
                   <tr>
                     <td colSpan={6} className="py-8 text-center text-support-700 font-bold">
-                      Tất cả sinh viên trong danh sách đã vào phòng thi!
+                      {absentRosterStudents.length === 0
+                        ? 'Tất cả sinh viên trong danh sách đã vào phòng thi!'
+                        : 'Không tìm thấy sinh viên vắng thi nào khớp từ khóa.'}
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
+          {filteredAbsentRoster.length > 0 && (
+            <div className="px-3.5 pb-3.5">
+              <PaginationBar
+                currentPage={safeAbsentPage}
+                totalItems={filteredAbsentRoster.length}
+                pageSize={pageSize}
+                onPageChange={setPage}
+                onPageSizeChange={setPageSize}
+                pageSizeOptions={[15, 30, 50, 100]}
+                itemLabel="thí sinh vắng"
+              />
+            </div>
+          )}
+          </div>
         ) : (
+        <>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
@@ -819,7 +1023,7 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
                   </td>
                 </tr>
               ) : (
-                filteredAttempts.map((a) => {
+                pagedAttempts.map((a) => {
                   const answered = Object.keys(a.answers).length;
                   const statusBadge =
                     a.status === 'IN_PROGRESS'
@@ -986,6 +1190,20 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
             </tbody>
           </table>
         </div>
+        {filteredAttempts.length > 0 && (
+          <div className="p-3.5 border-t border-slate-200 bg-white">
+            <PaginationBar
+              currentPage={safePage}
+              totalItems={filteredAttempts.length}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              onPageSizeChange={setPageSize}
+              pageSizeOptions={[15, 30, 50, 100]}
+              itemLabel="thí sinh"
+            />
+          </div>
+        )}
+        </>
         )}
       </div>
 

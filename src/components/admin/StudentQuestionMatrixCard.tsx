@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { CheckCircle2, ChevronDown, ChevronUp, Search, UserCheck, XCircle } from 'lucide-react';
 import { InfoHint } from '../common/InfoHint';
+import { PaginationBar, paginateSlice } from '../common/PaginationBar';
 import type { Exam, ExamAttempt, Question } from '../../types/exam';
 
 interface StudentQuestionMatrixCardProps {
@@ -15,6 +16,10 @@ export const StudentQuestionMatrixCard: React.FC<StudentQuestionMatrixCardProps>
   questions,
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
+  const [scoreBandFilter, setScoreBandFilter] = useState<'ALL' | 'GE_8' | 'FROM_5_TO_8' | 'LT_5'>('ALL');
+  const [sortBy, setSortBy] = useState<'CODE' | 'SCORE_DESC' | 'SCORE_ASC'>('CODE');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(15);
   const [selectedAttemptId, setSelectedAttemptId] = useState<string | null>(null);
 
   const examAttempts = useMemo(
@@ -51,14 +56,31 @@ export const StudentQuestionMatrixCard: React.FC<StudentQuestionMatrixCardProps>
 
   const filteredAttempts = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
-    if (!q) return examAttempts;
-    return examAttempts.filter(
-      (a) =>
+    const list = examAttempts.filter((a) => {
+      if (scoreBandFilter === 'GE_8' && a.scale10Score < 8) return false;
+      if (scoreBandFilter === 'FROM_5_TO_8' && (a.scale10Score < 5 || a.scale10Score >= 8)) return false;
+      if (scoreBandFilter === 'LT_5' && a.scale10Score >= 5) return false;
+      if (!q) return true;
+      return (
         a.studentCode.toLowerCase().includes(q) ||
         a.studentName.toLowerCase().includes(q) ||
-        a.className.toLowerCase().includes(q),
-    );
-  }, [examAttempts, searchTerm]);
+        a.className.toLowerCase().includes(q)
+      );
+    });
+    if (sortBy === 'SCORE_DESC') {
+      return [...list].sort((a, b) => b.scale10Score - a.scale10Score);
+    }
+    if (sortBy === 'SCORE_ASC') {
+      return [...list].sort((a, b) => a.scale10Score - b.scale10Score);
+    }
+    return list;
+  }, [examAttempts, scoreBandFilter, searchTerm, sortBy]);
+
+  const { pageItems: pagedAttempts, safePage } = paginateSlice(
+    filteredAttempts,
+    page,
+    pageSize,
+  );
 
   const selectedAttempt = useMemo(
     () => examAttempts.find((a) => a.id === selectedAttemptId) ?? null,
@@ -110,15 +132,47 @@ export const StudentQuestionMatrixCard: React.FC<StudentQuestionMatrixCardProps>
           </p>
         </div>
 
-        <div className="relative w-full sm:w-64">
-          <Search className="w-3.5 h-3.5 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Tìm MSSV hoặc họ tên..."
-            className="w-full h-9 pl-8 pr-3 rounded-xl border border-slate-200 text-xs focus:outline-none focus:border-brand-500"
-          />
+        <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+          <div className="relative flex-1 sm:w-52">
+            <Search className="w-3.5 h-3.5 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Tìm MSSV hoặc họ tên..."
+              className="w-full h-9 pl-8 pr-3 rounded-xl border border-slate-200 text-xs focus:outline-none focus:border-brand-500"
+            />
+          </div>
+          <select
+            value={scoreBandFilter}
+            onChange={(e) => {
+              setScoreBandFilter(e.target.value as typeof scoreBandFilter);
+              setPage(1);
+            }}
+            aria-label="Lọc mức điểm"
+            className="h-9 px-2.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-ink-800"
+          >
+            <option value="ALL">Mọi mức điểm</option>
+            <option value="GE_8">Giỏi (≥ 8.0đ)</option>
+            <option value="FROM_5_TO_8">Trung bình – Khá (5.0 – &lt; 8.0)</option>
+            <option value="LT_5">Dưới chuẩn (&lt; 5.0đ)</option>
+          </select>
+          <select
+            value={sortBy}
+            onChange={(e) => {
+              setSortBy(e.target.value as typeof sortBy);
+              setPage(1);
+            }}
+            aria-label="Sắp xếp thí sinh"
+            className="h-9 px-2.5 rounded-xl border border-slate-200 bg-white text-xs font-semibold text-ink-800"
+          >
+            <option value="CODE">MSSV A → Z</option>
+            <option value="SCORE_DESC">Điểm cao → thấp</option>
+            <option value="SCORE_ASC">Điểm thấp → cao</option>
+          </select>
         </div>
       </div>
 
@@ -168,7 +222,7 @@ export const StudentQuestionMatrixCard: React.FC<StudentQuestionMatrixCardProps>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {filteredAttempts.map((att) => {
+                {pagedAttempts.map((att) => {
                   const isSelected = att.id === selectedAttemptId;
                   let rightCount = 0;
                   for (const snap of att.assignedQuestions) {
@@ -254,6 +308,16 @@ export const StudentQuestionMatrixCard: React.FC<StudentQuestionMatrixCardProps>
               </tbody>
             </table>
           </div>
+
+          <PaginationBar
+            currentPage={safePage}
+            totalItems={filteredAttempts.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            onPageSizeChange={setPageSize}
+            pageSizeOptions={[15, 30, 50]}
+            itemLabel="thí sinh"
+          />
 
           {/* Selected Student Per-Question Breakdown */}
           {selectedAttempt && (

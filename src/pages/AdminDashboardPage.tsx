@@ -44,10 +44,12 @@ import { LiveProctorTable } from '../components/admin/LiveProctorTable';
 import { QuestionEditorModal } from '../components/admin/QuestionEditorModal';
 import { CaptchaField } from '../components/common/CaptchaField';
 import { InfoHint } from '../components/common/InfoHint';
+import { PaginationBar, paginateSlice } from '../components/common/PaginationBar';
 import { ADMIN_TAB_REGISTRY, type AdminTabId } from '../data/adminGuideRegistry';
 import { useExamPlatform } from '../context/ExamContext';
 import type {
   ChapterQuotaRule,
+  DifficultyLevel,
   EmailDeliveryMode,
   Question,
   QuestionType,
@@ -215,6 +217,25 @@ export const AdminDashboardPage: React.FC = () => {
   const [bankSearch, setBankSearch] = useState('');
   const [bankChapterFilter, setBankChapterFilter] = useState('ALL');
   const [bankTypeFilter, setBankTypeFilter] = useState<'ALL' | QuestionType>('ALL');
+  const [bankDifficultyFilter, setBankDifficultyFilter] = useState<'ALL' | DifficultyLevel>('ALL');
+  const [bankPage, setBankPage] = useState(1);
+  const [bankPageSize, setBankPageSize] = useState(15);
+
+  const [itemSearch, setItemSearch] = useState('');
+  const [itemStatusFilter, setItemStatusFilter] = useState<
+    'ALL' | 'SUSPECT' | 'POOR' | 'GOOD' | 'EASY'
+  >('ALL');
+  const [itemPage, setItemPage] = useState(1);
+  const [itemPageSize, setItemPageSize] = useState(10);
+
+  const [essaySearch, setEssaySearch] = useState('');
+  const [essayPage, setEssayPage] = useState(1);
+  const [essayPageSize, setEssayPageSize] = useState(10);
+
+  const [gameSearch, setGameSearch] = useState('');
+  const [gameStateFilter, setGameStateFilter] = useState<'ALL' | 'ACTIVE' | 'ENDED'>('ALL');
+  const [gamePage, setGamePage] = useState(1);
+  const [gamePageSize, setGamePageSize] = useState(8);
   const [newCourseOpen, setNewCourseOpen] = useState(false);
   const [newCourseCode, setNewCourseCode] = useState('');
   const [newCourseName, setNewCourseName] = useState('');
@@ -372,13 +393,22 @@ export const AdminDashboardPage: React.FC = () => {
       if (bankTypeFilter !== 'ALL' && q.type !== bankTypeFilter) {
         return false;
       }
+      if (bankDifficultyFilter !== 'ALL' && q.difficulty !== bankDifficultyFilter) {
+        return false;
+      }
       if (term) {
         const hay = `${q.id} ${q.chapterCategory} ${q.content} ${q.sampleAnswer ?? ''}`.toLowerCase();
         if (!hay.includes(term)) return false;
       }
       return true;
     });
-  }, [bankChapterFilter, bankSearch, bankTypeFilter, courseQuestions]);
+  }, [
+    bankChapterFilter,
+    bankDifficultyFilter,
+    bankSearch,
+    bankTypeFilter,
+    courseQuestions,
+  ]);
 
   const filteredChapterGroups = useMemo(() => {
     const map = new Map<string, Question[]>();
@@ -389,6 +419,34 @@ export const AdminDashboardPage: React.FC = () => {
     }
     return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b, 'vi'));
   }, [filteredCourseQuestions]);
+
+  const filteredChapterCountMap = useMemo(
+    () => new Map(filteredChapterGroups.map(([ch, qs]) => [ch, qs.length])),
+    [filteredChapterGroups],
+  );
+
+  const sortedFilteredCourseQuestions = useMemo(
+    () =>
+      [...filteredCourseQuestions].sort((a, b) =>
+        a.chapterCategory.localeCompare(b.chapterCategory, 'vi'),
+      ),
+    [filteredCourseQuestions],
+  );
+
+  const pagedBank = useMemo(
+    () => paginateSlice(sortedFilteredCourseQuestions, bankPage, bankPageSize),
+    [sortedFilteredCourseQuestions, bankPage, bankPageSize],
+  );
+
+  const pagedChapterGroups = useMemo(() => {
+    const map = new Map<string, Question[]>();
+    for (const q of pagedBank.pageItems) {
+      const arr = map.get(q.chapterCategory) ?? [];
+      arr.push(q);
+      map.set(q.chapterCategory, arr);
+    }
+    return Array.from(map.entries()).sort(([a], [b]) => a.localeCompare(b, 'vi'));
+  }, [pagedBank.pageItems]);
 
   const chapterMasteryStats = useMemo(
     () =>
@@ -412,6 +470,61 @@ export const AdminDashboardPage: React.FC = () => {
           )
         : [],
     [attempts, questions, selectedExam, selectedShift, shiftScopedAttempts],
+  );
+
+  const filteredItemAnalysisRows = useMemo(() => {
+    const term = itemSearch.trim().toLowerCase();
+    return itemAnalysisRows.filter((row) => {
+      const isSuspect =
+        row.correctRatePercent < 20 ||
+        (row.discriminationIndex !== null && row.discriminationIndex < 0);
+      if (itemStatusFilter === 'SUSPECT' && row.statusTag !== 'Cần rà soát' && !isSuspect) {
+        return false;
+      }
+      if (itemStatusFilter === 'POOR' && row.statusTag !== 'Phân hóa kém') {
+        return false;
+      }
+      if (itemStatusFilter === 'EASY' && row.statusTag !== 'Quá dễ') {
+        return false;
+      }
+      if (
+        itemStatusFilter === 'GOOD' &&
+        (isSuspect ||
+          row.statusTag === 'Cần rà soát' ||
+          row.statusTag === 'Phân hóa kém' ||
+          row.statusTag === 'Quá dễ')
+      ) {
+        return false;
+      }
+      if (term) {
+        const hay = `${row.questionId} ${row.content} ${row.chapterCategory} ${row.statusTag}`.toLowerCase();
+        if (!hay.includes(term)) return false;
+      }
+      return true;
+    });
+  }, [itemAnalysisRows, itemSearch, itemStatusFilter]);
+
+  const pagedItemAnalysis = useMemo(
+    () => paginateSlice(filteredItemAnalysisRows, itemPage, itemPageSize),
+    [filteredItemAnalysisRows, itemPage, itemPageSize],
+  );
+
+  const filteredInstructorGames = useMemo(() => {
+    const term = gameSearch.trim().toLowerCase();
+    return instructorGames.filter((g) => {
+      if (gameStateFilter === 'ACTIVE' && g.state === 'ENDED') return false;
+      if (gameStateFilter === 'ENDED' && g.state !== 'ENDED') return false;
+      if (term) {
+        const hay = `${g.title} ${g.gamePin} ${g.gameMode}`.toLowerCase();
+        if (!hay.includes(term)) return false;
+      }
+      return true;
+    });
+  }, [gameSearch, gameStateFilter, instructorGames]);
+
+  const pagedInstructorGames = useMemo(
+    () => paginateSlice(filteredInstructorGames, gamePage, gamePageSize),
+    [filteredInstructorGames, gamePage, gamePageSize],
   );
 
   const previewAssigned = useMemo(() => {
@@ -2568,15 +2681,21 @@ export const AdminDashboardPage: React.FC = () => {
                       <Search className="w-3.5 h-3.5 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2" />
                       <input
                         value={bankSearch}
-                        onChange={(e) => setBankSearch(e.target.value)}
+                        onChange={(e) => {
+                          setBankSearch(e.target.value);
+                          setBankPage(1);
+                        }}
                         placeholder="Tìm theo nội dung, chương hoặc mã câu hỏi..."
                         className="w-full h-9 pl-8 pr-3 rounded-lg border border-slate-300 bg-white text-xs"
                       />
                     </div>
                     <select
                       value={bankChapterFilter}
-                      onChange={(e) => setBankChapterFilter(e.target.value)}
-                      className="h-9 px-2.5 rounded-lg border border-slate-300 bg-white font-semibold max-w-[240px]"
+                      onChange={(e) => {
+                        setBankChapterFilter(e.target.value);
+                        setBankPage(1);
+                      }}
+                      className="h-9 px-2.5 rounded-lg border border-slate-300 bg-white font-semibold max-w-[220px]"
                     >
                       <option value="ALL">Tất cả Chương ({courseQuestions.length})</option>
                       {chapterGroups.map(([chName, qs]) => (
@@ -2585,6 +2704,38 @@ export const AdminDashboardPage: React.FC = () => {
                         </option>
                       ))}
                     </select>
+                    <select
+                      value={bankDifficultyFilter}
+                      onChange={(e) => {
+                        setBankDifficultyFilter(e.target.value as 'ALL' | DifficultyLevel);
+                        setBankPage(1);
+                      }}
+                      className="h-9 px-2.5 rounded-lg border border-slate-300 bg-white font-semibold"
+                      aria-label="Lọc theo độ khó"
+                    >
+                      <option value="ALL">Mọi độ khó</option>
+                      <option value="EASY">Dễ (EASY)</option>
+                      <option value="MEDIUM">Trung bình (MEDIUM)</option>
+                      <option value="HARD">Khó (HARD)</option>
+                    </select>
+                    {(bankSearch ||
+                      bankChapterFilter !== 'ALL' ||
+                      bankTypeFilter !== 'ALL' ||
+                      bankDifficultyFilter !== 'ALL') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setBankSearch('');
+                          setBankChapterFilter('ALL');
+                          setBankTypeFilter('ALL');
+                          setBankDifficultyFilter('ALL');
+                          setBankPage(1);
+                        }}
+                        className="h-9 px-2.5 rounded-lg border border-slate-300 bg-white text-ink-600 hover:bg-slate-100 font-semibold"
+                      >
+                        Xóa lọc
+                      </button>
+                    )}
                   </div>
 
                   <div className="flex flex-wrap gap-1.5">
@@ -2602,7 +2753,10 @@ export const AdminDashboardPage: React.FC = () => {
                       <button
                         key={typeVal}
                         type="button"
-                        onClick={() => setBankTypeFilter(typeVal)}
+                        onClick={() => {
+                          setBankTypeFilter(typeVal);
+                          setBankPage(1);
+                        }}
                         className={`px-2.5 py-1 rounded-full font-bold text-[11px] border transition ${
                           bankTypeFilter === typeVal
                             ? 'bg-brand-600 text-white border-brand-600'
@@ -2615,19 +2769,25 @@ export const AdminDashboardPage: React.FC = () => {
                   </div>
                 </div>
 
-                {filteredChapterGroups.length === 0 ? (
+                {pagedChapterGroups.length === 0 ? (
                   <div className="p-8 text-center rounded-xl border border-dashed border-slate-300 text-xs text-ink-500">
                     Không tìm thấy câu hỏi nào khớp bộ lọc hiện tại. Hãy đổi bộ lọc hoặc bấm <strong>Import Excel</strong> để nạp câu hỏi mới.
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    {filteredChapterGroups.map(([chName, qs]) => (
-                      <div key={chName} className="space-y-2">
-                        <div className="flex items-center justify-between px-3 py-1.5 bg-slate-100 rounded-lg text-xs font-extrabold text-ink-800">
-                          <span>{chName}</span>
-                          <span className="font-mono text-brand-700">{qs.length} câu</span>
-                        </div>
-                        <div className="space-y-2">
+                    {pagedChapterGroups.map(([chName, qs]) => {
+                      const totalInChapter = filteredChapterCountMap.get(chName) ?? qs.length;
+                      return (
+                        <div key={chName} className="space-y-2">
+                          <div className="flex items-center justify-between px-3 py-1.5 bg-slate-100 rounded-lg text-xs font-extrabold text-ink-800">
+                            <span>{chName}</span>
+                            <span className="font-mono text-brand-700">
+                              {qs.length === totalInChapter
+                                ? `${qs.length} câu`
+                                : `${qs.length}/${totalInChapter} câu (trang này)`}
+                            </span>
+                          </div>
+                          <div className="space-y-2">
                           {qs.map((q) => (
                             <div
                               key={q.id}
@@ -2712,7 +2872,20 @@ export const AdminDashboardPage: React.FC = () => {
                           ))}
                         </div>
                       </div>
-                    ))}
+                    );
+                    })}
+                    <PaginationBar
+                      currentPage={pagedBank.safePage}
+                      totalItems={sortedFilteredCourseQuestions.length}
+                      pageSize={bankPageSize}
+                      onPageChange={setBankPage}
+                      onPageSizeChange={(size) => {
+                        setBankPageSize(size);
+                        setBankPage(1);
+                      }}
+                      pageSizeOptions={[15, 30, 50, 100]}
+                      itemLabel="câu hỏi"
+                    />
                   </div>
                 )}
               </div>
@@ -2944,21 +3117,72 @@ export const AdminDashboardPage: React.FC = () => {
                   Chưa có bài thi đã nộp để tính độ khó và độ phân cách từng câu.
                 </p>
               ) : (
-                <div className="overflow-x-auto border border-slate-200 rounded-xl">
-                  <table className="w-full text-left border-collapse text-xs">
-                    <thead>
-                      <tr className="bg-slate-50 border-b border-slate-200 text-ink-600 font-bold">
-                        <th className="py-2.5 px-3">Câu hỏi</th>
-                        <th className="py-2.5 px-3">Chương</th>
-                        <th className="py-2.5 px-3 text-center">Lượt thi</th>
-                        <th className="py-2.5 px-3 text-center">Tỷ lệ đúng (p)</th>
-                        <th className="py-2.5 px-3 text-center">Phân cách (D)</th>
-                        <th className="py-2.5 px-3 text-right">Đánh giá</th>
-                        <th className="py-2.5 px-3 text-right">Hành động</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {itemAnalysisRows.map((row) => {
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <div className="relative flex-1 min-w-[200px]">
+                      <Search className="w-3.5 h-3.5 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                      <input
+                        value={itemSearch}
+                        onChange={(e) => {
+                          setItemSearch(e.target.value);
+                          setItemPage(1);
+                        }}
+                        placeholder="Tìm theo nội dung câu hỏi hoặc chương..."
+                        className="w-full h-9 pl-8 pr-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-xs"
+                      />
+                    </div>
+                    <select
+                      value={itemStatusFilter}
+                      onChange={(e) => {
+                        setItemStatusFilter(
+                          e.target.value as 'ALL' | 'SUSPECT' | 'POOR' | 'GOOD' | 'EASY',
+                        );
+                        setItemPage(1);
+                      }}
+                      className="h-9 px-3 rounded-xl border border-slate-200 bg-white font-semibold"
+                    >
+                      <option value="ALL">Tất cả mức đánh giá ({itemAnalysisRows.length})</option>
+                      <option value="SUSPECT">Nghi sai / Cần rà soát</option>
+                      <option value="POOR">Phân hóa kém</option>
+                      <option value="GOOD">Đạt chuẩn</option>
+                      <option value="EASY">Quá dễ</option>
+                    </select>
+                    {(itemSearch || itemStatusFilter !== 'ALL') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setItemSearch('');
+                          setItemStatusFilter('ALL');
+                          setItemPage(1);
+                        }}
+                        className="h-9 px-3 rounded-xl border border-slate-200 bg-white text-ink-600 hover:bg-slate-50 font-semibold"
+                      >
+                        Xóa lọc
+                      </button>
+                    )}
+                  </div>
+
+                  {filteredItemAnalysisRows.length === 0 ? (
+                    <p className="text-xs text-ink-500 py-4 text-center border border-dashed border-slate-200 rounded-xl">
+                      Không có câu hỏi nào khớp điều kiện lọc.
+                    </p>
+                  ) : (
+                    <>
+                      <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-slate-50 border-b border-slate-200 text-ink-600 font-bold">
+                              <th className="py-2.5 px-3">Câu hỏi</th>
+                              <th className="py-2.5 px-3">Chương</th>
+                              <th className="py-2.5 px-3 text-center">Lượt thi</th>
+                              <th className="py-2.5 px-3 text-center">Tỷ lệ đúng (p)</th>
+                              <th className="py-2.5 px-3 text-center">Phân cách (D)</th>
+                              <th className="py-2.5 px-3 text-right">Đánh giá</th>
+                              <th className="py-2.5 px-3 text-right">Hành động</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {pagedItemAnalysis.pageItems.map((row) => {
                         const qObj = questions.find((q) => q.id === row.questionId);
                         const isSuspect =
                           row.correctRatePercent < 20 ||
@@ -3018,10 +3242,25 @@ export const AdminDashboardPage: React.FC = () => {
                               )}
                             </td>
                           </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                      <PaginationBar
+                        currentPage={pagedItemAnalysis.safePage}
+                        totalItems={filteredItemAnalysisRows.length}
+                        pageSize={itemPageSize}
+                        onPageChange={setItemPage}
+                        onPageSizeChange={(size) => {
+                          setItemPageSize(size);
+                          setItemPage(1);
+                        }}
+                        pageSizeOptions={[10, 20, 50]}
+                        itemLabel="câu hỏi"
+                      />
+                    </>
+                  )}
                 </div>
               )}
             </div>
@@ -3034,52 +3273,102 @@ export const AdminDashboardPage: React.FC = () => {
             />
 
             <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-3">
-              <h3 className="text-sm font-extrabold text-ink-900">
-                Danh sách Bài thi có Câu Tự luận Ngắn (Rà soát Highlight &amp; Làm giàu Rubric)
-              </h3>
-              <div className="divide-y divide-slate-100">
-                {(() => {
-                  const qTypeMap = new Map(questions.map((q) => [q.id, q.type]));
-                  const essayAttempts = (
-                    selectedShift
-                      ? shiftScopedAttempts
-                      : attempts.filter((a) => a.examId === selectedExam.id)
-                  ).filter((a) =>
-                    a.assignedQuestions.some(
-                      (s) => qTypeMap.get(s.questionId) === 'ESSAY',
-                    ),
-                  );
-                  if (essayAttempts.length === 0) {
-                    return (
+              {(() => {
+                const qTypeMap = new Map(questions.map((q) => [q.id, q.type]));
+                const essayAttempts = (
+                  selectedShift
+                    ? shiftScopedAttempts
+                    : attempts.filter((a) => a.examId === selectedExam.id)
+                ).filter((a) =>
+                  a.assignedQuestions.some(
+                    (s) => qTypeMap.get(s.questionId) === 'ESSAY',
+                  ),
+                );
+                const essayTerm = essaySearch.trim().toLowerCase();
+                const filteredEssayAttempts = essayTerm
+                  ? essayAttempts.filter((a) =>
+                      `${a.studentCode} ${a.studentName}`
+                        .toLowerCase()
+                        .includes(essayTerm),
+                    )
+                  : essayAttempts;
+                const pagedEssays = paginateSlice(
+                  filteredEssayAttempts,
+                  essayPage,
+                  essayPageSize,
+                );
+                return (
+                  <>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <h3 className="text-sm font-extrabold text-ink-900">
+                        Danh sách Bài thi có Câu Tự luận Ngắn ({essayAttempts.length}) — Rà soát Highlight &amp; Làm giàu Rubric
+                      </h3>
+                      {essayAttempts.length > 0 && (
+                        <div className="relative w-full sm:w-64">
+                          <Search className="w-3.5 h-3.5 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            value={essaySearch}
+                            onChange={(e) => {
+                              setEssaySearch(e.target.value);
+                              setEssayPage(1);
+                            }}
+                            placeholder="Tìm MSSV hoặc họ tên..."
+                            className="w-full h-8 pl-8 pr-3 rounded-lg border border-slate-200 bg-slate-50 focus:bg-white text-xs"
+                          />
+                        </div>
+                      )}
+                    </div>
+                    {essayAttempts.length === 0 ? (
                       <p className="text-xs text-ink-500 py-3">
                         Ca thi này không có bài thi nào chứa câu hỏi Tự luận ngắn (ESSAY).
                       </p>
-                    );
-                  }
-                  return essayAttempts.map((a) => (
-                    <div
-                      key={a.id}
-                      className="py-3 flex flex-wrap items-center justify-between gap-2 text-xs"
-                    >
-                      <div>
-                        <span className="font-bold text-ink-900">
-                          {a.studentName} ({a.studentCode})
-                        </span>
-                        <span className="text-ink-500 ml-2">
-                          Điểm tự luận Rubric: <strong className="font-mono text-brand-700">{a.essayScore}đ</strong> • Tổng hệ 10: <strong className="font-mono">{a.scale10Score.toFixed(2)}</strong>
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setEssayModalAttemptId(a.id)}
-                        className="px-3 py-1.5 rounded-lg bg-brand-600 text-white font-bold"
-                      >
-                        Mở Highlight &amp; Chấm lại
-                      </button>
-                    </div>
-                  ));
-                })()}
-              </div>
+                    ) : filteredEssayAttempts.length === 0 ? (
+                      <p className="text-xs text-ink-500 py-4 text-center border border-dashed border-slate-200 rounded-xl">
+                        Không có bài thi nào khớp từ khóa "{essaySearch}".
+                      </p>
+                    ) : (
+                      <>
+                        <div className="divide-y divide-slate-100">
+                          {pagedEssays.pageItems.map((a) => (
+                            <div
+                              key={a.id}
+                              className="py-3 flex flex-wrap items-center justify-between gap-2 text-xs"
+                            >
+                              <div>
+                                <span className="font-bold text-ink-900">
+                                  {a.studentName} ({a.studentCode})
+                                </span>
+                                <span className="text-ink-500 ml-2">
+                                  Điểm tự luận Rubric: <strong className="font-mono text-brand-700">{a.essayScore}đ</strong> • Tổng hệ 10: <strong className="font-mono">{a.scale10Score.toFixed(2)}</strong>
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => setEssayModalAttemptId(a.id)}
+                                className="px-3 py-1.5 rounded-lg bg-brand-600 text-white font-bold"
+                              >
+                                Mở Highlight &amp; Chấm lại
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                        <PaginationBar
+                          currentPage={pagedEssays.safePage}
+                          totalItems={filteredEssayAttempts.length}
+                          pageSize={essayPageSize}
+                          onPageChange={setEssayPage}
+                          onPageSizeChange={(size) => {
+                            setEssayPageSize(size);
+                            setEssayPage(1);
+                          }}
+                          pageSizeOptions={[10, 20, 50]}
+                          itemLabel="bài thi tự luận"
+                        />
+                      </>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
         )}
@@ -3201,7 +3490,7 @@ export const AdminDashboardPage: React.FC = () => {
 
             {/* Recent / Active Game Sessions */}
             <div className="pt-3 border-t border-slate-100 space-y-3">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-sm font-extrabold text-ink-900">
                   Danh sách phòng Game đã tạo ({instructorGames.length})
                 </h3>
@@ -3216,13 +3505,46 @@ export const AdminDashboardPage: React.FC = () => {
                 </button>
               </div>
 
+              {instructorGames.length > 0 && (
+                <div className="flex flex-wrap items-center gap-2 text-xs">
+                  <div className="relative flex-1 min-w-[200px]">
+                    <Search className="w-3.5 h-3.5 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      value={gameSearch}
+                      onChange={(e) => {
+                        setGameSearch(e.target.value);
+                        setGamePage(1);
+                      }}
+                      placeholder="Tìm theo tên phòng game hoặc mã PIN..."
+                      className="w-full h-9 pl-8 pr-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white text-xs"
+                    />
+                  </div>
+                  <select
+                    value={gameStateFilter}
+                    onChange={(e) => {
+                      setGameStateFilter(e.target.value as 'ALL' | 'ACTIVE' | 'ENDED');
+                      setGamePage(1);
+                    }}
+                    className="h-9 px-3 rounded-xl border border-slate-200 bg-white font-semibold"
+                  >
+                    <option value="ALL">Tất cả trạng thái ({instructorGames.length})</option>
+                    <option value="ACTIVE">Đang chờ / Đang diễn ra</option>
+                    <option value="ENDED">Đã kết thúc</option>
+                  </select>
+                </div>
+              )}
+
               {instructorGames.length === 0 ? (
                 <div className="p-5 rounded-2xl bg-slate-50 border border-dashed border-slate-200 text-center text-xs text-ink-500">
                   Chưa có phòng Game nào được tạo. Hãy bấm nút phía trên để mở phòng đầu tiên.
                 </div>
+              ) : filteredInstructorGames.length === 0 ? (
+                <div className="p-5 rounded-2xl bg-slate-50 border border-dashed border-slate-200 text-center text-xs text-ink-500">
+                  Không có phòng Game nào khớp điều kiện lọc.
+                </div>
               ) : (
                 <div className="space-y-2">
-                  {instructorGames.map((g) => (
+                  {pagedInstructorGames.pageItems.map((g) => (
                     <div
                       key={g.id}
                       className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50/50 flex flex-wrap items-center justify-between gap-3"
@@ -3268,6 +3590,18 @@ export const AdminDashboardPage: React.FC = () => {
                       </Link>
                     </div>
                   ))}
+                  <PaginationBar
+                    currentPage={pagedInstructorGames.safePage}
+                    totalItems={filteredInstructorGames.length}
+                    pageSize={gamePageSize}
+                    onPageChange={setGamePage}
+                    onPageSizeChange={(size) => {
+                      setGamePageSize(size);
+                      setGamePage(1);
+                    }}
+                    pageSizeOptions={[8, 16, 32]}
+                    itemLabel="phòng game"
+                  />
                 </div>
               )}
             </div>

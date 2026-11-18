@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { BookOpen, Edit3, Layers, Plus, Trash2, ArrowRight, Check, X } from 'lucide-react';
+import React, { useMemo, useState } from 'react';
+import { BookOpen, Edit3, Layers, Plus, Search, Trash2, ArrowRight, Check, X } from 'lucide-react';
 import { Course, Exam, Question } from '../../types/exam';
 import { InfoHint } from '../common/InfoHint';
+import { PaginationBar, paginateSlice } from '../common/PaginationBar';
 
 interface CoursesTabPanelProps {
   courses: Course[];
@@ -42,6 +43,35 @@ export const CoursesTabPanel: React.FC<CoursesTabPanelProps> = ({
   const [editName, setEditName] = useState('');
   const [editSemester, setEditSemester] = useState('');
   const [editCredits, setEditCredits] = useState(3);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [semesterFilter, setSemesterFilter] = useState('ALL');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(8);
+
+  const semesterOptions = useMemo(
+    () => Array.from(new Set(courses.map((c) => c.semester || 'HK1 2026-2027'))),
+    [courses],
+  );
+
+  const filteredCourses = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return courses.filter((c) => {
+      const sem = c.semester || 'HK1 2026-2027';
+      if (semesterFilter !== 'ALL' && sem !== semesterFilter) return false;
+      if (!q) return true;
+      return (
+        c.code.toLowerCase().includes(q) ||
+        c.name.toLowerCase().includes(q) ||
+        sem.toLowerCase().includes(q)
+      );
+    });
+  }, [courses, searchQuery, semesterFilter]);
+
+  const { pageItems: pagedCourses, safePage } = paginateSlice(
+    filteredCourses,
+    page,
+    pageSize,
+  );
 
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
@@ -224,8 +254,48 @@ export const CoursesTabPanel: React.FC<CoursesTabPanelProps> = ({
             </p>
           </div>
         ) : (
-          <div className="space-y-2.5">
-            {courses.map((c) => {
+          <div className="space-y-3">
+            {/* Search & Semester Filter */}
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="w-3.5 h-3.5 text-ink-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    setPage(1);
+                  }}
+                  placeholder="Tìm theo mã HP, tên môn hoặc học kỳ..."
+                  className="w-full h-9 pl-8 pr-3 rounded-xl border border-slate-200 bg-slate-50/60 focus:bg-white focus:outline-none focus:border-brand-500"
+                />
+              </div>
+              <select
+                value={semesterFilter}
+                onChange={(e) => {
+                  setSemesterFilter(e.target.value);
+                  setPage(1);
+                }}
+                aria-label="Lọc theo học kỳ"
+                className="h-9 px-2.5 rounded-xl border border-slate-200 bg-white font-semibold text-ink-800"
+              >
+                <option value="ALL">Tất cả học kỳ ({courses.length})</option>
+                {semesterOptions.map((sem) => (
+                  <option key={sem} value={sem}>
+                    {sem}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {filteredCourses.length === 0 ? (
+              <div className="p-6 text-center rounded-xl border border-dashed border-slate-200 text-xs text-ink-500">
+                Không tìm thấy học phần nào khớp từ khóa "{searchQuery}".
+              </div>
+            ) : (
+              <>
+                <div className="space-y-2.5">
+                  {pagedCourses.map((c) => {
               const qCount = questions.filter((q) => q.courseId === c.id).length;
               const eCount = exams.filter((e) => e.courseId === c.id).length;
               const isSelected = c.id === selectedCourseId;
@@ -350,6 +420,18 @@ export const CoursesTabPanel: React.FC<CoursesTabPanelProps> = ({
                 </div>
               );
             })}
+                </div>
+                <PaginationBar
+                  currentPage={safePage}
+                  totalItems={filteredCourses.length}
+                  pageSize={pageSize}
+                  onPageChange={setPage}
+                  onPageSizeChange={setPageSize}
+                  pageSizeOptions={[8, 16, 32]}
+                  itemLabel="học phần"
+                />
+              </>
+            )}
           </div>
         )}
       </div>
