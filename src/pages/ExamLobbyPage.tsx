@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -9,10 +9,25 @@ import {
   Mail,
   Radio,
   ShieldAlert,
+  Shuffle,
   Smartphone,
   Sparkles,
+  Users,
 } from 'lucide-react';
+import { GAME_AVATARS, GameAvatarBadge } from '../components/game/GameAvatarBadge';
 import { useExamPlatform } from '../context/ExamContext';
+import {
+  mergeLobbyPeers,
+  resolveAttemptAvatarId,
+} from '../utils/examWaitingRoom';
+
+const LOBBY_CHEERS = [
+  { emoji: '🔥', label: 'Quyết tâm' },
+  { emoji: '💪', label: 'Sẵn sàng' },
+  { emoji: '🍀', label: 'May mắn' },
+  { emoji: '🚀', label: '10 điểm' },
+  { emoji: '❤️', label: 'Thả tim' },
+] as const;
 
 export const ExamLobbyPage: React.FC = () => {
   const { examId } = useParams<{ examId: string }>();
@@ -20,11 +35,22 @@ export const ExamLobbyPage: React.FC = () => {
   const attemptId = searchParams.get('attempt') ?? '';
   const navigate = useNavigate();
 
-  const { exams, courses, shifts, attempts, beginAttemptTake } = useExamPlatform();
+  const {
+    exams,
+    courses,
+    shifts,
+    attempts,
+    lobbyPeers,
+    beginAttemptTake,
+    updateAttemptAvatar,
+  } = useExamPlatform();
   const [agreed, setAgreed] = useState(false);
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState('');
   const [countdown, setCountdown] = useState<number | null>(null);
+  const [floatingCheers, setFloatingCheers] = useState<
+    Array<{ id: string; emoji: string; left: number }>
+  >([]);
   const wasWaitingRef = useRef(false);
   const launchingRef = useRef(false);
 
@@ -38,6 +64,41 @@ export const ExamLobbyPage: React.FC = () => {
       : undefined;
   const effectiveRoomStatus = activeShift?.status ?? exam?.status ?? 'OPEN';
   const isWaitingRoom = effectiveRoomStatus === 'WAITING';
+
+  const myAvatarId = attempt ? resolveAttemptAvatarId(attempt) : 'fox';
+  const myAvatarSpec =
+    GAME_AVATARS.find((a) => a.id === myAvatarId) ?? GAME_AVATARS[0];
+
+  const mergedPeers = useMemo(() => {
+    if (!exam || !attempt) return [];
+    const localRoomAttempts = attempts.filter(
+      (a) =>
+        a.examId === exam.id &&
+        (!attempt.shiftId || !a.shiftId || a.shiftId === attempt.shiftId),
+    );
+    return mergeLobbyPeers(attempt.id, localRoomAttempts, lobbyPeers);
+  }, [attempt, attempts, exam, lobbyPeers]);
+
+  const handleSelectAvatar = (nextAvatarId: string) => {
+    if (!attempt) return;
+    void updateAttemptAvatar(attempt.id, nextAvatarId);
+  };
+
+  const handleRandomAvatar = () => {
+    if (!attempt) return;
+    const pool = GAME_AVATARS.filter((a) => a.id !== myAvatarId);
+    const picked = pool[Math.floor(Math.random() * pool.length)] ?? GAME_AVATARS[0];
+    void updateAttemptAvatar(attempt.id, picked.id);
+  };
+
+  const handleSpawnCheer = (emoji: string) => {
+    const id = `chr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 5)}`;
+    const left = 12 + Math.floor(Math.random() * 76);
+    setFloatingCheers((prev) => [...prev.slice(-14), { id, emoji, left }]);
+    window.setTimeout(() => {
+      setFloatingCheers((prev) => prev.filter((c) => c.id !== id));
+    }, 2600);
+  };
 
   const launchTakePage = useCallback(async () => {
     if (!exam || !attempt || launchingRef.current) return;
@@ -162,7 +223,7 @@ export const ExamLobbyPage: React.FC = () => {
         </div>
       )}
 
-      <div className="max-w-md mx-auto space-y-4">
+      <div className="max-w-2xl mx-auto space-y-4">
         <button
           type="button"
           onClick={() => navigate('/')}
@@ -171,6 +232,156 @@ export const ExamLobbyPage: React.FC = () => {
           <ArrowLeft className="w-4 h-4" /> Đổi phòng thi khác
         </button>
 
+        {/* Area 1: Kahoot-Style Hero Player Card & Avatar Picker */}
+        <section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-indigo-950 via-violet-900 to-slate-950 text-white p-5 sm:p-6 shadow-2xl border border-indigo-500/30 space-y-4">
+          {/* Floating Cheers Overlay */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-56 overflow-hidden z-20"
+          >
+            {floatingCheers.map((c) => (
+              <span
+                key={c.id}
+                style={{ left: `${c.left}%` }}
+                className="absolute bottom-2 text-3xl animate-float-up drop-shadow-md"
+              >
+                {c.emoji}
+              </span>
+            ))}
+          </div>
+
+          <div className="relative z-10 flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3.5 min-w-0">
+              <GameAvatarBadge avatarId={myAvatarId} size="lg" />
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-1.5 mb-1">
+                  <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-white/15 text-indigo-100 border border-white/15">
+                    {course?.code} • PIN {exam.roomPin}
+                  </span>
+                  <span
+                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                      isWaitingRoom
+                        ? 'bg-emerald-400/20 text-emerald-200 border border-emerald-400/30'
+                        : 'bg-amber-400/20 text-amber-200 border border-amber-400/30'
+                    }`}
+                  >
+                    {isWaitingRoom ? '● PHÒNG CHỜ ĐIỂM DANH' : '● ĐANG MỞ THI'}
+                  </span>
+                </div>
+                <h2 className="text-lg sm:text-xl font-black tracking-tight truncate">
+                  {attempt.studentName}
+                </h2>
+                <p className="text-xs text-indigo-200 truncate">
+                  MSSV {attempt.studentCode} • {attempt.className} •{' '}
+                  <span className="text-amber-300 font-semibold">{myAvatarSpec.label}</span>
+                </p>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleRandomAvatar}
+              className="px-3 py-2 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-xs font-bold flex items-center gap-1.5 transition shrink-0"
+            >
+              <Shuffle className="w-3.5 h-3.5 text-amber-300" />
+              <span>Đổi ngẫu nhiên</span>
+            </button>
+          </div>
+
+          {/* 12 Mascot Avatar Picker Grid */}
+          <div className="relative z-10 space-y-2">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-indigo-200">
+              Chọn linh vật đại diện của bạn trên sảnh chờ:
+            </div>
+            <div className="grid grid-cols-6 sm:grid-cols-12 gap-2">
+              {GAME_AVATARS.map((av) => {
+                const selected = av.id === myAvatarId;
+                return (
+                  <button
+                    key={av.id}
+                    type="button"
+                    onClick={() => handleSelectAvatar(av.id)}
+                    aria-label={`Chọn linh vật ${av.label}`}
+                    title={av.label}
+                    className={`p-1 rounded-2xl flex items-center justify-center transition ${
+                      selected
+                        ? 'ring-2 ring-amber-300 bg-white/20 scale-105 shadow-lg'
+                        : 'bg-white/5 hover:bg-white/15 opacity-80 hover:opacity-100'
+                    }`}
+                  >
+                    <GameAvatarBadge avatarId={av.id} size="sm" />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Quick Cheer Reaction Strip */}
+          <div className="relative z-10 flex flex-wrap items-center gap-1.5 pt-1 border-t border-white/10">
+            <span className="text-[11px] font-semibold text-indigo-200 mr-1">
+              Thả cổ vũ:
+            </span>
+            {LOBBY_CHEERS.map((ch) => (
+              <button
+                key={ch.emoji}
+                type="button"
+                onClick={() => handleSpawnCheer(ch.emoji)}
+                className="px-2.5 py-1 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 text-[11px] font-bold flex items-center gap-1 transition"
+              >
+                <span>{ch.emoji}</span>
+                <span>{ch.label}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+
+        {/* Area 2: Live Classmates Wall (Kahoot Waiting Roster) */}
+        <section className="rounded-2xl bg-gradient-to-b from-slate-900 to-indigo-950 text-white p-4 sm:p-5 border border-indigo-500/25 shadow-card space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2 text-xs sm:text-sm font-extrabold">
+              <Users className="w-4 h-4 text-emerald-400 shrink-0" />
+              <span>
+                Phòng chờ Trực tiếp • {mergedPeers.length} sinh viên đã có mặt
+              </span>
+            </div>
+            <span className="text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-white/10 text-indigo-200 border border-white/10">
+              {isWaitingRoom ? 'Đang đợi Giảng viên phát đề' : 'Đề thi đã mở'}
+            </span>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-64 overflow-y-auto pr-0.5">
+            {mergedPeers.map((peer) => (
+              <div
+                key={peer.id || peer.studentCode}
+                className={`p-2.5 rounded-2xl border flex items-center gap-2.5 min-w-0 transition ${
+                  peer.isMe
+                    ? 'border-amber-400/80 bg-amber-400/15 shadow-md'
+                    : 'border-white/10 bg-white/10'
+                }`}
+              >
+                <GameAvatarBadge avatarId={peer.avatarId} size="sm" />
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1 min-w-0">
+                    <span className="text-xs font-extrabold truncate text-white">
+                      {peer.studentName}
+                    </span>
+                    {peer.isMe && (
+                      <span className="px-1.5 py-0.5 rounded bg-amber-400 text-slate-950 font-black text-[9px] shrink-0">
+                        BẠN
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10px] font-mono text-indigo-200/85 truncate">
+                    ••{peer.studentCode.slice(-4)}
+                    {peer.className ? ` • ${peer.className}` : ''}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* Area 3: Exam Info, Rules & Start Action */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-4 sm:p-5 space-y-4">
           <div>
             <span className="text-[11px] font-mono font-bold px-2.5 py-1 rounded-full bg-brand-50 text-brand-700">

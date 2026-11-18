@@ -21,6 +21,8 @@ import {
 import {
   canStudentEnterLobby,
   isAttemptEligibleForClockReset,
+  pickDefaultAvatarId,
+  resolveAttemptAvatarId,
 } from '../utils/examWaitingRoom';
 import type {
   AttemptAnswer,
@@ -31,6 +33,7 @@ import type {
   ExamShift,
   InstructorUser,
   KeystrokeTelemetry,
+  LobbyPeerEntry,
   Question,
   RubricSlot,
   ViolationEvent,
@@ -99,6 +102,8 @@ interface AuthActionResult {
 
 interface ExamContextValue extends ExamPlatformState {
   backendConnected: boolean;
+  lobbyPeers: LobbyPeerEntry[];
+  updateAttemptAvatar: (attemptId: string, avatarId: string) => Promise<void>;
   serverClockOffsetMs: number;
   syncStatus: 'SAVED' | 'SAVING' | 'OFFLINE';
   isAdminAuthenticated: boolean;
@@ -293,16 +298,24 @@ function normalizeServerAttempt(raw: Record<string, unknown>): ExamAttempt {
     rawAnswers && typeof rawAnswers === 'object' && !Array.isArray(rawAnswers)
       ? (rawAnswers as Record<string, AttemptAnswer>)
       : {};
+  const loginDevices = Array.isArray(raw.loginDevices)
+    ? (raw.loginDevices as ExamAttempt['loginDevices'])
+    : undefined;
+  const studentCode = String(raw.studentCode ?? '');
   return {
     ...(raw as unknown as ExamAttempt),
+    studentCode,
+    avatarId: resolveAttemptAvatarId({
+      studentCode,
+      avatarId: typeof raw.avatarId === 'string' ? raw.avatarId : undefined,
+      loginDevices,
+    }),
     deviceToken: typeof raw.deviceToken === 'string' ? raw.deviceToken : '',
     deviceLabel: typeof raw.deviceLabel === 'string' ? raw.deviceLabel : undefined,
     locationLat: typeof raw.locationLat === 'number' ? raw.locationLat : null,
     locationLng: typeof raw.locationLng === 'number' ? raw.locationLng : null,
     locationAccuracy: typeof raw.locationAccuracy === 'number' ? raw.locationAccuracy : null,
-    loginDevices: Array.isArray(raw.loginDevices)
-      ? (raw.loginDevices as ExamAttempt['loginDevices'])
-      : undefined,
+    loginDevices,
     assignedQuestions: Array.isArray(raw.assignedQuestions)
       ? (raw.assignedQuestions as ExamAttempt['assignedQuestions'])
       : [],
@@ -454,6 +467,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
   const isOfficialInstructorRef = useRef(instructorUser?.role === 'OFFICIAL');
   isOfficialInstructorRef.current = instructorUser?.role === 'OFFICIAL';
   const [googleClientId, setGoogleClientId] = useState('');
+  const [lobbyPeers, setLobbyPeers] = useState<LobbyPeerEntry[]>([]);
 
   const persistState = useCallback((next: ExamPlatformState) => {
     const myDeviceToken = getOrCreateDeviceToken();
@@ -1017,6 +1031,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
             bonusSeconds?: number;
             unlockRequestNote?: string | null;
             integrityScore?: number;
+            loginDevices?: ExamAttempt['loginDevices'];
             startedAt?: string;
             serverNow?: string;
           }>('/api/attempts.php?action=start', {
@@ -1119,6 +1134,10 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
             const localSame = stateRef.current.attempts.find(
               (a) => a.id === resolvedAttemptId,
             );
+            const mergedLoginDevices =
+              Array.isArray(payload.loginDevices) && payload.loginDevices.length > 0
+                ? payload.loginDevices
+                : localSame?.loginDevices;
             const syncedAttempt: ExamAttempt = {
               id: resolvedAttemptId,
               examId: serverExam.id,
@@ -1128,6 +1147,12 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
               studentEmail: normalizedEmail,
               className: input.className.trim(),
               deviceToken: myDeviceToken,
+              loginDevices: mergedLoginDevices,
+              avatarId: resolveAttemptAvatarId({
+                studentCode: normalizedCode,
+                avatarId: localSame?.avatarId,
+                loginDevices: mergedLoginDevices,
+              }),
               assignedQuestions:
                 Array.isArray(payload.assignedQuestions) &&
                 payload.assignedQuestions.length > 0
@@ -1330,6 +1355,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         studentName: input.studentName.trim(),
         studentEmail: normalizedEmail,
         className: input.className.trim(),
+        avatarId: pickDefaultAvatarId(normalizedCode),
         deviceToken: myDeviceToken,
         assignedQuestions: assigned,
         answers: {},
@@ -1366,6 +1392,51 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         examId: exam.id,
         resumed: false,
       };
+    },
+    [backendConnected, updateState],
+  );
+
+  const updateAttemptAvatar = useCallback(
+    async (attemptId: string, avatarId: string): Promise<void> => {
+      const cleanAvatar = avatarId.trim();
+      if (!attemptId || !cleanAvatar) return;
+
+      updateState((prev) => ({
+        ...prev,
+        attempts: prev.attempts.map((a) => {
+          if (a.id !== attemptId) return a;
+          const existingDevices = Array.isArray(a.loginDevices) ? a.loginDevices : [];
+          const nextDevices =
+            existingDevices.length > 0
+              ? existingDevices.map((d, idx) =>
+                  idx === 0 ? { ...d, avatarId: cleanAvatar } : d,
+                )
+              : [
+                  {
+                    deviceToken: a.deviceToken || getOrCreateDeviceToken(),
+                    deviceLabel: a.deviceLabel || 'Student Lobby',
+                    at: new Date().toISOString(),
+                    avatarId: cleanAvatar,
+                  },
+                ];
+          return {
+            ...a,
+            avatarId: cleanAvatar,
+            loginDevices: nextDevices,
+          };
+        }),
+      }));
+
+      setLobbyPeers((prev) =>
+        prev.map((p) => (p.id === attemptId ? { ...p, avatarId: cleanAvatar } : p)),
+      );
+
+      if (backendConnected) {
+        await apiRequest('/api/proctor.php?action=set_avatar', {
+          method: 'POST',
+          body: JSON.stringify({ attemptId, avatarId: cleanAvatar }),
+        });
+      }
     },
     [backendConnected, updateState],
   );
@@ -1866,11 +1937,20 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const myDeviceTokenForPoll = getOrCreateDeviceToken();
-  const activePollAttempt = state.attempts.find(
-    (a) =>
-      a.deviceToken === myDeviceTokenForPoll &&
-      (a.status === 'IN_PROGRESS' || a.status === 'PAUSED' || a.status === 'LOCKED'),
-  );
+  const urlAttemptParam =
+    typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('attempt')
+      : null;
+  const pollCandidates = state.attempts
+    .filter(
+      (a) =>
+        a.deviceToken === myDeviceTokenForPoll &&
+        (a.status === 'IN_PROGRESS' || a.status === 'PAUSED' || a.status === 'LOCKED'),
+    )
+    .sort((a, b) => Date.parse(b.startedAt || '0') - Date.parse(a.startedAt || '0'));
+  const activePollAttempt =
+    (urlAttemptParam && pollCandidates.find((a) => a.id === urlAttemptParam)) ||
+    pollCandidates[0];
   const activePollAttemptId = activePollAttempt?.id ?? null;
 
   useEffect(() => {
@@ -1883,6 +1963,17 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
       if (cancelled || inFlight) return;
       inFlight = true;
       try {
+        const curAtt = stateRef.current.attempts.find((a) => a.id === activePollAttemptId);
+        const curEx = curAtt
+          ? stateRef.current.exams.find((ex) => ex.id === curAtt.examId)
+          : undefined;
+        const curSh = curAtt?.shiftId
+          ? stateRef.current.shifts.find((sh) => sh.id === curAtt.shiftId)
+          : undefined;
+        const isWaitingContext =
+          (curSh?.status ?? curEx?.status) === 'WAITING' ||
+          (typeof window !== 'undefined' && window.location.pathname.includes('/lobby'));
+
         const res = await apiRequestDetailed<{
           ok: boolean;
           s?: ExamAttempt['status'];
@@ -1891,12 +1982,39 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
           w?: number;
           e?: Exam['status'];
           sa?: string;
-        }>(`/api/proctor.php?action=poll&attemptId=${encodeURIComponent(activePollAttemptId)}`, {
-          method: 'GET',
-        });
+          peers?: Array<{
+            id: string;
+            code: string;
+            name: string;
+            cls?: string;
+            av?: string;
+          }>;
+        }>(
+          `/api/proctor.php?action=poll&attemptId=${encodeURIComponent(activePollAttemptId)}${
+            isWaitingContext ? '&lobby=1' : ''
+          }`,
+          {
+            method: 'GET',
+          },
+        );
 
         if (cancelled || !res.ok || !res.data?.ok || !res.data.s) return;
-        const { s, b, x, w, e, sa } = res.data;
+        const { s, b, x, w, e, sa, peers } = res.data;
+
+        if (Array.isArray(peers)) {
+          setLobbyPeers(
+            peers.map((p) => ({
+              id: p.id,
+              studentCode: p.code,
+              studentName: p.name,
+              className: p.cls ?? '',
+              avatarId: resolveAttemptAvatarId({
+                studentCode: p.code,
+                avatarId: p.av || undefined,
+              }),
+            })),
+          );
+        }
 
         if (s === 'AUTO_SUBMITTED' || s === 'SUBMITTED' || e === 'CLOSED') {
           if (e === 'CLOSED') {
@@ -3285,6 +3403,8 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
       value={{
         ...state,
         backendConnected,
+        lobbyPeers,
+        updateAttemptAvatar,
         serverClockOffsetMs,
         syncStatus,
         isAdminAuthenticated,

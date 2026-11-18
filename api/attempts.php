@@ -955,6 +955,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
                 'bonusSeconds' => (int) $existing['bonus_seconds'],
                 'unlockRequestNote' => $existing['unlock_request_note'] ?: null,
                 'integrityScore' => (int) $existing['integrity_score'],
+                'loginDevices' => $updatedDevices,
                 'startedAt' => $existing['started_at'],
                 'serverNow' => nowIso(),
             ]);

@@ -245,7 +245,17 @@ export interface LoginDeviceEntry {
   deviceLabel: string;
   lat?: number | null;
   lng?: number | null;
+  avatarId?: string;
   at: string;
+}
+
+export interface LobbyPeerEntry {
+  id: string;
+  studentCode: string;
+  studentName: string;
+  className: string;
+  avatarId: string;
+  isReady?: boolean;
 }
 
 export interface ExamAttempt {
@@ -256,6 +266,7 @@ export interface ExamAttempt {
   studentName: string;
   studentEmail: string;
   className: string;
+  avatarId?: string;
   deviceToken: string;
   deviceLabel?: string;
   locationLat?: number | null;

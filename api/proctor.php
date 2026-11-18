@@ -25,7 +25,8 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         }
 
         $stmt = $pdo->prepare(
-            'SELECT a.status, a.bonus_seconds, a.extra_leave_allowance, a.locked_wait_seconds, a.started_at,
+            'SELECT a.exam_id, a.shift_id, a.login_devices_json,
+                    a.status, a.bonus_seconds, a.extra_leave_allowance, a.locked_wait_seconds, a.started_at,
                     COALESCE(s.status, e.status) AS exam_status
              FROM exam_attempts a
              LEFT JOIN exams e ON e.id = a.exam_id
@@ -38,16 +39,61 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             jsonError('Not found', 404);
         }
 
-        // Ultra-lightweight JSON (< 180 bytes)
-        jsonResponse([
+        $examStatus = (string) ($row['exam_status'] ?? 'OPEN');
+        $out = [
             'ok' => true,
             's' => $row['status'],
             'b' => (int) $row['bonus_seconds'],
             'x' => (int) $row['extra_leave_allowance'],
             'w' => (int) $row['locked_wait_seconds'],
-            'e' => $row['exam_status'] ?? 'OPEN',
+            'e' => $examStatus,
             'sa' => $row['started_at'],
-        ]);
+        ];
+
+        $includeLobbyPeers = (($_GET['lobby'] ?? '') === '1') || $examStatus === 'WAITING';
+        if ($includeLobbyPeers) {
+            $eid = (string) $row['exam_id'];
+            $sid = !empty($row['shift_id']) ? (string) $row['shift_id'] : null;
+            if ($sid !== null) {
+                $pStmt = $pdo->prepare(
+                    "SELECT id, student_code, student_name, class_name, login_devices_json
+                     FROM exam_attempts
+                     WHERE exam_id = :eid AND (shift_id = :sid OR shift_id IS NULL)
+                       AND status IN ('IN_PROGRESS', 'PAUSED', 'LOCKED')
+                     ORDER BY started_at DESC
+                     LIMIT 120"
+                );
+                $pStmt->execute([':eid' => $eid, ':sid' => $sid]);
+            } else {
+                $pStmt = $pdo->prepare(
+                    "SELECT id, student_code, student_name, class_name, login_devices_json
+                     FROM exam_attempts
+                     WHERE exam_id = :eid
+                       AND status IN ('IN_PROGRESS', 'PAUSED', 'LOCKED')
+                     ORDER BY started_at DESC
+                     LIMIT 120"
+                );
+                $pStmt->execute([':eid' => $eid]);
+            }
+            $peersOut = [];
+            foreach ($pStmt->fetchAll() as $pr) {
+                $devs = decodeJsonSafe($pr['login_devices_json'] ?? null, []);
+                $av = '';
+                if (is_array($devs) && isset($devs[0]['avatarId'])) {
+                    $av = preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $devs[0]['avatarId']);
+                }
+                $peersOut[] = [
+                    'id' => (string) $pr['id'],
+                    'code' => (string) $pr['student_code'],
+                    'name' => (string) $pr['student_name'],
+                    'cls' => (string) ($pr['class_name'] ?? ''),
+                    'av' => $av,
+                ];
+            }
+            $out['peers'] = $peersOut;
+        }
+
+        jsonResponse($out);
     }
 
     if ($action === 'log') {
@@ -168,6 +214,41 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             ->execute([':wd' => $waitDelta, ':ea' => $newAllow, ':id' => $attemptId]);
 
         jsonResponse(['ok' => true, 'status' => 'IN_PROGRESS', 'extraLeaveAllowance' => $newAllow]);
+    }
+
+    if ($action === 'set_avatar') {
+        $attemptId = trim((string) ($body['attemptId'] ?? ''));
+        $avatarId = preg_replace('/[^a-zA-Z0-9_-]/', '', trim((string) ($body['avatarId'] ?? '')));
+        if ($attemptId === '' || $avatarId === '' || strlen($avatarId) > 24) {
+            jsonError('Thiếu attemptId hoặc avatarId không hợp lệ.', 400);
+        }
+
+        $stmt = $pdo->prepare('SELECT login_devices_json FROM exam_attempts WHERE id = :id LIMIT 1');
+        $stmt->execute([':id' => $attemptId]);
+        $att = $stmt->fetch();
+        if (!$att) {
+            jsonError('Không tìm thấy phiên thi.', 404);
+        }
+
+        $devices = decodeJsonSafe($att['login_devices_json'] ?? null, []);
+        if (!is_array($devices) || count($devices) === 0) {
+            $devices = [[
+                'deviceToken' => '',
+                'deviceLabel' => 'Student Lobby',
+                'at' => nowIso(),
+                'avatarId' => $avatarId,
+            ]];
+        } else {
+            $devices[0]['avatarId'] = $avatarId;
+        }
+
+        $pdo->prepare('UPDATE exam_attempts SET login_devices_json = :ld WHERE id = :id')
+            ->execute([
+                ':ld' => json_encode($devices, JSON_UNESCAPED_UNICODE),
+                ':id' => $attemptId,
+            ]);
+
+        jsonResponse(['ok' => true, 'avatarId' => $avatarId]);
     }
 
     // Admin proctoring actions below require Bearer HMAC

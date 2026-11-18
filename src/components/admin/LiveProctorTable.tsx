@@ -28,6 +28,8 @@ import { exportExamGradebookXlsx } from '../../utils/csvExport';
 import { computeChapterMastery } from '../../utils/dynamicQuestionEngine';
 import { InfoHint } from '../common/InfoHint';
 import { PaginationBar, paginateSlice } from '../common/PaginationBar';
+import { GameAvatarBadge } from '../game/GameAvatarBadge';
+import { resolveAttemptAvatarId } from '../../utils/examWaitingRoom';
 import {
   downloadStudentRosterTemplateXlsx,
   parseStudentRosterXlsx,
@@ -281,26 +283,60 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
   return (
     <div className="space-y-5">
       {exam.status === 'WAITING' && onChangeExamStatus && (
-        <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-soft">
-          <div className="space-y-0.5">
-            <div className="flex items-center gap-2 text-sm font-extrabold text-indigo-950">
-              <Radio className="w-4 h-4 text-emerald-600 animate-pulse shrink-0" />
-              <span>
-                Phòng chờ Điểm danh đang mở ({countInProgress} sinh viên đã có mặt, chưa phát đề)
-              </span>
+        <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 space-y-3 shadow-soft">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <div className="flex items-center gap-2 text-sm font-extrabold text-indigo-950">
+                <Radio className="w-4 h-4 text-emerald-600 animate-pulse shrink-0" />
+                <span>
+                  Phòng chờ Điểm danh đang mở ({countInProgress} sinh viên đã có mặt, chưa phát đề)
+                </span>
+              </div>
+              <p className="text-xs text-indigo-800">
+                Sinh viên đang ở Phòng chờ để đối chiếu danh sách &amp; GPS (chưa thấy câu hỏi và chưa tính giờ). Khi cả lớp đã vào đủ, bấm nút bên phải để phát đề và bắt đầu đếm giờ đồng loạt.
+              </p>
             </div>
-            <p className="text-xs text-indigo-800">
-              Sinh viên đang ở Phòng chờ để đối chiếu danh sách &amp; GPS (chưa thấy câu hỏi và chưa tính giờ). Khi cả lớp đã vào đủ, bấm nút bên phải để phát đề và bắt đầu đếm giờ đồng loạt.
-            </p>
+            <button
+              type="button"
+              onClick={() => onChangeExamStatus('OPEN')}
+              className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-sm transition shrink-0"
+            >
+              <Play className="w-4 h-4" />
+              <span>Phát đề &amp; Bắt đầu tính giờ đồng loạt</span>
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => onChangeExamStatus('OPEN')}
-            className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-sm transition shrink-0"
-          >
-            <Play className="w-4 h-4" />
-            <span>Phát đề &amp; Bắt đầu tính giờ đồng loạt</span>
-          </button>
+          {examAttempts.filter(
+            (a) =>
+              a.status === 'IN_PROGRESS' ||
+              a.status === 'PAUSED' ||
+              a.status === 'LOCKED',
+          ).length > 0 && (
+            <div className="flex flex-wrap gap-2 pt-2 border-t border-indigo-200/70 max-h-40 overflow-y-auto">
+              {examAttempts
+                .filter(
+                  (a) =>
+                    a.status === 'IN_PROGRESS' ||
+                    a.status === 'PAUSED' ||
+                    a.status === 'LOCKED',
+                )
+                .slice(0, 60)
+                .map((a) => (
+                  <div
+                    key={a.id}
+                    className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-white border border-indigo-200 shadow-2xs text-xs font-bold text-indigo-950"
+                  >
+                    <GameAvatarBadge
+                      avatarId={resolveAttemptAvatarId(a)}
+                      size="sm"
+                    />
+                    <span className="truncate max-w-[140px]">{a.studentName}</span>
+                    <span className="text-[10px] font-mono text-indigo-600">
+                      {a.studentCode}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          )}
         </div>
       )}
 

@@ -45,6 +45,8 @@ import { QuestionEditorModal } from '../components/admin/QuestionEditorModal';
 import { CaptchaField } from '../components/common/CaptchaField';
 import { InfoHint } from '../components/common/InfoHint';
 import { PaginationBar, paginateSlice } from '../components/common/PaginationBar';
+import { GameAvatarBadge } from '../components/game/GameAvatarBadge';
+import { resolveAttemptAvatarId } from '../utils/examWaitingRoom';
 import { ADMIN_TAB_REGISTRY, type AdminTabId } from '../data/adminGuideRegistry';
 import { useExamPlatform } from '../context/ExamContext';
 import type {
@@ -4378,17 +4380,23 @@ export const AdminDashboardPage: React.FC = () => {
         const activeTitle = selectedShift?.title ?? selectedExam?.title ?? '';
         const activeStatus = selectedShift?.status ?? selectedExam?.status ?? 'OPEN';
         const joinUrl = `${window.location.origin}/?pin=${activePin}`;
+        const activeParticipants = shiftScopedAttempts.filter(
+          (a) =>
+            a.status === 'IN_PROGRESS' ||
+            a.status === 'PAUSED' ||
+            a.status === 'LOCKED',
+        );
         return (
-          <div className="fixed inset-0 z-50 bg-slate-950/95 text-white flex flex-col items-center justify-center p-4 sm:p-8">
+          <div className="fixed inset-0 z-50 bg-slate-950/95 text-white overflow-y-auto p-4 sm:p-8 flex flex-col items-center justify-center gap-4">
             <button
               type="button"
               onClick={() => setProjectorModalOpen(false)}
-              className="absolute top-4 right-4 h-10 px-4 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1.5"
+              className="fixed top-4 right-4 z-10 h-10 px-4 rounded-xl bg-white/10 hover:bg-white/20 text-white text-xs font-bold flex items-center gap-1.5"
             >
               <X className="w-4 h-4" /> Đóng màn hình chiếu
             </button>
 
-            <div className="max-w-4xl w-full bg-slate-900/90 border border-white/15 rounded-3xl p-6 sm:p-10 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-8 text-center md:text-left">
+            <div className="max-w-4xl w-full bg-slate-900/90 border border-white/15 rounded-3xl p-6 sm:p-8 shadow-2xl flex flex-col md:flex-row items-center justify-between gap-6 text-center md:text-left">
               <div className="flex-1 space-y-4">
                 <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-brand-500/20 border border-brand-400/30 text-brand-200 text-xs font-bold">
                   {selectedCourse ? `${selectedCourse.code} — ${selectedCourse.name}` : 'Phòng thi trực tuyến'}
@@ -4443,12 +4451,52 @@ export const AdminDashboardPage: React.FC = () => {
                 <img
                   src={`https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(joinUrl)}`}
                   alt={`QR vào phòng ${activePin}`}
-                  className="w-52 h-52 sm:w-60 sm:h-60 rounded-xl"
+                  className="w-48 h-48 sm:w-56 sm:h-56 rounded-xl"
                 />
                 <p className="text-[11px] font-bold text-ink-700 text-center mt-2">
                   Quét Camera để điền sẵn PIN {activePin}
                 </p>
               </div>
+            </div>
+
+            {/* Kahoot-style Student Lobby Roster on Projector */}
+            <div className="max-w-4xl w-full bg-slate-900/90 border border-white/15 rounded-3xl p-5 shadow-xl space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <h3 className="text-sm sm:text-base font-extrabold text-white flex items-center gap-2">
+                  <Activity className="w-4 h-4 text-emerald-400" />
+                  <span>Sảnh Thí sinh Đã Vào Phòng ({activeParticipants.length})</span>
+                </h3>
+                <span className="text-xs text-slate-400">
+                  Sinh viên có thể chọn linh vật riêng ngay trên màn hình chờ
+                </span>
+              </div>
+              {activeParticipants.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-white/15 p-6 text-center text-xs sm:text-sm text-slate-400">
+                  Đang chờ sinh viên quét QR hoặc nhập mã PIN {activePin} để vào phòng...
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-2.5 max-h-56 overflow-y-auto pr-1">
+                  {activeParticipants.map((p) => (
+                    <div
+                      key={p.id}
+                      className="px-3 py-2 rounded-2xl bg-slate-800/90 border border-white/15 flex items-center gap-2.5 shadow-md"
+                    >
+                      <GameAvatarBadge
+                        avatarId={resolveAttemptAvatarId(p)}
+                        size="sm"
+                      />
+                      <div>
+                        <div className="text-xs sm:text-sm font-extrabold text-white leading-tight">
+                          {p.studentName}
+                        </div>
+                        <div className="text-[10px] font-mono text-indigo-300">
+                          {p.studentCode}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         );
