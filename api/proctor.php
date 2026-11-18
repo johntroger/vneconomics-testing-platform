@@ -25,8 +25,12 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         }
 
         $stmt = $pdo->prepare(
-            'SELECT a.status, a.bonus_seconds, a.extra_leave_allowance, a.locked_wait_seconds, e.status AS exam_status
-             FROM exam_attempts a LEFT JOIN exams e ON e.id = a.exam_id WHERE a.id = :id LIMIT 1'
+            'SELECT a.status, a.bonus_seconds, a.extra_leave_allowance, a.locked_wait_seconds,
+                    COALESCE(s.status, e.status) AS exam_status
+             FROM exam_attempts a
+             LEFT JOIN exams e ON e.id = a.exam_id
+             LEFT JOIN exam_shifts s ON s.id = a.shift_id
+             WHERE a.id = :id LIMIT 1'
         );
         $stmt->execute([':id' => $attemptId]);
         $row = $stmt->fetch();
@@ -135,13 +139,23 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             jsonError('Thiếu attemptId hoặc mã PIN giải cứu.', 400);
         }
 
-        $stmt = $pdo->prepare('SELECT a.*, e.unlock_pin, e.max_leave_count FROM exam_attempts a JOIN exams e ON e.id = a.exam_id WHERE a.id = :id LIMIT 1');
+        $stmt = $pdo->prepare(
+            'SELECT a.*, e.unlock_pin AS exam_unlock_pin, s.unlock_pin AS shift_unlock_pin, e.max_leave_count
+             FROM exam_attempts a
+             JOIN exams e ON e.id = a.exam_id
+             LEFT JOIN exam_shifts s ON s.id = a.shift_id
+             WHERE a.id = :id LIMIT 1'
+        );
         $stmt->execute([':id' => $attemptId]);
         $att = $stmt->fetch();
         if (!$att) {
             jsonError('Không tìm thấy bài thi.', 404);
         }
-        if (!hash_equals((string) $att['unlock_pin'], $pin)) {
+        $shiftPin = trim((string) ($att['shift_unlock_pin'] ?? ''));
+        $examPin = trim((string) ($att['exam_unlock_pin'] ?? ''));
+        $matchesShift = ($shiftPin !== '' && hash_equals($shiftPin, $pin));
+        $matchesExam = ($examPin !== '' && hash_equals($examPin, $pin));
+        if (!$matchesShift && !$matchesExam) {
             usleep(250000);
             jsonError('Sai mã PIN giám thị tại chỗ.', 403);
         }

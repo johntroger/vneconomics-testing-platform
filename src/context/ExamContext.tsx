@@ -411,15 +411,37 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
   const [googleClientId, setGoogleClientId] = useState('');
 
   const persistState = useCallback((next: ExamPlatformState) => {
+    const myDeviceToken = getOrCreateDeviceToken();
+    const compactForStorage = (src: ExamPlatformState, maxAttempts: number): ExamPlatformState => {
+      if (src.attempts.length <= maxAttempts) return src;
+      const ownActive = src.attempts.filter(
+        (a) =>
+          a.deviceToken === myDeviceToken &&
+          (a.status === 'IN_PROGRESS' || a.status === 'LOCKED' || a.status === 'PAUSED'),
+      );
+      const ownIds = new Set(ownActive.map((a) => a.id));
+      const others = src.attempts
+        .filter((a) => !ownIds.has(a.id))
+        .sort((a, b) => Date.parse(b.startedAt || '0') - Date.parse(a.startedAt || '0'))
+        .slice(0, Math.max(0, maxAttempts - ownActive.length));
+      return { ...src, attempts: [...ownActive, ...others] };
+    };
+
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      const bounded = compactForStorage(next, 80);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(bounded));
       if (typeof BroadcastChannel !== 'undefined') {
         const ch = new BroadcastChannel(SYNC_CHANNEL_NAME);
         ch.postMessage({ type: 'STATE_UPDATED', ts: Date.now() });
         ch.close();
       }
     } catch {
-      // Ignore storage quota issues gracefully
+      try {
+        const minimal = compactForStorage(next, 10);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(minimal));
+      } catch {
+        // Ignore storage quota issues gracefully
+      }
     }
   }, []);
 
@@ -769,6 +791,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
           multipleMatches?: boolean;
           matches?: RoomMatchOption[];
           exam?: Exam;
+          shift?: ExamShift | null;
           course?: Course | null;
           questions?: Question[];
         }>(roomUrl, {
@@ -872,12 +895,14 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
           const clientAttemptId = `att_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
           const clientStartedAt = new Date().toISOString();
 
+          const resolvedRoomShiftId = roomRes.data.shift?.id;
           const startRes = await apiRequestDetailed<{
             ok: boolean;
             resumed?: boolean;
             alreadySubmitted?: boolean;
             attemptId?: string;
             examId?: string;
+            shiftId?: string | null;
             assignedQuestions?: ExamAttempt['assignedQuestions'];
             answers?: Record<string, AttemptAnswer>;
             attempt?: Record<string, unknown>;
@@ -901,6 +926,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
               id: clientAttemptId,
               pin: normalizedPin,
               examId: serverExam.id,
+              shiftId: resolvedRoomShiftId,
               studentCode: normalizedCode,
               studentName: input.studentName.trim(),
               lastName: input.lastName?.trim() ?? '',
@@ -935,6 +961,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
               }
             }
             const resolvedAttemptId = payload.attemptId ?? clientAttemptId;
+            const effectiveShiftId = payload.shiftId ?? resolvedRoomShiftId ?? undefined;
 
             if (payload.alreadySubmitted) {
               const submittedAtt: ExamAttempt = payload.attempt
@@ -942,6 +969,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
                 : {
                     id: resolvedAttemptId,
                     examId: serverExam.id,
+                    shiftId: effectiveShiftId,
                     studentCode: normalizedCode,
                     studentName: input.studentName.trim(),
                     studentEmail: normalizedEmail,
@@ -995,6 +1023,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
             const syncedAttempt: ExamAttempt = {
               id: resolvedAttemptId,
               examId: serverExam.id,
+              shiftId: effectiveShiftId,
               studentCode: normalizedCode,
               studentName: input.studentName.trim(),
               studentEmail: normalizedEmail,

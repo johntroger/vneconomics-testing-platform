@@ -246,7 +246,7 @@ function buildAssignedQuestionsPhp(array $exam, array $courseQuestions, string $
             'chapterCategory' => $q['chapterCategory'],
             'orderIndex' => $idx,
             'maxPoints' => round((float) $entry['slotPoints'], 2),
-            'seedVars' => $vars,
+            'seedVars' => count($vars) > 0 ? $vars : new stdClass(),
             'renderedContent' => interpolateTemplateVars((string) $q['content'], $vars),
             'optionOrderIds' => $optOrderIds,
         ];
@@ -661,10 +661,31 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         }
 
         $examRow = null;
+        $requestedShiftId = trim((string) ($body['shiftId'] ?? ''));
+        $shiftRow = null;
+        if ($requestedShiftId !== '') {
+            $sStmt = $pdo->prepare('SELECT * FROM exam_shifts WHERE id = :sid LIMIT 1');
+            $sStmt->execute([':sid' => $requestedShiftId]);
+            $shiftRow = $sStmt->fetch() ?: null;
+            if ($shiftRow && $examIdParam === '') {
+                $examIdParam = (string) $shiftRow['exam_id'];
+            }
+        }
         if ($examIdParam !== '') {
             $stmtE = $pdo->prepare('SELECT * FROM exams WHERE id = :id LIMIT 1');
             $stmtE->execute([':id' => $examIdParam]);
             $examRow = $stmtE->fetch() ?: null;
+        }
+        if (!$examRow && $pin !== '') {
+            $sPinStmt = $pdo->prepare("SELECT * FROM exam_shifts WHERE UPPER(room_pin) = :pin ORDER BY (CASE WHEN status = 'OPEN' THEN 0 ELSE 1 END), created_at DESC LIMIT 1");
+            $sPinStmt->execute([':pin' => $pin]);
+            $pinShift = $sPinStmt->fetch() ?: null;
+            if ($pinShift) {
+                $shiftRow = $shiftRow ?: $pinShift;
+                $stmtE = $pdo->prepare('SELECT * FROM exams WHERE id = :id LIMIT 1');
+                $stmtE->execute([':id' => $pinShift['exam_id']]);
+                $examRow = $stmtE->fetch() ?: null;
+            }
         }
         if (!$examRow && $pin !== '') {
             $stmtE = $pdo->prepare('SELECT * FROM exams WHERE UPPER(room_pin) = :pin LIMIT 1');
@@ -681,11 +702,14 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         }
 
         $exam = formatExamRow($examRow, false);
-        $requestedShiftId = trim((string) ($body['shiftId'] ?? ''));
-        $shiftRow = null;
-        if ($requestedShiftId !== '') {
+        if (!$shiftRow && $requestedShiftId !== '') {
             $sStmt = $pdo->prepare('SELECT * FROM exam_shifts WHERE id = :sid AND exam_id = :eid LIMIT 1');
             $sStmt->execute([':sid' => $requestedShiftId, ':eid' => $exam['id']]);
+            $shiftRow = $sStmt->fetch() ?: null;
+        }
+        if (!$shiftRow && $pin !== '') {
+            $sStmt = $pdo->prepare("SELECT * FROM exam_shifts WHERE exam_id = :eid AND UPPER(room_pin) = :pin ORDER BY (CASE WHEN status = 'OPEN' THEN 0 ELSE 1 END), created_at DESC LIMIT 1");
+            $sStmt->execute([':eid' => $exam['id'], ':pin' => $pin]);
             $shiftRow = $sStmt->fetch() ?: null;
         }
         if (!$shiftRow) {
@@ -757,6 +781,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
                     'alreadySubmitted' => true,
                     'attemptId' => $existing['id'],
                     'examId' => $exam['id'],
+                    'shiftId' => !empty($existing['shift_id']) ? (string) $existing['shift_id'] : $resolvedShiftId,
                     'exam' => formatExamRow($examRow, true),
                     'attempt' => [
                         'id' => $existing['id'],
@@ -847,6 +872,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
                 'ok' => true,
                 'resumed' => true,
                 'attemptId' => $existing['id'],
+                'shiftId' => !empty($existing['shift_id']) ? (string) $existing['shift_id'] : $resolvedShiftId,
                 'exam' => formatExamRow($examRow, true),
                 'assignedQuestions' => $assigned,
                 'answers' => count($ansMap) > 0 ? $ansMap : new stdClass(),
@@ -871,10 +897,10 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         $qRows->execute([':cid' => $exam['courseId']]);
         $courseQuestions = array_map(static fn ($qr) => formatQuestionRow($qr, false), $qRows->fetchAll());
 
-        // Prefer client assignedQuestions if hybrid synced, otherwise compute deterministically on server
-        $assigned = !empty($body['assignedQuestions']) && is_array($body['assignedQuestions'])
-            ? $body['assignedQuestions']
-            : buildAssignedQuestionsPhp($exam, $courseQuestions, $studentCode);
+        // Always generate assignedQuestions deterministically on server when questions exist in DB
+        $assigned = count($courseQuestions) > 0
+            ? buildAssignedQuestionsPhp($exam, $courseQuestions, $studentCode)
+            : (is_array($body['assignedQuestions'] ?? null) ? $body['assignedQuestions'] : []);
 
         $maxTotal = 0.0;
         foreach ($assigned as $aSlot) {
@@ -913,6 +939,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             'ok' => true,
             'resumed' => false,
             'attemptId' => $attemptId,
+            'shiftId' => $resolvedShiftId,
             'exam' => formatExamRow($examRow, true),
             'assignedQuestions' => $assigned,
             'startedAt' => $startedAt,
@@ -1078,7 +1105,11 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         }
         $isDemoContext = (($auth['role'] ?? 'DEMO') !== 'OFFICIAL') || isDemoExamRecord($examRow);
 
+        $shiftRow = null;
         if ($shiftId !== '') {
+            $sGet = $pdo->prepare('SELECT * FROM exam_shifts WHERE id = :sid LIMIT 1');
+            $sGet->execute([':sid' => $shiftId]);
+            $shiftRow = $sGet->fetch() ?: null;
             $pdo->prepare("UPDATE exam_shifts SET status = 'CLOSED' WHERE id = :sid")->execute([':sid' => $shiftId]);
             $openStmt = $pdo->prepare("SELECT id FROM exam_attempts WHERE shift_id = :sid AND status IN ('IN_PROGRESS', 'PAUSED', 'LOCKED')");
             $openStmt->execute([':sid' => $shiftId]);
@@ -1103,9 +1134,14 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             }
         }
 
-        // Send aggregate CSV report payload prep
-        $allAttStmt = $pdo->prepare('SELECT * FROM exam_attempts WHERE exam_id = :eid ORDER BY student_code ASC');
-        $allAttStmt->execute([':eid' => $examId]);
+        // Send aggregate CSV report scoped strictly to the swept shift (or full exam if no shiftId)
+        if ($shiftId !== '') {
+            $allAttStmt = $pdo->prepare('SELECT * FROM exam_attempts WHERE shift_id = :sid ORDER BY student_code ASC');
+            $allAttStmt->execute([':sid' => $shiftId]);
+        } else {
+            $allAttStmt = $pdo->prepare('SELECT * FROM exam_attempts WHERE exam_id = :eid ORDER BY student_code ASC');
+            $allAttStmt->execute([':eid' => $examId]);
+        }
         $allAttempts = $allAttStmt->fetchAll();
 
         $instEmail = trim((string) ($examRow['instructor_email'] ?? ''));
@@ -1132,20 +1168,26 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         @ignore_user_abort(true);
         @set_time_limit(0);
 
+        $reportTitle = $shiftRow ? (string) $shiftRow['title'] : (string) $examRow['title'];
+        $reportPin = $shiftRow ? (string) $shiftRow['room_pin'] : (string) $examRow['room_pin'];
+        $reportExamMeta = $examRow;
+        $reportExamMeta['title'] = $reportTitle;
+        $reportExamMeta['room_pin'] = $reportPin;
+
         if (!$isDemoContext) {
             foreach ($emailPayloads as $ep) {
                 enqueueAndSendEmail($pdo, $ep['email'], $ep['subject'], $ep['html'], 'STUDENT_SCORE', 'Thu bài tự động (Sweeper)', null, null, true);
             }
 
             if ($instEmail !== '' && filter_var($instEmail, FILTER_VALIDATE_EMAIL)) {
-                $csv = buildInstructorCsvAttachment($examRow, $allAttempts, $pdo);
-                $csvFile = 'bao_cao_' . preg_replace('/[^a-zA-Z0-9_-]/', '', (string) $examRow['room_pin']) . '_' . date('Ymd_Hi') . '.csv';
-                $html = '<h3>Báo cáo tổng hợp kết quả ca thi: ' . htmlspecialchars((string) $examRow['title'], ENT_QUOTES, 'UTF-8') . '</h3>'
+                $csv = buildInstructorCsvAttachment($reportExamMeta, $allAttempts, $pdo);
+                $csvFile = 'bao_cao_' . preg_replace('/[^a-zA-Z0-9_-]/', '', $reportPin) . '_' . date('Ymd_Hi') . '.csv';
+                $html = '<h3>Báo cáo tổng hợp kết quả ca thi: ' . htmlspecialchars($reportTitle, ENT_QUOTES, 'UTF-8') . '</h3>'
                     . '<p>Tổng số thí sinh đã ghi nhận: <strong>' . count($allAttempts) . '</strong>. Đính kèm file CSV chuẩn UTF-8 BOM mở trực tiếp trong Excel.</p>';
                 $reportResult = enqueueAndSendEmail(
                     $pdo,
                     $instEmail,
-                    '[VNEconomics] Báo cáo tổng hợp & CSV ca thi: ' . $examRow['title'],
+                    '[VNEconomics] Báo cáo tổng hợp & CSV ca thi: ' . $reportTitle,
                     $html,
                     'INSTRUCTOR_REPORT',
                     'Tổng hợp ' . count($allAttempts) . ' thí sinh (' . count($openIds) . ' bài sweep)',
@@ -1153,16 +1195,25 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
                     $csvFile,
                     true
                 );
-                $pdo->prepare("UPDATE exams SET report_sent_status = :rs, report_sent_at = :ra WHERE id = :id")
-                    ->execute([
-                        ':rs' => ($reportResult['status'] === 'SENT' ? 'SENT' : 'FAILED'),
-                        ':ra' => nowIso(),
-                        ':id' => $examId,
-                    ]);
+                $statusVal = ($reportResult['status'] === 'SENT' ? 'SENT' : 'FAILED');
+                $nowVal = nowIso();
+                if ($shiftId !== '') {
+                    $pdo->prepare('UPDATE exam_shifts SET report_sent_status = :rs, report_sent_at = :ra WHERE id = :sid')
+                        ->execute([':rs' => $statusVal, ':ra' => $nowVal, ':sid' => $shiftId]);
+                } else {
+                    $pdo->prepare('UPDATE exams SET report_sent_status = :rs, report_sent_at = :ra WHERE id = :id')
+                        ->execute([':rs' => $statusVal, ':ra' => $nowVal, ':id' => $examId]);
+                }
             }
         } elseif ($instEmail !== '' && filter_var($instEmail, FILTER_VALIDATE_EMAIL)) {
-            $pdo->prepare("UPDATE exams SET report_sent_status = 'DEMO_SKIPPED', report_sent_at = :ra WHERE id = :id")
-                ->execute([':ra' => nowIso(), ':id' => $examId]);
+            $nowVal = nowIso();
+            if ($shiftId !== '') {
+                $pdo->prepare("UPDATE exam_shifts SET report_sent_status = 'DEMO_SKIPPED', report_sent_at = :ra WHERE id = :sid")
+                    ->execute([':ra' => $nowVal, ':sid' => $shiftId]);
+            } else {
+                $pdo->prepare("UPDATE exams SET report_sent_status = 'DEMO_SKIPPED', report_sent_at = :ra WHERE id = :id")
+                    ->execute([':ra' => $nowVal, ':id' => $examId]);
+            }
         }
         exit;
     }
