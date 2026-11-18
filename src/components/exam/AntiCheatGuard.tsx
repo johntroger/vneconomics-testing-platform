@@ -1,12 +1,17 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { AlertTriangle, EyeOff } from 'lucide-react';
+import { AlertTriangle, EyeOff, ShieldAlert } from 'lucide-react';
 import type { ViolationEvent } from '../../types/exam';
+import {
+  detectScreenshotShortcut,
+  isPreemptiveModifierKey,
+} from '../../utils/antiScreenshot';
 
 interface AntiCheatGuardProps {
   enabled: boolean;
   gracePeriodMs: number;
   isLocked: boolean;
   requireFullscreen?: boolean;
+  antiCameraIdleShield?: boolean;
   onPauseChange: (paused: boolean, awaySecondsDelta: number, reason: string) => void;
   onViolation: (event: Omit<ViolationEvent, 'id' | 'occurredAt'>) => void;
 }
@@ -16,10 +21,13 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
   gracePeriodMs,
   isLocked,
   requireFullscreen = false,
+  antiCameraIdleShield = false,
   onPauseChange,
   onViolation,
 }) => {
   const [blackout, setBlackout] = useState(false);
+  const [modifierShield, setModifierShield] = useState(false);
+  const [idleCurtain, setIdleCurtain] = useState(false);
   const [fullscreenMissing, setFullscreenMissing] = useState(false);
   const [minorNotice, setMinorNotice] = useState<string | null>(null);
   const leftAtRef = useRef<number | null>(null);
@@ -27,6 +35,8 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
   const lastInputActivityAtRef = useRef<number>(0);
   const noticeTimerRef = useRef<number | null>(null);
   const screenshotBlackoutTimerRef = useRef<number | null>(null);
+  const modifierTimerRef = useRef<number | null>(null);
+  const lastExtendedWarnAtRef = useRef<number>(0);
   const hadFullscreenRef = useRef<boolean>(false);
   const baseViewportWidthRef = useRef<number>(
     typeof window !== 'undefined' ? window.innerWidth : 390,
@@ -88,6 +98,8 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
   const handleReturnSignal = useCallback(() => {
     if (!enabled) return;
     setBlackout(false);
+    setModifierShield(false);
+    setIdleCurtain(false);
     void acquireWakeLock();
 
     if (leftAtRef.current === null) return;
@@ -216,6 +228,11 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
 
     const triggerScreenshotDeterrent = (shortcutLabel: string) => {
       setBlackout(true);
+      setModifierShield(false);
+      if (modifierTimerRef.current !== null) {
+        window.clearTimeout(modifierTimerRef.current);
+        modifierTimerRef.current = null;
+      }
       if (screenshotBlackoutTimerRef.current !== null) {
         window.clearTimeout(screenshotBlackoutTimerRef.current);
       }
@@ -224,7 +241,7 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
           setBlackout(false);
         }
         screenshotBlackoutTimerRef.current = null;
-      }, 1500);
+      }, 1800);
       try {
         if (navigator.clipboard?.writeText) {
           void navigator.clipboard.writeText('').catch(() => {});
@@ -232,33 +249,62 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
       } catch {
         // Clipboard API may not be permitted
       }
-      showQuickNotice('Phát hiện thao tác chụp màn hình — Đã ghi nhận vi phạm!', 2200);
+      showQuickNotice('Phát hiện thao tác chụp/quay màn hình — Đã ghi nhận vi phạm!', 2400);
       onViolation({
         severity: 'DEVTOOLS',
         eventType: 'SCREENSHOT_ATTEMPT',
         durationSeconds: 2,
-        detail: `Phát hiện tổ hợp phím chụp màn hình (${shortcutLabel})`,
+        detail: `Phát hiện thao tác chụp/quay màn hình (${shortcutLabel})`,
       });
     };
 
-    const isScreenshotCombo = (e: KeyboardEvent): string | null => {
-      const k = e.key.toLowerCase();
-      if (e.key === 'PrintScreen' || e.code === 'PrintScreen') {
-        return e.altKey ? 'Alt+PrintScreen' : 'PrintScreen';
+    const checkExtendedScreen = () => {
+      const screenAny = window.screen as Screen & { isExtended?: boolean };
+      if (screenAny?.isExtended === true) {
+        const now = Date.now();
+        if (now - lastExtendedWarnAtRef.current >= 45000) {
+          lastExtendedWarnAtRef.current = now;
+          showQuickNotice(
+            'Cảnh báo: Phát hiện máy tính đang kết nối 2 màn hình mở rộng!',
+            2800,
+          );
+          onViolation({
+            severity: 'DEVTOOLS',
+            eventType: 'EXTENDED_DISPLAY_DETECTED',
+            durationSeconds: 3,
+            detail: 'Phát hiện kết nối màn hình phụ thứ 2 (Dual/Extended Display) khi đang làm bài',
+          });
+        }
       }
-      if ((e.metaKey || e.ctrlKey) && e.shiftKey && ['3', '4', '5', 's'].includes(k)) {
-        return `${e.metaKey ? 'Cmd/Win' : 'Ctrl'}+Shift+${k.toUpperCase()}`;
-      }
-      return null;
+    };
+
+    const onEnterPip = () => {
+      void document.exitPictureInPicture?.().catch(() => {});
+      showQuickNotice('Chế độ Picture-in-Picture bị khóa trong giờ thi.', 1800);
     };
 
     const onKeyDown = (e: KeyboardEvent) => {
-      const shotCombo = isScreenshotCombo(e);
+      const shotCombo = detectScreenshotShortcut(e);
       if (shotCombo) {
         e.preventDefault();
         triggerScreenshotDeterrent(shotCombo);
         return;
       }
+
+      const activeTag = document.activeElement?.tagName ?? '';
+      const isTextInputFocused =
+        activeTag === 'INPUT' ||
+        activeTag === 'TEXTAREA' ||
+        Boolean((document.activeElement as HTMLElement | null)?.isContentEditable);
+
+      if (isPreemptiveModifierKey(e, isTextInputFocused)) {
+        if (modifierTimerRef.current !== null) {
+          window.clearTimeout(modifierTimerRef.current);
+          modifierTimerRef.current = null;
+        }
+        setModifierShield(true);
+      }
+
       const k = e.key.toLowerCase();
       if (
         e.key === 'F12' ||
@@ -276,10 +322,57 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
     };
 
     const onKeyUp = (e: KeyboardEvent) => {
-      if (e.key === 'PrintScreen' || e.code === 'PrintScreen') {
-        triggerScreenshotDeterrent('PrintScreen');
+      const shotUp = detectScreenshotShortcut(e);
+      if (shotUp) {
+        triggerScreenshotDeterrent(shotUp);
+        return;
+      }
+      if (!e.metaKey && !e.ctrlKey && !e.altKey) {
+        if (modifierTimerRef.current !== null) {
+          window.clearTimeout(modifierTimerRef.current);
+        }
+        modifierTimerRef.current = window.setTimeout(() => {
+          setModifierShield(false);
+          modifierTimerRef.current = null;
+        }, 250);
       }
     };
+
+    // Lock Web Screen Capture / Recording API (getDisplayMedia) during active exam
+    type MediaDevicesWithDisplay = MediaDevices & {
+      getDisplayMedia?: (constraints?: unknown) => Promise<MediaStream>;
+    };
+    const mediaDevices = navigator.mediaDevices as MediaDevicesWithDisplay | undefined;
+    let origGetDisplayMedia: ((constraints?: unknown) => Promise<MediaStream>) | undefined;
+    let patchedGetDisplayMedia = false;
+
+    if (mediaDevices && typeof mediaDevices.getDisplayMedia === 'function') {
+      origGetDisplayMedia = mediaDevices.getDisplayMedia;
+      const blockedGetDisplayMedia = () => {
+        triggerScreenshotDeterrent('ScreenCapture/getDisplayMedia');
+        return Promise.reject(
+          new DOMException(
+            'Screen capture is disabled during the exam.',
+            'NotAllowedError',
+          ),
+        );
+      };
+      try {
+        Object.defineProperty(mediaDevices, 'getDisplayMedia', {
+          configurable: true,
+          writable: true,
+          value: blockedGetDisplayMedia,
+        });
+        patchedGetDisplayMedia = true;
+      } catch {
+        try {
+          mediaDevices.getDisplayMedia = blockedGetDisplayMedia;
+          patchedGetDisplayMedia = true;
+        } catch {
+          // Non-writable property in strict browser environments
+        }
+      }
+    }
 
     const canFullscreen =
       requireFullscreen &&
@@ -314,50 +407,139 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
       setFullscreenMissing(false);
     }
 
+    checkExtendedScreen();
+    const screenTarget = window.screen as unknown as EventTarget | undefined;
+    screenTarget?.addEventListener?.('change', checkExtendedScreen);
+
+    const onWindowResize = () => {
+      onResizeCheckSplit();
+      checkExtendedScreen();
+    };
+
     document.addEventListener('focusin', onInputFocusChange);
     document.addEventListener('focusout', onInputFocusChange);
     document.addEventListener('visibilitychange', onVisibilityChange);
     window.addEventListener('blur', onBlur);
     window.addEventListener('focus', onFocus);
     window.addEventListener('pagehide', onPageHide);
-    window.visualViewport?.addEventListener('resize', onResizeCheckSplit);
+    window.visualViewport?.addEventListener('resize', onWindowResize);
+    window.addEventListener('resize', checkExtendedScreen);
     window.addEventListener('popstate', onPopState);
     document.addEventListener('contextmenu', blockAction);
     document.addEventListener('copy', blockAction);
     document.addEventListener('cut', blockAction);
     document.addEventListener('dragstart', blockAction);
     document.addEventListener('fullscreenchange', syncFullscreenState);
-    window.addEventListener('keydown', onKeyDown);
-    window.addEventListener('keyup', onKeyUp);
+    document.addEventListener('enterpictureinpicture', onEnterPip);
+    window.addEventListener('keydown', onKeyDown, true);
+    window.addEventListener('keyup', onKeyUp, true);
 
     return () => {
       if (screenshotBlackoutTimerRef.current !== null) {
         window.clearTimeout(screenshotBlackoutTimerRef.current);
         screenshotBlackoutTimerRef.current = null;
       }
+      if (modifierTimerRef.current !== null) {
+        window.clearTimeout(modifierTimerRef.current);
+        modifierTimerRef.current = null;
+      }
+      if (patchedGetDisplayMedia && mediaDevices && origGetDisplayMedia) {
+        try {
+          Object.defineProperty(mediaDevices, 'getDisplayMedia', {
+            configurable: true,
+            writable: true,
+            value: origGetDisplayMedia,
+          });
+        } catch {
+          try {
+            mediaDevices.getDisplayMedia = origGetDisplayMedia;
+          } catch {
+            // Ignore restore errors on teardown
+          }
+        }
+      }
+      screenTarget?.removeEventListener?.('change', checkExtendedScreen);
       document.removeEventListener('focusin', onInputFocusChange);
       document.removeEventListener('focusout', onInputFocusChange);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('blur', onBlur);
       window.removeEventListener('focus', onFocus);
       window.removeEventListener('pagehide', onPageHide);
-      window.visualViewport?.removeEventListener('resize', onResizeCheckSplit);
+      window.visualViewport?.removeEventListener('resize', onWindowResize);
+      window.removeEventListener('resize', checkExtendedScreen);
       window.removeEventListener('popstate', onPopState);
       document.removeEventListener('contextmenu', blockAction);
       document.removeEventListener('copy', blockAction);
       document.removeEventListener('cut', blockAction);
       document.removeEventListener('dragstart', blockAction);
       document.removeEventListener('fullscreenchange', syncFullscreenState);
-      window.removeEventListener('keydown', onKeyDown);
-      window.removeEventListener('keyup', onKeyUp);
+      document.removeEventListener('enterpictureinpicture', onEnterPip);
+      window.removeEventListener('keydown', onKeyDown, true);
+      window.removeEventListener('keyup', onKeyUp, true);
     };
   }, [enabled, handleLeaveSignal, handleReturnSignal, onViolation, requireFullscreen, showQuickNotice]);
 
+  // Auto-blur question surface after 12s of no pointer/touch/keyboard interaction when antiCameraIdleShield is active
+  useEffect(() => {
+    if (!enabled || isLocked || !antiCameraIdleShield) {
+      setIdleCurtain(false);
+      return;
+    }
+
+    const IDLE_SHIELD_MS = 12000;
+    let timerId: number | null = null;
+
+    const scheduleIdle = () => {
+      if (timerId !== null) {
+        window.clearTimeout(timerId);
+      }
+      timerId = window.setTimeout(() => {
+        const activeTag = document.activeElement?.tagName ?? '';
+        if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') {
+          scheduleIdle();
+          return;
+        }
+        if (!document.hidden) {
+          setIdleCurtain(true);
+        }
+      }, IDLE_SHIELD_MS);
+    };
+
+    const onActivity = () => {
+      setIdleCurtain(false);
+      scheduleIdle();
+    };
+
+    scheduleIdle();
+    window.addEventListener('pointerdown', onActivity, true);
+    window.addEventListener('pointermove', onActivity, true);
+    window.addEventListener('touchstart', onActivity, true);
+    window.addEventListener('touchmove', onActivity, true);
+    window.addEventListener('wheel', onActivity, true);
+    window.addEventListener('keydown', onActivity, true);
+    window.addEventListener('input', onActivity, true);
+
+    return () => {
+      if (timerId !== null) {
+        window.clearTimeout(timerId);
+      }
+      window.removeEventListener('pointerdown', onActivity, true);
+      window.removeEventListener('pointermove', onActivity, true);
+      window.removeEventListener('touchstart', onActivity, true);
+      window.removeEventListener('touchmove', onActivity, true);
+      window.removeEventListener('wheel', onActivity, true);
+      window.removeEventListener('keydown', onActivity, true);
+      window.removeEventListener('input', onActivity, true);
+    };
+  }, [antiCameraIdleShield, enabled, isLocked]);
+
   if (!enabled) return null;
+
+  const isBlackoutActive = blackout || modifierShield;
 
   return (
     <>
-      {fullscreenMissing && !blackout && (
+      {fullscreenMissing && !isBlackoutActive && (
         <div className="fixed inset-0 z-[85] bg-ink-900/90 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center text-white select-none">
           <div className="w-16 h-16 rounded-2xl bg-white/10 flex items-center justify-center mb-4">
             <AlertTriangle className="w-8 h-8 text-amber-300" />
@@ -377,7 +559,27 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
           </button>
         </div>
       )}
-      {blackout && (
+
+      {idleCurtain && !isBlackoutActive && !fullscreenMissing && (
+        <div
+          onClick={() => setIdleCurtain(false)}
+          onTouchStart={() => setIdleCurtain(false)}
+          className="fixed inset-0 z-[80] bg-ink-900/80 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center text-white select-none cursor-pointer"
+        >
+          <div className="w-14 h-14 rounded-2xl bg-white/10 flex items-center justify-center mb-3">
+            <ShieldAlert className="w-7 h-7 text-amber-300" />
+          </div>
+          <h2 className="text-lg font-bold mb-1.5">Tạm che đề do không có tương tác</h2>
+          <p className="text-xs sm:text-sm text-slate-200 max-w-sm leading-relaxed">
+            Chế độ bảo vệ chống chụp ảnh đề thi: Chạm vào màn hình hoặc di chuột để tiếp tục xem câu hỏi.
+          </p>
+          <span className="mt-4 inline-flex px-4 py-2 rounded-xl bg-brand-600 text-xs font-bold">
+            Chạm để hiện lại câu hỏi (Không tính vi phạm)
+          </span>
+        </div>
+      )}
+
+      {isBlackoutActive && (
         <div
           aria-hidden="true"
           onClick={handleReturnSignal}
@@ -389,7 +591,9 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
           </div>
           <h2 className="text-xl font-bold mb-2">Đề thi đã được ẩn bảo vệ tức thì</h2>
           <p className="text-sm text-slate-300 max-w-xs leading-relaxed">
-            Hệ thống phát hiện màn hình vừa mất focus hoặc bị chuyển đổi. Vui lòng quay lại màn hình thi ngay.
+            {modifierShield && !blackout
+              ? 'Hệ thống đang chặn tổ hợp phím điều khiển/chụp màn hình. Vui lòng thả phím để làm bài tiếp.'
+              : 'Hệ thống phát hiện màn hình vừa mất focus hoặc có thao tác chụp/quay màn hình. Vui lòng quay lại bài thi.'}
           </p>
           <p className="text-xs text-amber-300 font-semibold mt-4">
             Chạm vào màn hình nếu bạn đã quay lại bài thi
@@ -397,7 +601,7 @@ export const AntiCheatGuard: React.FC<AntiCheatGuardProps> = ({
         </div>
       )}
 
-      {minorNotice && !blackout && (
+      {minorNotice && !isBlackoutActive && (
         <div className="fixed top-14 left-1/2 -translate-x-1/2 z-[65] w-auto max-w-[92%] sm:max-w-sm bg-ink-900/95 text-white text-[11px] font-medium px-3 py-1.5 rounded-full shadow-lg flex items-center gap-2 pointer-events-none animate-fadeIn">
           <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0" />
           <span className="truncate">{minorNotice}</span>

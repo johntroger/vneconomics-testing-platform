@@ -2228,11 +2228,11 @@ export const AdminDashboardPage: React.FC = () => {
                           })
                         }
                       />
-                      <span>Canvas Chống OCR</span>
+                      <span>Chống chụp màn hình &amp; Canvas Anti-OCR</span>
                       <InfoHint
-                        title="Chống bôi đen copy & Chống phần mềm quét chữ (Anti-OCR)"
+                        title="Chống chụp màn hình, Anti-OCR & Truy vết thủy vân vi điểm"
                         text={
-                          '• Biến nội dung câu hỏi thành khung ảnh vẽ có vân bảo vệ.\n• Giúp sinh viên không thể bôi đen copy chữ sang Google/ChatGPT và làm nhiễu phần mềm quét chữ tự động (OCR).'
+                          '• Vẽ câu hỏi lẫn các phương án trả lời lên ảnh Canvas kèm lưới nhiễu Moiré và thủy vân vi điểm 2 lớp chống cắt ảnh.\n• Tự động khóa hiển thị 1 câu/màn hình để chặn chụp cuộn toàn đề, che đen đón đầu tổ hợp phím chụp ảnh (Win+Shift+S, Cmd+Shift+4), chặn API chia sẻ màn hình và tự làm mờ câu hỏi sau 12 giây không tương tác.'
                         }
                       />
                     </label>

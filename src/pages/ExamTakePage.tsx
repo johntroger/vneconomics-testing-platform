@@ -18,6 +18,10 @@ import { PauseWarningModal } from '../components/exam/PauseWarningModal';
 import { QuestionRenderer } from '../components/exam/QuestionRenderer';
 import { useExamPlatform } from '../context/ExamContext';
 import type { KeystrokeTelemetry, ViolationEvent } from '../types/exam';
+import {
+  computeForensicCode,
+  shouldLockSingleQuestionViewport,
+} from '../utils/antiScreenshot';
 
 function isAnswerPayloadFilled(payload: unknown): boolean {
   if (typeof payload === 'string') return payload.trim().length > 0;
@@ -201,7 +205,15 @@ export const ExamTakePage: React.FC = () => {
     }
   };
 
-  const effectiveViewMode: 'ONE' | 'TEN' | 'ALL' = exam.oneWayMode ? 'ONE' : viewMode;
+  const forensicCode = computeForensicCode(
+    attempt.studentCode,
+    attempt.id,
+    attempt.deviceToken,
+  );
+  const singleQuestionLocked = shouldLockSingleQuestionViewport(exam);
+  const effectiveViewMode: 'ONE' | 'TEN' | 'ALL' = singleQuestionLocked
+    ? 'ONE'
+    : viewMode;
   const totalQuestions = attempt.assignedQuestions.length;
   const pageSize = 10;
   const currentPage = Math.floor(currentIndex / pageSize);
@@ -238,11 +250,12 @@ export const ExamTakePage: React.FC = () => {
     : attempt.lockedWaitSeconds;
 
   return (
-    <div className="h-[100dvh] flex flex-col bg-surface-100 overflow-hidden relative select-none">
+    <div className="h-[100dvh] flex flex-col bg-surface-100 overflow-hidden relative select-none exam-secure-surface">
       <DynamicWatermark
         studentCode={attempt.studentCode}
         studentName={attempt.studentName}
         deviceToken={attempt.deviceToken}
+        attemptId={attempt.id}
       />
 
       <AntiCheatGuard
@@ -250,6 +263,7 @@ export const ExamTakePage: React.FC = () => {
         gracePeriodMs={exam.gracePeriodMs}
         isLocked={isLocked}
         requireFullscreen={Boolean(exam.requireFullscreen)}
+        antiCameraIdleShield={Boolean(exam.canvasAntiOcr)}
         onPauseChange={handlePauseChange}
         onViolation={handleViolation}
       />
@@ -322,8 +336,22 @@ export const ExamTakePage: React.FC = () => {
         </div>
       </header>
 
-      {/* View Mode Switcher Bar (1 câu / 10 câu / Tất cả) */}
-      {!exam.oneWayMode && (
+      {/* View Mode Switcher Bar (Locked to 1-per-screen when canvasAntiOcr is enabled to block scrolling screenshots) */}
+      {!exam.oneWayMode && exam.canvasAntiOcr ? (
+        <div className="bg-slate-50 border-b border-slate-200 px-2.5 sm:px-4 py-1.5 flex items-center justify-between gap-2 text-[11px] z-30 shrink-0">
+          <span className="font-semibold text-ink-700 truncate">
+            Chế độ Chống chụp toàn đề: Hiển thị 1 câu/màn hình • Thủy vân{' '}
+            <span className="font-mono text-brand-700">#{forensicCode}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setGridOpen(true)}
+            className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-brand-300 font-bold text-brand-700 shrink-0 whitespace-nowrap"
+          >
+            Bảng câu hỏi ({answeredCount}/{totalQuestions})
+          </button>
+        </div>
+      ) : !exam.oneWayMode ? (
         <div className="bg-slate-50 border-b border-slate-200 px-2.5 sm:px-4 py-1.5 flex items-center justify-between gap-2 z-30 shrink-0">
           <span className="text-[11px] font-semibold text-ink-600 hidden sm:inline">
             Chế độ hiển thị:
@@ -359,7 +387,7 @@ export const ExamTakePage: React.FC = () => {
             </span>
           )}
         </div>
-      )}
+      ) : null}
 
       {/* One-way micro-timer bar */}
       {exam.oneWayMode && (
@@ -421,6 +449,7 @@ export const ExamTakePage: React.FC = () => {
                   fontSizePx={fontSizePx}
                   canvasAntiOcr={exam.canvasAntiOcr}
                   watermarkLabel={`${attempt.studentCode} - ${attempt.studentName}`}
+                  forensicCode={forensicCode}
                   onChange={(payload, telemetry) =>
                     handleQuestionAnswerChange(qObj, idx, payload, telemetry)
                   }

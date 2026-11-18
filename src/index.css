@@ -79,3 +79,15 @@
     color: #0f172a;
   }
 }
+
+.exam-secure-surface {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.exam-secure-surface input,
+.exam-secure-surface textarea {
+  -webkit-user-select: text;
+  user-select: text;
+}

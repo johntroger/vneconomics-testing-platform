@@ -15,6 +15,7 @@ interface QuestionRendererProps {
   fontSizePx: number;
   canvasAntiOcr: boolean;
   watermarkLabel: string;
+  forensicCode?: string;
   onChange: (
     payload: string | string[] | Record<string, boolean>,
     telemetry?: KeystrokeTelemetry,
@@ -28,8 +29,12 @@ export const QuestionRenderer: React.FC<QuestionRendererProps> = ({
   fontSizePx,
   canvasAntiOcr,
   watermarkLabel,
+  forensicCode,
   onChange,
 }) => {
+  const inlineWatermark = forensicCode
+    ? `${watermarkLabel} • #${forensicCode}`
+    : watermarkLabel;
   const [pasteNotice, setPasteNotice] = useState(false);
   const startTypingAtRef = useRef<number | null>(null);
   const prevLenRef = useRef<number>(typeof value === 'string' ? value.length : 0);
@@ -146,13 +151,13 @@ export const QuestionRenderer: React.FC<QuestionRendererProps> = ({
       ) : canvasAntiOcr ? (
         <CanvasQuestionView
           text={snapshot.renderedContent}
-          watermark={watermarkLabel}
+          watermark={inlineWatermark}
           fontSizePx={fontSizePx}
         />
       ) : (
         <div
           style={{ fontSize: `${fontSizePx}px` }}
-          className="font-semibold text-ink-900 leading-relaxed select-none"
+          className="relative font-semibold text-ink-900 leading-relaxed select-none"
         >
           {snapshot.renderedContent}
         </div>
@@ -176,14 +181,20 @@ export const QuestionRenderer: React.FC<QuestionRendererProps> = ({
                 key={opt.id}
                 type="button"
                 onClick={() => onChange(opt.id)}
-                className={`w-full min-h-[54px] text-left p-3.5 rounded-xl border-2 transition flex items-start gap-3 active:scale-[0.99] ${
+                className={`relative overflow-hidden w-full min-h-[54px] text-left p-3.5 rounded-xl border-2 transition flex items-start gap-3 active:scale-[0.99] ${
                   selected
                     ? 'border-brand-600 bg-brand-50/70 text-ink-900 shadow-sm'
                     : 'border-slate-200 bg-white text-ink-800 hover:border-brand-300'
                 }`}
               >
                 <span
-                  className={`w-7 h-7 rounded-lg font-mono text-xs font-bold flex items-center justify-center shrink-0 mt-0.5 ${
+                  aria-hidden="true"
+                  className="pointer-events-none select-none absolute inset-0 flex items-center justify-end pr-3 opacity-[0.045] text-[10px] font-mono font-bold text-ink-900 -rotate-2 truncate"
+                >
+                  {inlineWatermark}
+                </span>
+                <span
+                  className={`relative z-10 w-7 h-7 rounded-lg font-mono text-xs font-bold flex items-center justify-center shrink-0 mt-0.5 ${
                     selected
                       ? 'bg-brand-600 text-white'
                       : 'bg-slate-100 text-ink-700'
@@ -191,9 +202,20 @@ export const QuestionRenderer: React.FC<QuestionRendererProps> = ({
                 >
                   {letter}
                 </span>
-                <span className="text-sm sm:text-[15px] leading-snug font-medium">
-                  {opt.text}
-                </span>
+                <div className="relative z-10 min-w-0 flex-1">
+                  {canvasAntiOcr ? (
+                    <CanvasQuestionView
+                      text={opt.text}
+                      watermark={inlineWatermark}
+                      fontSizePx={Math.max(13, fontSizePx - 1)}
+                      compact
+                    />
+                  ) : (
+                    <span className="block text-sm sm:text-[15px] leading-snug font-medium">
+                      {opt.text}
+                    </span>
+                  )}
+                </div>
               </button>
             );
           })}
@@ -220,20 +242,37 @@ export const QuestionRenderer: React.FC<QuestionRendererProps> = ({
                 key={opt.id}
                 type="button"
                 onClick={toggle}
-                className={`w-full min-h-[54px] text-left p-3.5 rounded-xl border-2 transition flex items-start gap-3 ${
+                className={`relative overflow-hidden w-full min-h-[54px] text-left p-3.5 rounded-xl border-2 transition flex items-start gap-3 ${
                   checked
                     ? 'border-brand-600 bg-brand-50/70 text-ink-900'
                     : 'border-slate-200 bg-white text-ink-800 hover:border-brand-300'
                 }`}
               >
-                {checked ? (
-                  <CheckSquare className="w-5 h-5 text-brand-600 shrink-0 mt-0.5" />
-                ) : (
-                  <Square className="w-5 h-5 text-slate-400 shrink-0 mt-0.5" />
-                )}
-                <span className="text-sm sm:text-[15px] leading-snug font-medium">
-                  {opt.text}
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none select-none absolute inset-0 flex items-center justify-end pr-3 opacity-[0.045] text-[10px] font-mono font-bold text-ink-900 -rotate-2 truncate"
+                >
+                  {inlineWatermark}
                 </span>
+                {checked ? (
+                  <CheckSquare className="relative z-10 w-5 h-5 text-brand-600 shrink-0 mt-0.5" />
+                ) : (
+                  <Square className="relative z-10 w-5 h-5 text-slate-400 shrink-0 mt-0.5" />
+                )}
+                <div className="relative z-10 min-w-0 flex-1">
+                  {canvasAntiOcr ? (
+                    <CanvasQuestionView
+                      text={opt.text}
+                      watermark={inlineWatermark}
+                      fontSizePx={Math.max(13, fontSizePx - 1)}
+                      compact
+                    />
+                  ) : (
+                    <span className="block text-sm sm:text-[15px] leading-snug font-medium">
+                      {opt.text}
+                    </span>
+                  )}
+                </div>
               </button>
             );
           })}
@@ -255,15 +294,34 @@ export const QuestionRenderer: React.FC<QuestionRendererProps> = ({
             return (
               <div
                 key={item.id}
-                className="p-3.5 rounded-xl border border-slate-200 bg-white space-y-2.5"
+                className="relative overflow-hidden p-3.5 rounded-xl border border-slate-200 bg-white space-y-2.5"
               >
-                <p className="text-sm font-medium text-ink-900 leading-snug">
-                  <span className="font-mono font-bold text-brand-600 mr-1.5">
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none select-none absolute inset-x-0 top-2 flex justify-end pr-3 opacity-[0.045] text-[10px] font-mono font-bold text-ink-900 truncate"
+                >
+                  {inlineWatermark}
+                </span>
+                <div className="relative z-10 flex items-start gap-1.5">
+                  <span className="font-mono font-bold text-brand-600 text-sm pt-0.5 shrink-0">
                     {String.fromCharCode(97 + idx)})
                   </span>
-                  {item.statement}
-                </p>
-                <div className="grid grid-cols-2 gap-2">
+                  <div className="min-w-0 flex-1">
+                    {canvasAntiOcr ? (
+                      <CanvasQuestionView
+                        text={item.statement}
+                        watermark={inlineWatermark}
+                        fontSizePx={Math.max(13, fontSizePx - 1)}
+                        compact
+                      />
+                    ) : (
+                      <p className="text-sm font-medium text-ink-900 leading-snug">
+                        {item.statement}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <div className="relative z-10 grid grid-cols-2 gap-2">
                   <button
                     type="button"
                     onClick={() => setItem(true)}
