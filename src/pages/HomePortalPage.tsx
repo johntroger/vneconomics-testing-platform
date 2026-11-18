@@ -464,7 +464,7 @@ export const HomePortalPage: React.FC = () => {
                   <div className="flex flex-wrap items-center gap-1.5 mt-2">
                     <span className="text-[11px] text-ink-500">Phòng thi mở mẫu:</span>
                     {exams
-                      .filter((ex) => ex.status === 'OPEN')
+                      .filter((ex) => ex.status === 'OPEN' || ex.status === 'WAITING')
                       .map((ex) => (
                         <button
                           key={ex.id}
@@ -477,6 +477,7 @@ export const HomePortalPage: React.FC = () => {
                           }`}
                         >
                           {ex.roomPin}
+                          {ex.status === 'WAITING' ? ' (Phòng chờ)' : ''}
                         </button>
                       ))}
                   </div>
@@ -505,7 +506,13 @@ export const HomePortalPage: React.FC = () => {
                             {m.courseCode ? `${m.courseCode} — ${m.courseName}` : m.courseId}
                           </div>
                           <div className="text-[11px] opacity-90">
-                            {m.examTitle} ({m.durationMinutes} phút • {m.status === 'OPEN' ? 'Đang mở' : m.status})
+                            {m.examTitle} ({m.durationMinutes} phút •{' '}
+                            {m.status === 'WAITING'
+                              ? 'Đang mở Phòng chờ'
+                              : m.status === 'OPEN'
+                                ? 'Đang mở thi'
+                                : m.status}
+                            )
                           </div>
                         </button>
                       ))}

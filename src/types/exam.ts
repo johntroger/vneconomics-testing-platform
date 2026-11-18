@@ -152,7 +152,7 @@ export interface Exam {
   rosterEntries?: StudentRosterEntry[];
   requiresWhitelist?: boolean;
   requiresRosterVerification?: boolean;
-  status: 'DRAFT' | 'OPEN' | 'CLOSED';
+  status: 'DRAFT' | 'WAITING' | 'OPEN' | 'CLOSED';
   lateEntryMinutes?: number;
   scheduledStartAt?: string;
   scheduledEndAt?: string;
@@ -168,7 +168,7 @@ export interface ExamShift {
   title: string;
   roomPin: string;
   unlockPin: string;
-  status: 'DRAFT' | 'OPEN' | 'CLOSED';
+  status: 'DRAFT' | 'WAITING' | 'OPEN' | 'CLOSED';
   lateEntryMinutes?: number;
   scheduledStartAt?: string;
   scheduledEndAt?: string;

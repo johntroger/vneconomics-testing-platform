@@ -258,6 +258,26 @@ function fetchScopedData(PDO $pdo, array $auth): array
     ];
 }
 
+/**
+ * Resets started_at to the official release timestamp for waiting-room attempts
+ * that have zero answers and zero violations when transitioning into OPEN.
+ */
+function resetUntouchedWaitingRoomClocks(PDO $pdo, string $scopeCol, string $scopeId): void
+{
+    if (!in_array($scopeCol, ['exam_id', 'shift_id'], true) || $scopeId === '') {
+        return;
+    }
+    $pdo->prepare(
+        "UPDATE exam_attempts SET started_at = :now
+         WHERE {$scopeCol} = :sid
+           AND status = 'IN_PROGRESS'
+           AND leave_count = 0
+           AND minor_blur_count = 0
+           AND total_away_seconds = 0
+           AND NOT EXISTS (SELECT 1 FROM attempt_answers aa WHERE aa.attempt_id = exam_attempts.id)"
+    )->execute([':now' => nowIso(), ':sid' => $scopeId]);
+}
+
 if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) === __FILE__) {
     applyCorsHeaders();
     $pdo = getDb();
@@ -287,7 +307,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         $demoPins = ['101202', '202303', '303404'];
         $shiftStmt = $requestedExamId !== ''
             ? $pdo->prepare('SELECT * FROM exam_shifts WHERE UPPER(room_pin) = :pin AND exam_id = :eid LIMIT 1')
-            : $pdo->prepare("SELECT * FROM exam_shifts WHERE UPPER(room_pin) = :pin ORDER BY (CASE WHEN status = 'OPEN' THEN 0 ELSE 1 END), created_at DESC");
+            : $pdo->prepare("SELECT * FROM exam_shifts WHERE UPPER(room_pin) = :pin ORDER BY (CASE WHEN status IN ('OPEN', 'WAITING') THEN 0 ELSE 1 END), created_at DESC");
         $shiftStmt->execute($requestedExamId !== '' ? [':pin' => $pin, ':eid' => $requestedExamId] : [':pin' => $pin]);
         $shiftRows = $shiftStmt->fetchAll();
         $activeShift = $shiftRows[0] ?? null;
@@ -313,7 +333,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
                 $stmt = $pdo->prepare('SELECT e.*, c.code AS course_code, c.name AS course_name FROM exams e LEFT JOIN courses c ON c.id = e.course_id WHERE UPPER(e.room_pin) = :pin AND e.id = :eid LIMIT 1');
                 $stmt->execute([':pin' => $pin, ':eid' => $requestedExamId]);
             } else {
-                $stmt = $pdo->prepare("SELECT e.*, c.code AS course_code, c.name AS course_name FROM exams e LEFT JOIN courses c ON c.id = e.course_id WHERE UPPER(e.room_pin) = :pin ORDER BY (CASE WHEN e.status = 'OPEN' THEN 0 ELSE 1 END), e.created_at DESC");
+                $stmt = $pdo->prepare("SELECT e.*, c.code AS course_code, c.name AS course_name FROM exams e LEFT JOIN courses c ON c.id = e.course_id WHERE UPPER(e.room_pin) = :pin ORDER BY (CASE WHEN e.status IN ('OPEN', 'WAITING') THEN 0 ELSE 1 END), e.created_at DESC");
                 $stmt->execute([':pin' => $pin]);
             }
             $rows = $stmt->fetchAll();
@@ -322,11 +342,11 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
 
         if (!$row && in_array($pin, $demoPins, true) && $requestedExamId === '') {
             seedDefaultEconomicsData($pdo, true);
-            $stmt = $pdo->prepare("SELECT e.*, c.code AS course_code, c.name AS course_name FROM exams e LEFT JOIN courses c ON c.id = e.course_id WHERE UPPER(e.room_pin) = :pin ORDER BY (CASE WHEN e.status = 'OPEN' THEN 0 ELSE 1 END), e.created_at DESC");
+            $stmt = $pdo->prepare("SELECT e.*, c.code AS course_code, c.name AS course_name FROM exams e LEFT JOIN courses c ON c.id = e.course_id WHERE UPPER(e.room_pin) = :pin ORDER BY (CASE WHEN e.status IN ('OPEN', 'WAITING') THEN 0 ELSE 1 END), e.created_at DESC");
             $stmt->execute([':pin' => $pin]);
             $rows = $stmt->fetchAll();
             $row = $rows[0] ?? false;
-        } elseif ($row && in_array($pin, $demoPins, true) && (string) ($row['owner_id'] ?? '') === 'SYSTEM_DEMO' && (string) ($row['status'] ?? '') !== 'OPEN') {
+        } elseif ($row && in_array($pin, $demoPins, true) && (string) ($row['owner_id'] ?? '') === 'SYSTEM_DEMO' && !in_array((string) ($row['status'] ?? ''), ['OPEN', 'WAITING'], true)) {
             if ($activeShift) {
                 $pdo->prepare("UPDATE exam_shifts SET status = 'OPEN', report_sent_status = 'PENDING', report_sent_at = NULL WHERE id = :id")
                     ->execute([':id' => $activeShift['id']]);
@@ -623,18 +643,25 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             jsonError('Thiếu courseId, tiêu đề kỳ thi hoặc roomPin.', 400);
         }
 
-        $exists = $pdo->prepare('SELECT owner_id FROM exams WHERE id = :id LIMIT 1');
+        $exists = $pdo->prepare('SELECT owner_id, status FROM exams WHERE id = :id LIMIT 1');
         $exists->execute([':id' => $id]);
-        $existingOwner = $exists->fetchColumn();
-        $isUpdate = ($existingOwner !== false);
+        $existingExamRow = $exists->fetch();
+        $isUpdate = ($existingExamRow !== false);
+        $existingOwner = $isUpdate ? (string) ($existingExamRow['owner_id'] ?? '') : '';
+        $prevExamStatus = $isUpdate ? (string) ($existingExamRow['status'] ?? 'DRAFT') : 'DRAFT';
 
-        if ($isUpdate && !$isMaster && (string) $existingOwner !== $actorId) {
+        if ($isUpdate && !$isMaster && $existingOwner !== $actorId) {
             jsonError('Bạn không thể chỉnh sửa trực tiếp đề thi mẫu hoặc đề của giảng viên khác. Hãy dùng "Nhân bản ca (Clone Ca)" hoặc "Tạo Đề thi mới".', 403);
         }
 
         $instEmail = trim((string) ($body['instructorEmail'] ?? ''));
         if ($instEmail === '') {
             $instEmail = (string) ($official['email'] ?? '');
+        }
+
+        $requestedStatus = strtoupper(trim((string) ($body['status'] ?? 'DRAFT')));
+        if (!in_array($requestedStatus, ['DRAFT', 'WAITING', 'OPEN', 'CLOSED'], true)) {
+            $requestedStatus = 'DRAFT';
         }
 
         $params = [
@@ -661,7 +688,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             ':email_delivery_mode' => (string) ($body['emailDeliveryMode'] ?? 'IMMEDIATE'),
             ':roster_whitelist_json' => json_encode($body['rosterWhitelist'] ?? [], JSON_UNESCAPED_UNICODE),
             ':roster_entries_json' => json_encode($body['rosterEntries'] ?? [], JSON_UNESCAPED_UNICODE),
-            ':status' => (string) ($body['status'] ?? 'DRAFT'),
+            ':status' => $requestedStatus,
             ':late_entry_minutes' => max(0, (int) ($body['lateEntryMinutes'] ?? 0)),
             ':scheduled_start_at' => trim((string) ($body['scheduledStartAt'] ?? '')) ?: null,
             ':scheduled_end_at' => trim((string) ($body['scheduledEndAt'] ?? '')) ?: null,
@@ -690,6 +717,10 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             } else {
                 jsonError('Lỗi lưu đề thi (DB): ' . $e->getMessage(), 500);
             }
+        }
+
+        if ($isUpdate && $prevExamStatus !== 'OPEN' && $requestedStatus === 'OPEN') {
+            resetUntouchedWaitingRoomClocks($pdo, 'exam_id', $id);
         }
 
         $row = $pdo->prepare('SELECT * FROM exams WHERE id = :id');
@@ -753,12 +784,27 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
     }
 
     if ($action === 'update_exam_status') {
+        $official = requireOfficialInstructor();
         $examId = trim((string) ($body['examId'] ?? ''));
         $status = strtoupper(trim((string) ($body['status'] ?? '')));
-        if (!in_array($status, ['DRAFT', 'OPEN', 'CLOSED'], true)) {
+        if (!in_array($status, ['DRAFT', 'WAITING', 'OPEN', 'CLOSED'], true)) {
             jsonError('Trạng thái kỳ thi không hợp lệ.', 400);
         }
+        $prevStmt = $pdo->prepare('SELECT owner_id, status FROM exams WHERE id = :id LIMIT 1');
+        $prevStmt->execute([':id' => $examId]);
+        $prevRow = $prevStmt->fetch();
+        if (!$prevRow) {
+            jsonError('Không tìm thấy đề thi.', 404);
+        }
+        $actorId = (string) $official['instructorId'];
+        if ($actorId !== 'MASTER_ADMIN' && (string) ($prevRow['owner_id'] ?? '') !== $actorId) {
+            jsonError('Không có quyền thay đổi trạng thái đề thi của giảng viên khác.', 403);
+        }
+        $prevStatus = (string) ($prevRow['status'] ?? 'DRAFT');
         $pdo->prepare('UPDATE exams SET status = :st WHERE id = :id')->execute([':st' => $status, ':id' => $examId]);
+        if ($prevStatus !== 'OPEN' && $status === 'OPEN') {
+            resetUntouchedWaitingRoomClocks($pdo, 'exam_id', $examId);
+        }
         jsonResponse(['ok' => true, 'examId' => $examId, 'status' => $status]);
     }
 
@@ -926,12 +972,19 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             jsonError('Không có quyền tạo/sửa ca thi cho đề của giảng viên khác.', 403);
         }
 
-        $chk = $pdo->prepare('SELECT owner_id FROM exam_shifts WHERE id = :id LIMIT 1');
+        $chk = $pdo->prepare('SELECT owner_id, status FROM exam_shifts WHERE id = :id LIMIT 1');
         $chk->execute([':id' => $id]);
-        $existingOwner = $chk->fetchColumn();
-        $isUpdate = ($existingOwner !== false);
-        if ($isUpdate && !$isMaster && (string) $existingOwner !== $actorId) {
+        $existingShiftRow = $chk->fetch();
+        $isUpdate = ($existingShiftRow !== false);
+        $existingOwner = $isUpdate ? (string) ($existingShiftRow['owner_id'] ?? '') : '';
+        $prevShiftStatus = $isUpdate ? (string) ($existingShiftRow['status'] ?? 'DRAFT') : 'DRAFT';
+        if ($isUpdate && !$isMaster && $existingOwner !== $actorId) {
             jsonError('Không có quyền sửa ca thi của giảng viên khác.', 403);
+        }
+
+        $shiftStatus = strtoupper(trim((string) ($body['status'] ?? 'DRAFT')));
+        if (!in_array($shiftStatus, ['DRAFT', 'WAITING', 'OPEN', 'CLOSED'], true)) {
+            $shiftStatus = 'DRAFT';
         }
 
         $params = [
@@ -940,7 +993,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             ':title' => $title,
             ':room_pin' => $pin,
             ':unlock_pin' => trim((string) ($body['unlockPin'] ?? '8888')),
-            ':status' => (string) ($body['status'] ?? 'DRAFT'),
+            ':status' => $shiftStatus,
             ':late_entry_minutes' => max(0, (int) ($body['lateEntryMinutes'] ?? 0)),
             ':scheduled_start_at' => trim((string) ($body['scheduledStartAt'] ?? '')) ?: null,
             ':scheduled_end_at' => trim((string) ($body['scheduledEndAt'] ?? '')) ?: null,
@@ -958,6 +1011,10 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
                     VALUES (:id, :exam_id, :owner_id, :title, :room_pin, :unlock_pin, :status, :late_entry_minutes, :scheduled_start_at, :scheduled_end_at, :rw, :re, :rss, :ca)';
         }
         $pdo->prepare($sql)->execute($params);
+
+        if ($isUpdate && $prevShiftStatus !== 'OPEN' && $shiftStatus === 'OPEN') {
+            resetUntouchedWaitingRoomClocks($pdo, 'shift_id', $id);
+        }
 
         $row = $pdo->prepare('SELECT * FROM exam_shifts WHERE id = :id LIMIT 1');
         $row->execute([':id' => $id]);

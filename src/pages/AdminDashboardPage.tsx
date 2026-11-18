@@ -147,7 +147,7 @@ export const AdminDashboardPage: React.FC = () => {
     String(Math.floor(100000 + Math.random() * 900000)),
   );
   const [newExamDuration, setNewExamDuration] = useState(45);
-  const [newExamStatus, setNewExamStatus] = useState<'OPEN' | 'DRAFT'>('OPEN');
+  const [newExamStatus, setNewExamStatus] = useState<'OPEN' | 'WAITING' | 'DRAFT'>('OPEN');
   const [selectedCourseId, setSelectedCourseId] = useState(courses[0]?.id ?? '');
   const [selectedExamId, setSelectedExamId] = useState(exams[0]?.id ?? '');
   const [selectedShiftId, setSelectedShiftId] = useState('');
@@ -1173,18 +1173,65 @@ export const AdminDashboardPage: React.FC = () => {
                     </button>
                   )}
                   {selectedShift && selectedShift.status === 'DRAFT' && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!requireOfficialOrPrompt()) return;
+                          void upsertShift({ ...selectedShift, status: 'WAITING' });
+                          showToast(
+                            `Đã mở Phòng chờ Điểm danh "${selectedShift.title}" (PIN ${selectedShift.roomPin}).`,
+                          );
+                        }}
+                        className="h-9 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold"
+                      >
+                        1. Mở Phòng chờ Điểm danh
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!requireOfficialOrPrompt()) return;
+                          void upsertShift({ ...selectedShift, status: 'OPEN' });
+                          showToast(`Đã mở phòng thi ${selectedShift.title} (PIN ${selectedShift.roomPin}).`);
+                        }}
+                        className="h-9 px-3 rounded-xl bg-support-600 hover:bg-support-700 text-white text-xs font-bold"
+                      >
+                        Mở đề thi ngay
+                      </button>
+                    </>
+                  )}
+                  {selectedShift && selectedShift.status === 'WAITING' && (
                     <button
                       type="button"
                       onClick={() => {
                         if (!requireOfficialOrPrompt()) return;
                         void upsertShift({ ...selectedShift, status: 'OPEN' });
-                        showToast(`Đã mở phòng thi ${selectedShift.title} (PIN ${selectedShift.roomPin}).`);
+                        showToast(
+                          `Đã phát đề & bắt đầu thi đồng loạt cho ${shiftScopedAttempts.length} thí sinh (${selectedShift.title})!`,
+                        );
                       }}
-                      className="h-9 px-3 rounded-xl bg-support-600 hover:bg-support-700 text-white text-xs font-bold"
+                      className="h-9 px-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold shadow-xs"
                     >
-                      Mở phòng thi ngay
+                      Phát đề &amp; Bắt đầu thi đồng loạt ({shiftScopedAttempts.length} SV)
                     </button>
                   )}
+                  {selectedShift &&
+                    selectedShift.status === 'OPEN' &&
+                    shiftScopedAttempts.every((a) => a.status === 'IN_PROGRESS') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!requireOfficialOrPrompt()) return;
+                          void upsertShift({ ...selectedShift, status: 'WAITING' });
+                          showToast(
+                            `Đã chuyển "${selectedShift.title}" về trạng thái Phòng chờ Điểm danh.`,
+                          );
+                        }}
+                        className="h-9 px-3 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-bold"
+                      >
+                        Chuyển về Phòng chờ
+                      </button>
+                    )}
                   <button
                     type="button"
                     onClick={async () => {
@@ -1241,12 +1288,20 @@ export const AdminDashboardPage: React.FC = () => {
                                 ? 'bg-white/20 text-white'
                                 : sh.status === 'OPEN'
                                   ? 'bg-support-100 text-support-700'
-                                  : sh.status === 'CLOSED'
-                                    ? 'bg-slate-200 text-ink-600'
-                                    : 'bg-amber-100 text-amber-800'
+                                  : sh.status === 'WAITING'
+                                    ? 'bg-indigo-100 text-indigo-700'
+                                    : sh.status === 'CLOSED'
+                                      ? 'bg-slate-200 text-ink-600'
+                                      : 'bg-amber-100 text-amber-800'
                             }`}
                           >
-                            {sh.status === 'OPEN' ? 'MỞ' : sh.status === 'CLOSED' ? 'ĐÓNG' : 'NHÁP'}
+                            {sh.status === 'OPEN'
+                              ? 'ĐANG THI'
+                              : sh.status === 'WAITING'
+                                ? 'PHÒNG CHỜ'
+                                : sh.status === 'CLOSED'
+                                  ? 'ĐÓNG'
+                                  : 'NHÁP'}
                           </span>
                         </div>
                         <div className={`text-[11px] mt-0.5 font-mono ${active ? 'text-brand-100' : 'text-ink-500'}`}>
@@ -1333,6 +1388,15 @@ export const AdminDashboardPage: React.FC = () => {
                 entries.length > 0
                   ? `Đã cập nhật danh sách ${entries.length} sinh viên cho ca thi.`
                   : 'Đã xóa danh sách sinh viên của ca thi.',
+              );
+            }}
+            onChangeExamStatus={(nextStatus) => {
+              if (!requireOfficialOrPrompt() || !selectedShift) return;
+              void upsertShift({ ...selectedShift, status: nextStatus });
+              showToast(
+                nextStatus === 'OPEN'
+                  ? `Đã phát đề & bắt đầu tính giờ đồng loạt cho ${shiftScopedAttempts.length} thí sinh (${selectedShift.title})!`
+                  : `Đã mở Phòng chờ Điểm danh cho "${selectedShift.title}" (PIN ${selectedShift.roomPin}).`,
               );
             }}
           />
@@ -1876,9 +1940,9 @@ export const AdminDashboardPage: React.FC = () => {
                       <label className="flex items-center gap-1.5 font-semibold mb-1">
                         <span>Trạng thái phòng thi</span>
                         <InfoHint
-                          title="Điều khiển đóng / mở phòng thi"
+                          title="Điều khiển đóng / mở / phòng chờ điểm danh"
                           text={
-                            '• NHÁP: Đang soạn đề, sinh viên chưa thể vào phòng.\n• ĐANG MỞ: Phòng thi hoạt động, sinh viên nhập mã PIN 6 số để làm bài ngay.\n• ĐÃ ĐÓNG: Đã kết thúc ca thi, không cho thí sinh mới vào thêm.'
+                            '• NHÁP: Đang soạn đề, sinh viên chưa thể vào phòng.\n• PHÒNG CHỜ: Sinh viên vào điểm danh, kiểm tra GPS & đọc quy chế trước (chưa thấy đề & chưa bị trừ giờ). Giảng viên bấm "Phát đề đồng loạt" để cả lớp thi cùng lúc.\n• ĐANG MỞ: Sinh viên nhập mã PIN 6 số để vào thi ngay.\n• ĐÃ ĐÓNG: Đã kết thúc ca thi, không cho thí sinh mới vào thêm.'
                           }
                         />
                       </label>
@@ -1887,12 +1951,13 @@ export const AdminDashboardPage: React.FC = () => {
                         onChange={(e) =>
                           saveExamSetting({
                             ...selectedExam,
-                            status: e.target.value as 'DRAFT' | 'OPEN' | 'CLOSED',
+                            status: e.target.value as 'DRAFT' | 'WAITING' | 'OPEN' | 'CLOSED',
                           })
                         }
                         className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-bold"
                       >
                         <option value="DRAFT">NHÁP (Chưa mở)</option>
+                        <option value="WAITING">PHÒNG CHỜ (Điểm danh trước, phát đề đồng loạt)</option>
                         <option value="OPEN">ĐANG MỞ (Cho SV vào thi)</option>
                         <option value="CLOSED">ĐÃ ĐÓNG (Kết thúc)</option>
                       </select>
@@ -3807,7 +3872,7 @@ export const AdminDashboardPage: React.FC = () => {
                   showToast(saveRes.error || 'Không thể lưu đề thi lên máy chủ.');
                   return;
                 }
-                await createShiftForExam(newId, `${createdExam.title} — Ca 1`, newExamStatus === 'OPEN' ? 'OPEN' : 'DRAFT');
+                await createShiftForExam(newId, `${createdExam.title} — Ca 1`, newExamStatus);
                 setSelectedExamId(newId);
                 setCreateExamModalOpen(false);
                 showToast(`Đã tạo đề thi chính thức [${createdExam.roomPin}]!`);
@@ -3932,10 +3997,11 @@ export const AdminDashboardPage: React.FC = () => {
                   <label className="block font-bold text-ink-700 mb-1">Trạng thái</label>
                   <select
                     value={newExamStatus}
-                    onChange={(e) => setNewExamStatus(e.target.value as 'OPEN' | 'DRAFT')}
+                    onChange={(e) => setNewExamStatus(e.target.value as 'OPEN' | 'WAITING' | 'DRAFT')}
                     className="w-full h-10 px-2.5 rounded-xl border border-slate-300 font-bold"
                   >
                     <option value="OPEN">ĐANG MỞ</option>
+                    <option value="WAITING">PHÒNG CHỜ (Điểm danh)</option>
                     <option value="DRAFT">NHÁP</option>
                   </select>
                 </div>
@@ -4346,10 +4412,16 @@ export const AdminDashboardPage: React.FC = () => {
                     className={`px-3 py-2 rounded-xl text-xs font-bold ${
                       activeStatus === 'OPEN'
                         ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/30'
-                        : 'bg-amber-500/20 text-amber-200 border border-amber-400/30'
+                        : activeStatus === 'WAITING'
+                          ? 'bg-indigo-500/25 text-indigo-200 border border-indigo-400/40'
+                          : 'bg-amber-500/20 text-amber-200 border border-amber-400/30'
                     }`}
                   >
-                    {activeStatus === 'OPEN' ? '● Đang mở cho sinh viên' : `Trạng thái: ${activeStatus}`}
+                    {activeStatus === 'OPEN'
+                      ? '● Đang mở cho sinh viên'
+                      : activeStatus === 'WAITING'
+                        ? '● Đang mở Phòng chờ Điểm danh (Chưa tính giờ)'
+                        : `Trạng thái: ${activeStatus}`}
                   </span>
                 </div>
                 <p className="text-xs font-mono text-slate-400 break-all">

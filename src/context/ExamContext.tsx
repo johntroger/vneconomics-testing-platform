@@ -18,6 +18,10 @@ import {
   STORAGE_KEY,
   SYNC_CHANNEL_NAME,
 } from '../services/apiClient';
+import {
+  canStudentEnterLobby,
+  isAttemptEligibleForClockReset,
+} from '../utils/examWaitingRoom';
 import type {
   AttemptAnswer,
   Course,
@@ -117,6 +121,9 @@ interface ExamContextValue extends ExamPlatformState {
   instructorGoogleLogin: (credential: string) => Promise<AuthActionResult>;
   adminLogout: () => void;
   startOrResumeAttempt: (input: StartAttemptInput) => Promise<StartAttemptResult>;
+  beginAttemptTake: (
+    attemptId: string,
+  ) => Promise<{ ok: boolean; startedAt?: string; error?: string }>;
   saveAnswer: (
     attemptId: string,
     questionId: string,
@@ -182,7 +189,7 @@ interface ExamContextValue extends ExamPlatformState {
   createShiftForExam: (
     examId: string,
     customTitle?: string,
-    initialStatus?: 'DRAFT' | 'OPEN',
+    initialStatus?: 'DRAFT' | 'WAITING' | 'OPEN',
   ) => Promise<{ shift: ExamShift | null; error?: string }>;
   resendStudentScoreEmail: (attemptId: string, editedEmail?: string) => void;
   checkDemoMailerQuota: () => Promise<{
@@ -841,7 +848,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
               effectiveStatus = 'OPEN';
             }
           }
-          if (effectiveStatus !== 'OPEN') {
+          if (!canStudentEnterLobby(effectiveStatus)) {
             return {
               ok: false,
               error:
@@ -855,29 +862,36 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
           const serverQuestions = Array.isArray(roomRes.data.questions)
             ? roomRes.data.questions
             : [];
+          const syncedServerShift = roomRes.data.shift
+            ? {
+                ...normalizeServerShift(roomRes.data.shift),
+                status: effectiveStatus,
+              }
+            : null;
+          const serverExamResolved: Exam = { ...serverExam, status: effectiveStatus };
 
           updateState((prev) => {
-            const existingExam = prev.exams.find((e) => e.id === serverExam.id);
+            const existingExam = prev.exams.find((e) => e.id === serverExamResolved.id);
             const mergedExam: Exam = existingExam
               ? {
                   ...existingExam,
-                  ...serverExam,
-                  unlockPin: serverExam.unlockPin || existingExam.unlockPin,
+                  ...serverExamResolved,
+                  unlockPin: serverExamResolved.unlockPin || existingExam.unlockPin,
                   rosterWhitelist:
-                    serverExam.rosterWhitelist.length > 0
-                      ? serverExam.rosterWhitelist
+                    serverExamResolved.rosterWhitelist.length > 0
+                      ? serverExamResolved.rosterWhitelist
                       : existingExam.rosterWhitelist,
                   rosterEntries:
-                    (serverExam.rosterEntries?.length ?? 0) > 0
-                      ? serverExam.rosterEntries
+                    (serverExamResolved.rosterEntries?.length ?? 0) > 0
+                      ? serverExamResolved.rosterEntries
                       : existingExam.rosterEntries,
                   requiresRosterVerification: Boolean(
-                    serverExam.requiresRosterVerification ||
-                      (serverExam.rosterEntries?.length ?? 0) > 0 ||
+                    serverExamResolved.requiresRosterVerification ||
+                      (serverExamResolved.rosterEntries?.length ?? 0) > 0 ||
                       (existingExam.rosterEntries?.length ?? 0) > 0,
                   ),
                 }
-              : serverExam;
+              : serverExamResolved;
 
             const prevQMap = new Map(prev.questions.map((q) => [q.id, q]));
             const mergedQuestions = serverQuestions.map((sq) => {
@@ -898,6 +912,9 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
                 : prev.courses,
               questions: upsertById(prev.questions, mergedQuestions),
               exams: upsertById(prev.exams, [mergedExam]),
+              shifts: syncedServerShift
+                ? upsertById(prev.shifts, [syncedServerShift])
+                : prev.shifts,
             };
           });
 
@@ -1108,15 +1125,21 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
       }
 
       const currentState = stateRef.current;
-      const exam = currentState.exams.find((e) => e.roomPin === normalizedPin);
+      const matchedLocalShift = currentState.shifts.find(
+        (s) => s.roomPin === normalizedPin && (!input.examId || s.examId === input.examId),
+      );
+      const exam = matchedLocalShift
+        ? currentState.exams.find((e) => e.id === matchedLocalShift.examId)
+        : currentState.exams.find((e) => e.roomPin === normalizedPin);
       if (!exam) {
         return { ok: false, error: 'Không tìm thấy phòng thi với mã PIN này.' };
       }
-      if (exam.status !== 'OPEN') {
+      const localRoomStatus = matchedLocalShift?.status ?? exam.status;
+      if (!canStudentEnterLobby(localRoomStatus)) {
         return {
           ok: false,
           error:
-            exam.status === 'CLOSED'
+            localRoomStatus === 'CLOSED'
               ? 'Ca thi này đã kết thúc và đóng cổng nộp bài.'
               : 'Phòng thi đang ở trạng thái Nháp, giảng viên chưa mở phòng.',
         };
@@ -1240,6 +1263,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
       const newAttempt: ExamAttempt = {
         id: `att_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`,
         examId: exam.id,
+        shiftId: matchedLocalShift?.id,
         studentCode: normalizedCode,
         studentName: input.studentName.trim(),
         studentEmail: normalizedEmail,
@@ -1280,6 +1304,104 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         examId: exam.id,
         resumed: false,
       };
+    },
+    [backendConnected, updateState],
+  );
+
+  const beginAttemptTake = useCallback(
+    async (
+      attemptId: string,
+    ): Promise<{ ok: boolean; startedAt?: string; error?: string }> => {
+      const target = stateRef.current.attempts.find((a) => a.id === attemptId);
+      if (!target) {
+        return { ok: false, error: 'Không tìm thấy phiên thi.' };
+      }
+
+      const targetExam = stateRef.current.exams.find((e) => e.id === target.examId);
+      const targetShift = target.shiftId
+        ? stateRef.current.shifts.find((s) => s.id === target.shiftId)
+        : undefined;
+      const effectiveStatus = targetShift?.status ?? targetExam?.status ?? 'OPEN';
+      if (effectiveStatus === 'WAITING') {
+        return {
+          ok: false,
+          error:
+            'Phòng thi đang ở chế độ Phòng chờ điểm danh. Vui lòng đợi Giảng viên bấm Phát đề.',
+        };
+      }
+      if (effectiveStatus === 'CLOSED') {
+        return { ok: false, error: 'Ca thi này đã kết thúc.' };
+      }
+
+      const sessionKey = `vne_exam_begun_${attemptId}`;
+      const alreadyBegun = (() => {
+        try {
+          return sessionStorage.getItem(sessionKey) === '1';
+        } catch {
+          return false;
+        }
+      })();
+
+      if (!isAttemptEligibleForClockReset(target, alreadyBegun)) {
+        return { ok: true, startedAt: target.startedAt };
+      }
+
+      try {
+        sessionStorage.setItem(sessionKey, '1');
+      } catch {
+        // Ignore storage restrictions
+      }
+
+      const localStartedAt = new Date().toISOString();
+      updateState((prev) => ({
+        ...prev,
+        attempts: prev.attempts.map((a) =>
+          a.id === attemptId ? { ...a, startedAt: localStartedAt } : a,
+        ),
+      }));
+
+      if (backendConnected) {
+        const res = await apiRequestDetailed<{
+          ok: boolean;
+          startedAt?: string;
+          serverNow?: string;
+          error?: string;
+        }>('/api/attempts.php?action=begin', {
+          method: 'POST',
+          body: JSON.stringify({ attemptId }),
+        });
+
+        if (res.reachedJson && !res.ok) {
+          try {
+            sessionStorage.removeItem(sessionKey);
+          } catch {
+            // ignore
+          }
+          return {
+            ok: false,
+            error: res.error ?? 'Phòng thi chưa sẵn sàng phát đề.',
+          };
+        }
+
+        if (res.ok && res.data?.ok) {
+          if (res.data.serverNow) {
+            const serverMs = Date.parse(res.data.serverNow);
+            if (!Number.isNaN(serverMs)) {
+              setServerClockOffsetMs(serverMs - Date.now());
+            }
+          }
+          const resolvedStartedAt = res.data.startedAt ?? localStartedAt;
+          updateState((prev) => ({
+            ...prev,
+            attempts: prev.attempts.map((a) =>
+              a.id === attemptId ? { ...a, startedAt: resolvedStartedAt } : a,
+            ),
+          }));
+          return { ok: true, startedAt: resolvedStartedAt };
+        }
+      }
+
+      return { ok: true, startedAt: localStartedAt };
     },
     [backendConnected, updateState],
   );
@@ -1706,26 +1828,38 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
           x?: number;
           w?: number;
           e?: Exam['status'];
+          sa?: string;
         }>(`/api/proctor.php?action=poll&attemptId=${encodeURIComponent(activePollAttemptId)}`, {
           method: 'GET',
         });
 
         if (cancelled || !res.ok || !res.data?.ok || !res.data.s) return;
-        const { s, b, x, w, e } = res.data;
+        const { s, b, x, w, e, sa } = res.data;
 
         if (s === 'AUTO_SUBMITTED' || s === 'SUBMITTED' || e === 'CLOSED') {
           if (e === 'CLOSED') {
-            const targetExamId = stateRef.current.attempts.find(
+            const targetAtt = stateRef.current.attempts.find(
               (a) => a.id === activePollAttemptId,
-            )?.examId;
-            if (targetExamId) {
+            );
+            const targetExamId = targetAtt?.examId;
+            const targetShiftId = targetAtt?.shiftId;
+            if (targetExamId || targetShiftId) {
               updateState((prev) => ({
                 ...prev,
-                exams: prev.exams.map((ex) =>
-                  ex.id === targetExamId && ex.status !== 'CLOSED'
-                    ? { ...ex, status: 'CLOSED' }
-                    : ex,
-                ),
+                exams: targetExamId
+                  ? prev.exams.map((ex) =>
+                      ex.id === targetExamId && ex.status !== 'CLOSED'
+                        ? { ...ex, status: 'CLOSED' }
+                        : ex,
+                    )
+                  : prev.exams,
+                shifts: targetShiftId
+                  ? prev.shifts.map((sh) =>
+                      sh.id === targetShiftId && sh.status !== 'CLOSED'
+                        ? { ...sh, status: 'CLOSED' }
+                        : sh,
+                    )
+                  : prev.shifts,
               }));
             }
           }
@@ -1740,13 +1874,21 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         const currExam = curr
           ? stateRef.current.exams.find((ex) => ex.id === curr.examId)
           : undefined;
+        const currShift = curr?.shiftId
+          ? stateRef.current.shifts.find((sh) => sh.id === curr.shiftId)
+          : undefined;
+
         const attemptChanged =
           curr &&
           (curr.status !== s ||
             (b !== undefined && curr.bonusSeconds !== b) ||
             (x !== undefined && curr.extraLeaveAllowance !== x) ||
-            (w !== undefined && curr.lockedWaitSeconds !== w));
-        const examChanged = Boolean(currExam && e && currExam.status !== e);
+            (w !== undefined && curr.lockedWaitSeconds !== w) ||
+            Boolean(sa && curr.startedAt !== sa));
+        const examChanged = Boolean(
+          (currExam && e && currExam.status !== e) ||
+            (currShift && e && currShift.status !== e),
+        );
 
         if (!attemptChanged && !examChanged) return;
 
@@ -1758,6 +1900,12 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
                   ex.id === currExam.id ? { ...ex, status: e } : ex,
                 )
               : prev.exams,
+          shifts:
+            examChanged && currShift && e
+              ? prev.shifts.map((sh) =>
+                  sh.id === currShift.id ? { ...sh, status: e } : sh,
+                )
+              : prev.shifts,
           attempts: attemptChanged
             ? prev.attempts.map((a) => {
                 if (a.id !== activePollAttemptId) return a;
@@ -1768,6 +1916,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
                   bonusSeconds: b ?? a.bonusSeconds,
                   extraLeaveAllowance: x ?? a.extraLeaveAllowance,
                   lockedWaitSeconds: w ?? a.lockedWaitSeconds,
+                  startedAt: sa || a.startedAt,
                 };
               })
             : prev.attempts,
@@ -1781,10 +1930,20 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
 
     const scheduleNext = () => {
       if (cancelled) return;
-      const jitterMs = Math.floor(Math.random() * 2500 - 1250);
+      const attNow = stateRef.current.attempts.find((a) => a.id === activePollAttemptId);
+      const exNow = attNow
+        ? stateRef.current.exams.find((ex) => ex.id === attNow.examId)
+        : undefined;
+      const shNow = attNow?.shiftId
+        ? stateRef.current.shifts.find((sh) => sh.id === attNow.shiftId)
+        : undefined;
+      const isWaitingRoom = (shNow?.status ?? exNow?.status) === 'WAITING';
+      const delayMs = isWaitingRoom
+        ? 2500 + Math.floor(Math.random() * 400)
+        : 6000 + Math.floor(Math.random() * 2500 - 1250);
       timeoutId = window.setTimeout(() => {
         void runLoop();
-      }, 6000 + jitterMs);
+      }, delayMs);
     };
 
     const runLoop = async () => {
@@ -2556,6 +2715,10 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
     async (exam: Exam): Promise<{ ok: boolean; error?: string }> => {
       mutationEpochRef.current += 1;
       const prevExam = stateRef.current.exams.find((e) => e.id === exam.id);
+      const transitioningToOpen = Boolean(
+        prevExam && prevExam.status !== 'OPEN' && exam.status === 'OPEN',
+      );
+      const releasedIso = new Date().toISOString();
       updateState((prev) => {
         const exists = prev.exams.some((e) => e.id === exam.id);
         return {
@@ -2563,6 +2726,13 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
           exams: exists
             ? prev.exams.map((e) => (e.id === exam.id ? exam : e))
             : [exam, ...prev.exams],
+          attempts: transitioningToOpen
+            ? prev.attempts.map((a) =>
+                a.examId === exam.id && isAttemptEligibleForClockReset(a, false)
+                  ? { ...a, startedAt: releasedIso }
+                  : a,
+              )
+            : prev.attempts,
         };
       });
 
@@ -2640,6 +2810,11 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
       shift: ExamShift,
     ): Promise<{ ok: boolean; shift?: ExamShift; error?: string }> => {
       mutationEpochRef.current += 1;
+      const prevShift = stateRef.current.shifts.find((s) => s.id === shift.id);
+      const transitioningToOpen = Boolean(
+        prevShift && prevShift.status !== 'OPEN' && shift.status === 'OPEN',
+      );
+      const releasedIso = new Date().toISOString();
       updateState((prev) => {
         const exists = prev.shifts.some((s) => s.id === shift.id);
         return {
@@ -2647,6 +2822,14 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
           shifts: exists
             ? prev.shifts.map((s) => (s.id === shift.id ? shift : s))
             : [shift, ...prev.shifts],
+          attempts: transitioningToOpen
+            ? prev.attempts.map((a) =>
+                (a.shiftId === shift.id || (!a.shiftId && a.examId === shift.examId)) &&
+                isAttemptEligibleForClockReset(a, false)
+                  ? { ...a, startedAt: releasedIso }
+                  : a,
+              )
+            : prev.attempts,
         };
       });
 
@@ -2719,7 +2902,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
     async (
       examId: string,
       customTitle?: string,
-      initialStatus: 'DRAFT' | 'OPEN' = 'OPEN',
+      initialStatus: 'DRAFT' | 'WAITING' | 'OPEN' = 'OPEN',
     ): Promise<{ shift: ExamShift | null; error?: string }> => {
       const parentExam = stateRef.current.exams.find((e) => e.id === examId);
       if (!parentExam) {
@@ -3013,6 +3196,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         instructorGoogleLogin,
         adminLogout,
         startOrResumeAttempt,
+        beginAttemptTake,
         saveAnswer,
         toggleFlagQuestion,
         updateCurrentIndex,

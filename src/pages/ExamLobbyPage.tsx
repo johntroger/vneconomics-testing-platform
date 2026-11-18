@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -7,8 +7,10 @@ import {
   Layers,
   Lock,
   Mail,
+  Radio,
   ShieldAlert,
   Smartphone,
+  Sparkles,
 } from 'lucide-react';
 import { useExamPlatform } from '../context/ExamContext';
 
@@ -18,12 +20,67 @@ export const ExamLobbyPage: React.FC = () => {
   const attemptId = searchParams.get('attempt') ?? '';
   const navigate = useNavigate();
 
-  const { exams, courses, attempts } = useExamPlatform();
+  const { exams, courses, shifts, attempts, beginAttemptTake } = useExamPlatform();
   const [agreed, setAgreed] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [startError, setStartError] = useState('');
+  const [countdown, setCountdown] = useState<number | null>(null);
+  const wasWaitingRef = useRef(false);
+  const launchingRef = useRef(false);
 
   const exam = exams.find((e) => e.id === examId);
   const course = courses.find((c) => c.id === exam?.courseId);
   const attempt = attempts.find((a) => a.id === attemptId);
+  const activeShift = attempt?.shiftId
+    ? shifts.find((s) => s.id === attempt.shiftId)
+    : undefined;
+  const effectiveRoomStatus = activeShift?.status ?? exam?.status ?? 'OPEN';
+  const isWaitingRoom = effectiveRoomStatus === 'WAITING';
+
+  const launchTakePage = useCallback(async () => {
+    if (!exam || !attempt || launchingRef.current) return;
+    launchingRef.current = true;
+    setStarting(true);
+    setStartError('');
+    const res = await beginAttemptTake(attempt.id);
+    if (!res.ok) {
+      launchingRef.current = false;
+      setStarting(false);
+      setCountdown(null);
+      setStartError(res.error ?? 'Chưa thể bắt đầu làm bài lúc này.');
+      return;
+    }
+    navigate(`/exam/${exam.id}/take?attempt=${attempt.id}`);
+  }, [attempt, beginAttemptTake, exam, navigate]);
+
+  useEffect(() => {
+    if (effectiveRoomStatus === 'WAITING') {
+      wasWaitingRef.current = true;
+      setCountdown(null);
+      return;
+    }
+    if (
+      wasWaitingRef.current &&
+      effectiveRoomStatus === 'OPEN' &&
+      agreed &&
+      countdown === null &&
+      !launchingRef.current
+    ) {
+      setCountdown(3);
+    }
+  }, [agreed, countdown, effectiveRoomStatus]);
+
+  useEffect(() => {
+    if (countdown === null) return;
+    if (countdown <= 0) {
+      void launchTakePage();
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setCountdown((prev) => (prev !== null ? prev - 1 : null));
+    }, 1000);
+    return () => window.clearTimeout(timer);
+  }, [countdown, launchTakePage]);
 
   if (!exam || !attempt) {
     return (
@@ -75,12 +132,34 @@ export const ExamLobbyPage: React.FC = () => {
   }
 
   const handleStartExam = () => {
+    if (isWaitingRoom) {
+      setAgreed(true);
+      setStartError('');
+      return;
+    }
     if (!agreed) return;
-    navigate(`/exam/${exam.id}/take?attempt=${attempt.id}`);
+    void launchTakePage();
   };
 
   return (
     <div className="min-h-screen bg-surface-100 pt-5 pb-12 safe-bottom px-4">
+      {countdown !== null && (
+        <div className="fixed inset-0 z-50 bg-ink-900/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center text-white">
+          <div className="w-16 h-16 rounded-2xl bg-brand-600/30 border border-brand-400/40 flex items-center justify-center mb-4">
+            <Sparkles className="w-8 h-8 text-amber-300 animate-pulse" />
+          </div>
+          <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">
+            Giảng viên vừa bấm Phát đề đồng loạt!
+          </p>
+          <div className="text-7xl font-mono font-black text-white my-3">
+            {countdown > 0 ? countdown : 'Bắt đầu!'}
+          </div>
+          <p className="text-sm text-slate-300 max-w-xs">
+            Đang tự động mở câu hỏi số 1 và đồng bộ thời gian làm bài cho cả lớp...
+          </p>
+        </div>
+      )}
+
       <div className="max-w-md mx-auto space-y-4">
         <button
           type="button"
@@ -185,6 +264,23 @@ export const ExamLobbyPage: React.FC = () => {
             </span>
           </div>
 
+          {isWaitingRoom && (
+            <div className="rounded-xl border border-indigo-200 bg-indigo-50/80 p-3.5 space-y-1.5 text-xs text-indigo-950">
+              <div className="flex items-center justify-between gap-2">
+                <p className="font-extrabold flex items-center gap-1.5 text-indigo-900">
+                  <Radio className="w-4 h-4 text-emerald-600 animate-pulse shrink-0" />
+                  <span>Phòng chờ Điểm danh Tập trung — Đã ghi nhận có mặt</span>
+                </p>
+                <span className="px-2 py-0.5 rounded-full bg-white text-indigo-700 border border-indigo-200 font-mono text-[10px] font-bold shrink-0">
+                  CHƯA TÍNH GIỜ
+                </span>
+              </div>
+              <p className="text-[11px] text-indigo-900/90 leading-relaxed">
+                Bạn đã điểm danh thành công vào ca thi. Thời gian làm bài <strong>CHƯA bị trừ</strong> trong lúc chờ. Hãy tích xác nhận quy chế bên dưới; ngay khi Giảng viên bấm <strong>Phát đề đồng loạt</strong>, màn hình của bạn sẽ tự động đếm ngược 3 giây và mở câu hỏi số 1 cùng cả lớp.
+              </p>
+            </div>
+          )}
+
           <label className="flex items-start gap-2.5 cursor-pointer select-none pt-1">
             <input
               type="checkbox"
@@ -197,17 +293,38 @@ export const ExamLobbyPage: React.FC = () => {
             </span>
           </label>
 
-          <button
-            type="button"
-            disabled={!agreed}
-            onClick={handleStartExam}
-            className="w-full h-12 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition"
-          >
-            <CheckCircle2 className="w-4 h-4" />
-            {Object.keys(attempt.answers).length > 0
-              ? 'Khôi phục phiên thi & Làm bài tiếp'
-              : 'Bắt đầu làm bài ngay'}
-          </button>
+          {startError && (
+            <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-xs font-medium text-rose-700">
+              {startError}
+            </div>
+          )}
+
+          {isWaitingRoom && agreed ? (
+            <div className="w-full min-h-[48px] px-4 py-3 rounded-xl border border-emerald-300 bg-emerald-50 text-emerald-800 font-bold text-xs sm:text-sm flex items-center justify-center gap-2 text-center">
+              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-ping shrink-0" />
+              <span>Đã sẵn sàng nhận đề — Đang chờ Giảng viên bấm Phát đề đồng loạt...</span>
+            </div>
+          ) : (
+            <button
+              type="button"
+              disabled={(!isWaitingRoom && !agreed) || starting || effectiveRoomStatus === 'CLOSED'}
+              onClick={handleStartExam}
+              className="w-full h-12 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-bold text-sm flex items-center justify-center gap-2 shadow-sm transition px-3"
+            >
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span className="truncate">
+                {isWaitingRoom
+                  ? 'Xác nhận Điểm danh & Sẵn sàng chờ Giảng viên phát đề'
+                  : effectiveRoomStatus === 'CLOSED'
+                    ? 'Ca thi đã đóng'
+                    : starting
+                      ? 'Đang mở đề thi...'
+                      : Object.keys(attempt.answers).length > 0
+                        ? 'Khôi phục phiên thi & Làm bài tiếp'
+                        : 'Bắt đầu làm bài ngay'}
+              </span>
+            </button>
+          )}
         </div>
 
         <p className="text-center text-[11px] text-ink-500 flex items-center justify-center gap-1.5">

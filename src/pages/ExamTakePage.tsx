@@ -49,6 +49,7 @@ export const ExamTakePage: React.FC = () => {
 
   const {
     exams,
+    shifts,
     questions,
     attempts,
     serverClockOffsetMs,
@@ -64,6 +65,10 @@ export const ExamTakePage: React.FC = () => {
 
   const exam = exams.find((e) => e.id === examId);
   const attempt = attempts.find((a) => a.id === attemptId);
+  const activeShift = attempt?.shiftId
+    ? shifts.find((s) => s.id === attempt.shiftId)
+    : undefined;
+  const effectiveRoomStatus = activeShift?.status ?? exam?.status;
 
   const [fontSizePx, setFontSizePx] = useState(16);
   const [viewMode, setViewMode] = useState<'ONE' | 'TEN' | 'ALL'>('ONE');
@@ -81,13 +86,25 @@ export const ExamTakePage: React.FC = () => {
     [questions],
   );
 
-  // Redirect automatically if already SUBMITTED / AUTO_SUBMITTED (e.g. Instructor Reject / Sweeper)
+  // Redirect automatically if already SUBMITTED / AUTO_SUBMITTED or room is still in WAITING lobby
   useEffect(() => {
     if (!attempt || !exam) return;
     if (attempt.status === 'SUBMITTED' || attempt.status === 'AUTO_SUBMITTED') {
       navigate(`/exam/${exam.id}/result?attempt=${attempt.id}`, { replace: true });
+      return;
     }
-  }, [attempt, exam, navigate]);
+    if (effectiveRoomStatus === 'WAITING') {
+      navigate(`/exam/${exam.id}/lobby?attempt=${attempt.id}`, { replace: true });
+      return;
+    }
+    if (effectiveRoomStatus === 'OPEN' && attempt.status === 'IN_PROGRESS') {
+      try {
+        sessionStorage.setItem(`vne_exam_begun_${attempt.id}`, '1');
+      } catch {
+        // Ignore storage errors
+      }
+    }
+  }, [attempt, effectiveRoomStatus, exam, navigate]);
 
   // Global countdown with bonusSeconds compensation
   useEffect(() => {

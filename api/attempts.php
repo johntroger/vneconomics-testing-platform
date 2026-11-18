@@ -702,7 +702,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             $examRow = $stmtE->fetch() ?: null;
         }
         if (!$examRow && $pin !== '') {
-            $sPinStmt = $pdo->prepare("SELECT * FROM exam_shifts WHERE UPPER(room_pin) = :pin ORDER BY (CASE WHEN status = 'OPEN' THEN 0 ELSE 1 END), created_at DESC LIMIT 1");
+            $sPinStmt = $pdo->prepare("SELECT * FROM exam_shifts WHERE UPPER(room_pin) = :pin ORDER BY (CASE WHEN status IN ('OPEN', 'WAITING') THEN 0 ELSE 1 END), created_at DESC LIMIT 1");
             $sPinStmt->execute([':pin' => $pin]);
             $pinShift = $sPinStmt->fetch() ?: null;
             if ($pinShift) {
@@ -733,12 +733,12 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             $shiftRow = $sStmt->fetch() ?: null;
         }
         if (!$shiftRow && $pin !== '') {
-            $sStmt = $pdo->prepare("SELECT * FROM exam_shifts WHERE exam_id = :eid AND UPPER(room_pin) = :pin ORDER BY (CASE WHEN status = 'OPEN' THEN 0 ELSE 1 END), created_at DESC LIMIT 1");
+            $sStmt = $pdo->prepare("SELECT * FROM exam_shifts WHERE exam_id = :eid AND UPPER(room_pin) = :pin ORDER BY (CASE WHEN status IN ('OPEN', 'WAITING') THEN 0 ELSE 1 END), created_at DESC LIMIT 1");
             $sStmt->execute([':eid' => $exam['id'], ':pin' => $pin]);
             $shiftRow = $sStmt->fetch() ?: null;
         }
         if (!$shiftRow) {
-            $sStmt = $pdo->prepare("SELECT * FROM exam_shifts WHERE exam_id = :eid ORDER BY (CASE WHEN status = 'OPEN' THEN 0 ELSE 1 END), created_at DESC LIMIT 1");
+            $sStmt = $pdo->prepare("SELECT * FROM exam_shifts WHERE exam_id = :eid ORDER BY (CASE WHEN status IN ('OPEN', 'WAITING') THEN 0 ELSE 1 END), created_at DESC LIMIT 1");
             $sStmt->execute([':eid' => $exam['id']]);
             $shiftRow = $sStmt->fetch() ?: null;
         }
@@ -764,8 +764,13 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
                 $exam['status'] = 'OPEN';
             }
         }
-        if ($exam['status'] !== 'OPEN') {
-            jsonError('Phòng thi hiện không ở trạng thái MỞ.', 403);
+        if (!in_array($exam['status'], ['OPEN', 'WAITING'], true)) {
+            jsonError(
+                $exam['status'] === 'CLOSED'
+                    ? 'Ca thi này đã kết thúc và đóng cổng nộp bài.'
+                    : 'Phòng thi đang ở trạng thái Nháp, giảng viên chưa mở phòng.',
+                403
+            );
         }
 
         $whitelist = array_map(static fn ($s) => strtoupper(trim((string) $s)), $exam['rosterWhitelist'] ?? []);
@@ -812,7 +817,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         }
         $existing = $existingStmt->fetch();
 
-        if (!$existing && ((int) ($exam['lateEntryMinutes'] ?? 0)) > 0) {
+        if (!$existing && $exam['status'] === 'OPEN' && ((int) ($exam['lateEntryMinutes'] ?? 0)) > 0) {
             $lateLimitSec = ((int) $exam['lateEntryMinutes']) * 60;
             $anchorTs = $schedStart !== false ? $schedStart : false;
             if ($anchorTs === false) {
@@ -1010,6 +1015,59 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             error_log('[VNE_ATTEMPT_START_ERR] ' . $e->getMessage());
             jsonError('Lỗi khởi tạo bài thi: ' . $e->getMessage(), 500);
         }
+    }
+
+    if ($action === 'begin') {
+        $attemptId = trim((string) ($body['attemptId'] ?? ''));
+        if ($attemptId === '') {
+            jsonError('Thiếu attemptId.', 400);
+        }
+
+        $stmt = $pdo->prepare(
+            'SELECT a.id, a.status, a.leave_count, a.minor_blur_count, a.total_away_seconds, a.started_at,
+                    COALESCE(s.status, e.status) AS effective_exam_status
+             FROM exam_attempts a
+             LEFT JOIN exams e ON e.id = a.exam_id
+             LEFT JOIN exam_shifts s ON s.id = a.shift_id
+             WHERE a.id = :id LIMIT 1'
+        );
+        $stmt->execute([':id' => $attemptId]);
+        $attRow = $stmt->fetch();
+        if (!$attRow) {
+            jsonError('Không tìm thấy phiên thi.', 404);
+        }
+
+        $effectiveStatus = (string) ($attRow['effective_exam_status'] ?? 'OPEN');
+        if ($effectiveStatus === 'WAITING') {
+            jsonError('Phòng thi đang ở chế độ Phòng chờ điểm danh. Vui lòng đợi Giảng viên bấm Phát đề.', 403);
+        }
+        if ($effectiveStatus === 'CLOSED') {
+            jsonError('Ca thi này đã kết thúc.', 403);
+        }
+
+        $ansCountStmt = $pdo->prepare('SELECT COUNT(*) FROM attempt_answers WHERE attempt_id = :aid');
+        $ansCountStmt->execute([':aid' => $attemptId]);
+        $answerCount = (int) $ansCountStmt->fetchColumn();
+
+        $startedAt = (string) ($attRow['started_at'] ?? nowIso());
+        if (
+            ($attRow['status'] ?? '') === 'IN_PROGRESS' &&
+            (int) ($attRow['leave_count'] ?? 0) === 0 &&
+            (int) ($attRow['minor_blur_count'] ?? 0) === 0 &&
+            (int) ($attRow['total_away_seconds'] ?? 0) === 0 &&
+            $answerCount === 0
+        ) {
+            $startedAt = nowIso();
+            $pdo->prepare('UPDATE exam_attempts SET started_at = :sa WHERE id = :id')
+                ->execute([':sa' => $startedAt, ':id' => $attemptId]);
+        }
+
+        jsonResponse([
+            'ok' => true,
+            'attemptId' => $attemptId,
+            'startedAt' => $startedAt,
+            'serverNow' => nowIso(),
+        ]);
     }
 
     if ($action === 'heartbeat') {

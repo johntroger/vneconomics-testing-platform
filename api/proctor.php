@@ -25,7 +25,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         }
 
         $stmt = $pdo->prepare(
-            'SELECT a.status, a.bonus_seconds, a.extra_leave_allowance, a.locked_wait_seconds,
+            'SELECT a.status, a.bonus_seconds, a.extra_leave_allowance, a.locked_wait_seconds, a.started_at,
                     COALESCE(s.status, e.status) AS exam_status
              FROM exam_attempts a
              LEFT JOIN exams e ON e.id = a.exam_id
@@ -38,7 +38,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             jsonError('Not found', 404);
         }
 
-        // Ultra-lightweight JSON (< 150 bytes)
+        // Ultra-lightweight JSON (< 180 bytes)
         jsonResponse([
             'ok' => true,
             's' => $row['status'],
@@ -46,6 +46,7 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             'x' => (int) $row['extra_leave_allowance'],
             'w' => (int) $row['locked_wait_seconds'],
             'e' => $row['exam_status'] ?? 'OPEN',
+            'sa' => $row['started_at'],
         ]);
     }
 

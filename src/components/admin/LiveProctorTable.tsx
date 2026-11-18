@@ -9,8 +9,10 @@ import {
   Mail,
   MapPin,
   MonitorSmartphone,
+  Play,
   Plus,
   Printer,
+  Radio,
   RefreshCw,
   RotateCcw,
   Search,
@@ -45,6 +47,7 @@ interface LiveProctorTableProps {
   onOpenEssayReview: (attemptId: string) => void;
   onResendEmail: (attemptId: string, editedEmail?: string) => void;
   onUpdateRoster?: (examId: string, entries: StudentRosterEntry[]) => void;
+  onChangeExamStatus?: (nextStatus: 'WAITING' | 'OPEN') => void;
 }
 
 export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
@@ -57,6 +60,7 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
   onOpenEssayReview,
   onResendEmail,
   onUpdateRoster,
+  onChangeExamStatus,
 }) => {
   const [tickNow, setTickNow] = useState(Date.now());
   const [editingEmailId, setEditingEmailId] = useState<string | null>(null);
@@ -276,11 +280,35 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
 
   return (
     <div className="space-y-5">
+      {exam.status === 'WAITING' && onChangeExamStatus && (
+        <div className="bg-indigo-50 border border-indigo-200 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-soft">
+          <div className="space-y-0.5">
+            <div className="flex items-center gap-2 text-sm font-extrabold text-indigo-950">
+              <Radio className="w-4 h-4 text-emerald-600 animate-pulse shrink-0" />
+              <span>
+                Phòng chờ Điểm danh đang mở ({countInProgress} sinh viên đã có mặt, chưa phát đề)
+              </span>
+            </div>
+            <p className="text-xs text-indigo-800">
+              Sinh viên đang ở Phòng chờ để đối chiếu danh sách &amp; GPS (chưa thấy câu hỏi và chưa tính giờ). Khi cả lớp đã vào đủ, bấm nút bên phải để phát đề và bắt đầu đếm giờ đồng loạt.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={() => onChangeExamStatus('OPEN')}
+            className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold flex items-center gap-1.5 shadow-sm transition shrink-0"
+          >
+            <Play className="w-4 h-4" />
+            <span>Phát đề &amp; Bắt đầu tính giờ đồng loạt</span>
+          </button>
+        </div>
+      )}
+
       {/* Live Status Summary Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-3.5 shadow-soft">
           <div className="text-[11px] font-bold text-support-700 uppercase flex items-center gap-1">
-            <span>Đang làm bài</span>
+            <span>{exam.status === 'WAITING' ? 'Đang ở phòng chờ' : 'Đang làm bài'}</span>
             <InfoHint
               title="Thí sinh đang làm bài bình thường"
               text="Số lượng sinh viên đã nhập mã PIN vào phòng thi và đang làm bài trên màn hình."
@@ -356,6 +384,26 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {exam.status === 'DRAFT' && onChangeExamStatus && (
+            <>
+              <button
+                type="button"
+                onClick={() => onChangeExamStatus('WAITING')}
+                className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
+              >
+                <Radio className="w-3.5 h-3.5" />
+                <span>Mở Phòng chờ Điểm danh</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => onChangeExamStatus('OPEN')}
+                className="px-3.5 py-2 rounded-xl bg-support-600 hover:bg-support-700 text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition"
+              >
+                <Play className="w-3.5 h-3.5" />
+                <span>Mở đề thi ngay</span>
+              </button>
+            </>
+          )}
           {(countInProgress + countLocked) > 0 && (
             <>
               <button
