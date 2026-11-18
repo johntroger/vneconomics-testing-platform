@@ -392,8 +392,13 @@ export const AdminDashboardPage: React.FC = () => {
 
   const chapterMasteryStats = useMemo(
     () =>
-      selectedExam ? computeChapterMastery(attempts, selectedExam.id) : [],
-    [attempts, selectedExam],
+      selectedExam
+        ? computeChapterMastery(
+            selectedShift ? shiftScopedAttempts : attempts,
+            selectedExam.id,
+          )
+        : [],
+    [attempts, selectedExam, selectedShift, shiftScopedAttempts],
   );
 
   const itemAnalysisRows = useMemo(
@@ -2805,8 +2810,8 @@ export const AdminDashboardPage: React.FC = () => {
                     type="button"
                     onClick={() =>
                       exportExamGradebookXlsx(
-                        selectedExam,
-                        attempts,
+                        shiftScopedExam ?? selectedExam,
+                        selectedShift ? shiftScopedAttempts : attempts,
                         chapterMasteryStats,
                         questions,
                       )
@@ -2825,13 +2830,14 @@ export const AdminDashboardPage: React.FC = () => {
                   <button
                     type="button"
                     onClick={() => {
+                      const activeExportExam = shiftScopedExam ?? selectedExam;
                       const csv = buildExamCsvContent(
-                        selectedExam,
-                        attempts,
+                        activeExportExam,
+                        selectedShift ? shiftScopedAttempts : attempts,
                         chapterMasteryStats,
                       );
                       downloadTextFile(
-                        `VNE_BangDiem_${selectedExam.roomPin}.csv`,
+                        `VNE_BangDiem_${activeExportExam.roomPin}.csv`,
                         csv,
                         'text/csv;charset=utf-8;',
                       );
@@ -3034,13 +3040,15 @@ export const AdminDashboardPage: React.FC = () => {
               <div className="divide-y divide-slate-100">
                 {(() => {
                   const qTypeMap = new Map(questions.map((q) => [q.id, q.type]));
-                  const essayAttempts = attempts
-                    .filter((a) => a.examId === selectedExam.id)
-                    .filter((a) =>
-                      a.assignedQuestions.some(
-                        (s) => qTypeMap.get(s.questionId) === 'ESSAY',
-                      ),
-                    );
+                  const essayAttempts = (
+                    selectedShift
+                      ? shiftScopedAttempts
+                      : attempts.filter((a) => a.examId === selectedExam.id)
+                  ).filter((a) =>
+                    a.assignedQuestions.some(
+                      (s) => qTypeMap.get(s.questionId) === 'ESSAY',
+                    ),
+                  );
                   if (essayAttempts.length === 0) {
                     return (
                       <p className="text-xs text-ink-500 py-3">
