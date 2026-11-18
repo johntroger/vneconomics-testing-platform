@@ -184,3 +184,70 @@ test('ESSAY Rubric falls back to slot.label, matches sampleAnswer, and is case-i
   assert.equal(resParaphrase.earnedPoints, 1);
   assert.equal(resParaphrase.isCorrect, true);
 });
+
+test('buildAssignedQuestions honors easyCount/mediumCount/hardCount quotas', () => {
+  const mkQ = (id: string, diff: Question['difficulty']): Question => ({
+    id,
+    courseId: 'c1',
+    chapterCategory: 'Ch1',
+    difficulty: diff,
+    type: 'SINGLE_CHOICE',
+    content: `Q ${id}`,
+    options: [{ id: 'o1', text: 'A' }],
+    correctOptionIds: ['o1'],
+    points: 1,
+  });
+
+  const questions: Question[] = [
+    mkQ('e1', 'EASY'),
+    mkQ('e2', 'EASY'),
+    mkQ('m1', 'MEDIUM'),
+    mkQ('m2', 'MEDIUM'),
+    mkQ('h1', 'HARD'),
+    mkQ('h2', 'HARD'),
+  ];
+
+  const exam: Exam = {
+    id: 'e1',
+    courseId: 'c1',
+    title: 'Matrix Diff Test',
+    roomPin: '123456',
+    unlockPin: '8888',
+    instructorEmail: 'gv@test.edu',
+    durationMinutes: 15,
+    chapterMatrix: [
+      {
+        chapterCategory: 'Ch1',
+        questionCount: 4,
+        easyCount: 2,
+        mediumCount: 1,
+        hardCount: 1,
+      },
+    ],
+    pinnedQuestionIds: [],
+    shuffleQuestions: true,
+    shuffleMode: 'FULL_RANDOM',
+    shuffleOptions: true,
+    maxLeaveCount: 3,
+    maxAwaySeconds: 30,
+    gracePeriodMs: 2000,
+    oneWayMode: false,
+    perQuestionSeconds: 0,
+    canvasAntiOcr: false,
+    emailDeliveryMode: 'IMMEDIATE',
+    rosterWhitelist: [],
+    status: 'OPEN',
+    reportSentStatus: 'PENDING',
+    createdAt: new Date().toISOString(),
+  };
+
+  const assigned = buildAssignedQuestions(exam, questions, 'SV999');
+  assert.equal(assigned.length, 4);
+  const qById = new Map(questions.map((q) => [q.id, q]));
+  const counts = { EASY: 0, MEDIUM: 0, HARD: 0 };
+  for (const s of assigned) {
+    const d = qById.get(s.questionId)!.difficulty;
+    counts[d] += 1;
+  }
+  assert.deepEqual(counts, { EASY: 2, MEDIUM: 1, HARD: 1 });
+});

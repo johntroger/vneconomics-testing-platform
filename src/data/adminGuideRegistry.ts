@@ -35,11 +35,11 @@ export const GUIDE_RELEASE_NOTES: GuideReleaseNote[] = [
     date: '18/11/2026',
     title: 'Cập nhật mới nhất trên hệ thống VNEconomics Testing',
     highlights: [
-      'Tab 3 bổ sung 3 gói Cài đặt nhanh 1-chạm (Kiểm tra chuẩn / Thi nghiêm ngặt / Ôn tập mở) và thu gọn phần tùy chỉnh kỹ thuật để giảng viên dễ thao tác.',
-      'Tab 4 thêm nút "Chiếu Mã PIN & QR" toàn màn hình cho máy chiếu giảng đường (sinh viên quét QR tự điền sẵn PIN) và huy hiệu đỏ báo ngay số sinh viên bị khóa cần duyệt.',
-      'Trang chủ ưu tiên Form vào thi thật lên trên, thu gọn khu vực Demo tránh bấm nhầm và thêm hướng dẫn bật GPS chi tiết cho iPhone/Android.',
-      'Trong phòng thi luôn hiện nút "Nộp bài" khi sinh viên quay lại kiểm tra câu cũ, không cần bấm tới tận câu cuối.',
-      'Tách độc lập Đề thi gốc & Ca thi, hạ bàn phím không báo gian lận oan, và xuất Excel thống kê chi tiết Đúng/Sai từng câu của từng thí sinh.',
+      'Ma trận Đề thi hỗ trợ chia rõ số câu Dễ / Trung bình / Khó trong từng chương, kèm hẹn giờ Mở/Đóng tự động và khóa vào phòng muộn sau X phút.',
+      'Tab 4 Giám sát bổ sung Mở khóa tất cả (1 chạm), +2p/+5p cả ca khi rớt mạng, Chiếu Mã PIN & QR phóng to, và In Biên bản Coi thi & Điểm danh Vắng thi (A4).',
+      'Tab 5 Thống kê tự động cảnh báo câu hỏi nghi sai đáp án (p < 20% hoặc D < 0) và cho phép "Sửa & Chấm lại" toàn bộ ca thi ngay lập tức.',
+      'Tab 3 thêm 3 gói Cài đặt nhanh 1-chạm (Kiểm tra chuẩn / Thi nghiêm ngặt / Ôn tập mở) và thu gọn phần tùy chỉnh kỹ thuật.',
+      'Trang chủ ưu tiên Form vào thi thật, thu gọn Demo và có hướng dẫn mở Vị trí (GPS) riêng cho iPhone/Android; phòng thi luôn hiện nút Nộp bài khi rà soát.',
     ],
   },
 ];
@@ -102,8 +102,8 @@ export const ADMIN_TAB_REGISTRY: AdminTabGuideSpec[] = [
     actions: [
       'Bấm vào thẻ "3. Tạo & Cấu hình Đề thi" → bấm "Tạo Đề thi mới".',
       'Đặt tên đề thi (ví dụ: Kiểm tra Giữa kỳ — Kinh tế Vi mô). Hệ thống tự cấp Mã PIN 6 số (thầy/cô có thể sửa lại cho dễ nhớ).',
-      'Ở bảng Ma trận Chương, nhập số lượng câu cần lấy từ mỗi chương.',
-      'Chọn nhanh 1 trong 3 gói mẫu 1-chạm ("Kiểm tra chuẩn", "Thi nghiêm ngặt", hoặc "Ôn tập / Luyện tập"), rồi chỉnh Thời lượng & Trạng thái ĐANG MỞ. Nếu cần chỉnh sâu hơn mới bấm mở "Tùy chỉnh bảo mật & trộn đề nâng cao".',
+      'Ở bảng Ma trận Chương, nhập số lượng câu cần lấy từ mỗi chương (có thể chia chi tiết số câu Dễ / Trung bình / Khó nếu muốn).',
+      'Chọn nhanh 1 trong 3 gói mẫu 1-chạm ("Kiểm tra chuẩn", "Thi nghiêm ngặt", hoặc "Ôn tập / Luyện tập"), chỉnh Thời lượng & Trạng thái ĐANG MỞ. Nếu cần hẹn giờ mở/đóng tự động hoặc khóa vào thi muộn mới bấm mở "Tùy chỉnh bảo mật & trộn đề nâng cao".',
       'BẮT BUỘC: Kiểm tra dòng trạng thái đồng bộ ở cuối khung hoặc bấm nút "Lưu cấu hình ca thi" để xác nhận lưu lên máy chủ.',
     ],
     exampleTitle: 'Ví dụ minh họa — Đề kiểm tra 15 phút gồm 10 câu',
@@ -128,7 +128,7 @@ export const ADMIN_TAB_REGISTRY: AdminTabGuideSpec[] = [
       'Bấm vào thẻ "4. Giám sát Live & Duyệt".',
       'Bấm nút "+ Tạo Ca thi mới", đặt tên lớp/ca (ví dụ: Giữa kỳ — Lớp Thứ 2). Hệ thống tạo ngay Mã PIN 6 số ở trạng thái "OPEN" (Đang mở).',
       'Bấm nút "Chiếu Mã PIN & QR" để phóng to Mã PIN 6 số + Mã QR lên máy chiếu cho cả lớp quét vào phòng thi ngay (sinh viên có thể chọn xem từng câu, 10 câu/lượt hoặc tất cả câu).',
-      'Theo dõi tiến độ làm bài trực tiếp. Nếu có sinh viên bị khóa đỏ (thanh Tab 4 sẽ hiện huy hiệu đỏ báo số bài cần duyệt), thầy/cô bấm mở khóa / giải phóng Device Lock hoặc cộng thêm giờ ngay tại bảng.',
+      'Theo dõi tiến độ làm bài trực tiếp. Nếu lớp bị rớt mạng hàng loạt, dùng nút "Mở khóa tất cả" hoặc "+2p / +5p cả ca". Cuối giờ bấm "Biên bản Coi thi (A4)" để in danh sách vắng thi và ký xác nhận.',
     ],
     exampleTitle: 'Ví dụ minh họa — Dạy 2 lớp dùng chung 1 đề gốc',
     exampleLines: [
@@ -150,7 +150,7 @@ export const ADMIN_TAB_REGISTRY: AdminTabGuideSpec[] = [
     actions: [
       'Bấm vào thẻ "5. Thống kê & Tự luận".',
       'Chọn đúng Ca thi cần xem ở thanh trên cùng.',
-      'Xem Biểu đồ phổ điểm, Bảng kết quả từng câu hỏi (Đúng/Sai) của từng thí sinh, và bấm "Mở Highlight & Chấm lại" (nếu đề có câu tự luận).',
+      'Xem Biểu đồ phổ điểm, Bảng kết quả từng câu hỏi (Đúng/Sai) của từng thí sinh, và kiểm tra bảng Phân tích Chất lượng Câu hỏi (nếu câu nào báo đỏ nghi sai đáp án, bấm "Sửa & Chấm lại" để tự cập nhật điểm cho cả ca).',
       'Bấm "Xuất Excel (.xlsx)" để tải file về máy, hoặc dùng tính năng gửi kết quả ca thi về Email giảng viên.',
     ],
     exampleTitle: 'Ví dụ minh họa — Nội dung trong file Excel tải về',

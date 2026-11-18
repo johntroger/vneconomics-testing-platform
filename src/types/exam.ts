@@ -109,6 +109,10 @@ export interface ChapterQuotaRule {
   chapterCategory: string;
   questionCount: number;
   percent?: number;
+  /** Phân bổ số lượng cụ thể theo độ khó (nếu bỏ trống hoặc bằng 0 hết -> tự cân bằng) */
+  easyCount?: number;
+  mediumCount?: number;
+  hardCount?: number;
   /** Chuẩn hóa điểm cho mọi câu bốc ra từ chương này (Slot Point Normalization) */
   pointsPerQuestion?: number;
 }
@@ -149,6 +153,9 @@ export interface Exam {
   requiresWhitelist?: boolean;
   requiresRosterVerification?: boolean;
   status: 'DRAFT' | 'OPEN' | 'CLOSED';
+  lateEntryMinutes?: number;
+  scheduledStartAt?: string;
+  scheduledEndAt?: string;
   reportSentStatus: 'PENDING' | 'SENT' | 'FAILED';
   reportSentAt?: string;
   createdAt: string;
@@ -162,6 +169,9 @@ export interface ExamShift {
   roomPin: string;
   unlockPin: string;
   status: 'DRAFT' | 'OPEN' | 'CLOSED';
+  lateEntryMinutes?: number;
+  scheduledStartAt?: string;
+  scheduledEndAt?: string;
   rosterWhitelist: string[];
   rosterEntries?: StudentRosterEntry[];
   requiresWhitelist?: boolean;

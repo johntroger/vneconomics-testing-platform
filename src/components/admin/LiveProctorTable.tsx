@@ -10,6 +10,7 @@ import {
   MapPin,
   MonitorSmartphone,
   Plus,
+  Printer,
   RefreshCw,
   RotateCcw,
   Search,
@@ -60,6 +61,7 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
   const [editingEmailId, setEditingEmailId] = useState<string | null>(null);
   const [emailDraft, setEmailDraft] = useState('');
   const [showRosterTable, setShowRosterTable] = useState(false);
+  const [showProctorReportModal, setShowProctorReportModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [filterMode, setFilterMode] = useState<'ALL' | 'IN_PROGRESS' | 'ALERTS' | 'ABSENT'>('ALL');
   const [rosterNotice, setRosterNotice] = useState<{
@@ -273,6 +275,52 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          {(countInProgress + countLocked) > 0 && (
+            <>
+              <button
+                type="button"
+                onClick={() => {
+                  const activeTargets = examAttempts.filter(
+                    (a) => a.status === 'IN_PROGRESS' || a.status === 'LOCKED' || a.status === 'PAUSED',
+                  );
+                  if (!window.confirm(`Cộng thêm +2 phút (120s) cho toàn bộ ${activeTargets.length} sinh viên đang thi trong ca?`)) return;
+                  for (const a of activeTargets) {
+                    onAddBonusTime(a.id, 120);
+                  }
+                }}
+                className="px-3 py-2 rounded-xl border border-brand-200 bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-bold flex items-center gap-1 transition"
+                title="Cộng thêm 2 phút cho tất cả thí sinh đang làm bài (hữu ích khi rớt mạng cả lớp)"
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>+2p cả ca</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const activeTargets = examAttempts.filter(
+                    (a) => a.status === 'IN_PROGRESS' || a.status === 'LOCKED' || a.status === 'PAUSED',
+                  );
+                  if (!window.confirm(`Cộng thêm +5 phút (300s) cho toàn bộ ${activeTargets.length} sinh viên đang thi trong ca?`)) return;
+                  for (const a of activeTargets) {
+                    onAddBonusTime(a.id, 300);
+                  }
+                }}
+                className="px-3 py-2 rounded-xl border border-brand-200 bg-brand-50 hover:bg-brand-100 text-brand-700 text-xs font-bold flex items-center gap-1 transition"
+                title="Cộng thêm 5 phút cho tất cả thí sinh đang làm bài"
+              >
+                <Clock className="w-3.5 h-3.5" />
+                <span>+5p cả ca</span>
+              </button>
+            </>
+          )}
+          <button
+            type="button"
+            onClick={() => setShowProctorReportModal(true)}
+            className="px-3.5 py-2 rounded-xl border border-slate-300 bg-white hover:border-brand-400 text-ink-800 text-xs font-bold flex items-center gap-1.5 transition"
+          >
+            <Printer className="w-4 h-4 text-brand-600" />
+            <span>Biên bản Coi thi (A4)</span>
+          </button>
           <button
             type="button"
             onClick={() =>
@@ -438,15 +486,47 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
       {/* Prominent LOCKED Instructor Approval Queue */}
       {lockedQueue.length > 0 && (
         <div className="bg-rose-50 border-2 border-rose-300 rounded-2xl p-4 space-y-3">
-          <div className="flex items-center gap-2 text-rose-900 font-bold text-sm flex-wrap">
-            <AlertOctagon className="w-5 h-5 text-rose-600 shrink-0" />
-            <span>Hàng đợi Phê duyệt Sinh viên Vượt ngưỡng ({lockedQueue.length} thí sinh đang chờ quyết định)</span>
-            <InfoHint
-              title="Hướng dẫn xử lý 3 nút Phê duyệt"
-              text={
-                '• Accept (Giữ giờ): Mở khóa cho sinh viên làm bài tiếp nhưng đồng hồ vẫn trừ thời gian đã chờ.\n• Accept + Bù giờ: Mở khóa và cộng trả lại đúng số giây sinh viên vừa ngồi chờ (nên dùng nếu lỗi mạng/lỗi khách quan).\n• Reject (Thu bài): Chấm dứt bài làm ngay lập tức, thu điểm hiện có và gửi Email kết quả.'
-              }
-            />
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2 text-rose-900 font-bold text-sm flex-wrap">
+              <AlertOctagon className="w-5 h-5 text-rose-600 shrink-0" />
+              <span>Hàng đợi Phê duyệt Sinh viên Vượt ngưỡng ({lockedQueue.length} thí sinh đang chờ quyết định)</span>
+              <InfoHint
+                title="Hướng dẫn xử lý 3 nút Phê duyệt"
+                text={
+                  '• Accept (Giữ giờ): Mở khóa cho sinh viên làm bài tiếp nhưng đồng hồ vẫn trừ thời gian đã chờ.\n• Accept + Bù giờ: Mở khóa và cộng trả lại đúng số giây sinh viên vừa ngồi chờ (nên dùng nếu lỗi mạng/lỗi khách quan).\n• Reject (Thu bài): Chấm dứt bài làm ngay lập tức, thu điểm hiện có và gửi Email kết quả.'
+                }
+              />
+            </div>
+            {lockedQueue.length > 1 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!window.confirm(`Mở khóa toàn bộ ${lockedQueue.length} thí sinh đang bị khóa và cộng bù thời gian chờ?`)) return;
+                    for (const a of lockedQueue) {
+                      onProctorDecision(a.id, 'ACCEPT_COMPENSATE', getWaitSeconds(a));
+                    }
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1 shadow-xs"
+                >
+                  <Clock className="w-3.5 h-3.5" />
+                  <span>Mở khóa tất cả + Bù giờ ({lockedQueue.length})</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!window.confirm(`Mở khóa toàn bộ ${lockedQueue.length} thí sinh đang bị khóa (không bù giờ)?`)) return;
+                    for (const a of lockedQueue) {
+                      onProctorDecision(a.id, 'ACCEPT_KEEP');
+                    }
+                  }}
+                  className="px-3 py-1.5 rounded-lg bg-support-600 hover:bg-support-700 text-white text-xs font-bold flex items-center gap-1 shadow-xs"
+                >
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  <span>Mở khóa tất cả (Giữ giờ)</span>
+                </button>
+              </div>
+            )}
           </div>
 
           <div className="space-y-3">
@@ -908,6 +988,168 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
         </div>
         )}
       </div>
+
+      {showProctorReportModal && (() => {
+        const violatedAttempts = examAttempts.filter(
+          (a) => a.leaveCount > 0 || a.aiFlag || a.status === 'LOCKED',
+        );
+        const totalRoster = rosterEntries.length > 0 ? rosterEntries.length : examAttempts.length;
+        const presentCount =
+          rosterEntries.length > 0
+            ? rosterEntries.length - absentRosterStudents.length
+            : examAttempts.length;
+        return (
+          <div className="fixed inset-0 z-50 bg-ink-900/60 flex items-center justify-center p-4 overflow-y-auto">
+            <style>
+              {`@media print { body * { visibility: hidden !important; } #proctor-report-printable, #proctor-report-printable * { visibility: visible !important; } #proctor-report-printable { position: fixed; left: 0; top: 0; width: 100%; background: #fff; box-shadow: none !important; border: none !important; } .no-print-btn { display: none !important; } }`}
+            </style>
+            <div
+              id="proctor-report-printable"
+              className="w-full max-w-3xl bg-white rounded-2xl border border-slate-200 shadow-2xl p-6 sm:p-8 space-y-5 text-ink-900"
+            >
+              <div className="flex items-start justify-between gap-3 border-b border-slate-200 pb-4">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-wider text-ink-500">
+                    Biên bản Tổng kết Coi thi &amp; Điểm danh Ca thi
+                  </p>
+                  <h3 className="text-lg font-extrabold text-ink-900 mt-1">
+                    {exam.title}
+                  </h3>
+                  <p className="text-xs text-ink-600 mt-0.5">
+                    Mã phòng thi (PIN): <strong className="font-mono">{exam.roomPin}</strong> • Thời lượng: <strong>{exam.durationMinutes} phút</strong> • Ngày lập: <strong>{new Date().toLocaleDateString('vi-VN')}</strong>
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 no-print-btn shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => window.print()}
+                    className="h-9 px-3.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5"
+                  >
+                    <Printer className="w-3.5 h-3.5" /> In Biên bản A4
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowProctorReportModal(false)}
+                    className="h-9 px-3 rounded-xl border border-slate-200 text-xs font-bold text-ink-700 hover:bg-slate-50"
+                  >
+                    Đóng
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center text-xs">
+                <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
+                  <div className="text-ink-500">Tổng danh sách</div>
+                  <div className="text-xl font-mono font-extrabold text-ink-900 mt-0.5">{totalRoster}</div>
+                </div>
+                <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
+                  <div className="text-ink-500">Có mặt dự thi</div>
+                  <div className="text-xl font-mono font-extrabold text-support-700 mt-0.5">{presentCount}</div>
+                </div>
+                <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
+                  <div className="text-ink-500">Vắng thi</div>
+                  <div className="text-xl font-mono font-extrabold text-rose-700 mt-0.5">
+                    {rosterEntries.length > 0 ? absentRosterStudents.length : 0}
+                  </div>
+                </div>
+                <div className="p-3 rounded-xl border border-slate-200 bg-slate-50">
+                  <div className="text-ink-500">Đã nộp bài</div>
+                  <div className="text-xl font-mono font-extrabold text-brand-700 mt-0.5">{countSubmitted}</div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-ink-700">
+                  1. Danh sách Thí sinh Vắng thi ({rosterEntries.length > 0 ? absentRosterStudents.length : 0})
+                </h4>
+                {rosterEntries.length === 0 ? (
+                  <p className="text-xs text-ink-500 italic">
+                    Ca thi mở tự do theo PIN (chưa import danh sách lớp để đối chiếu vắng thi).
+                  </p>
+                ) : absentRosterStudents.length === 0 ? (
+                  <p className="text-xs text-support-700 font-semibold">
+                    ✓ Đầy đủ 100% thí sinh trong danh sách đã vào thi.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 border-b border-slate-200 font-bold text-ink-600">
+                        <tr>
+                          <th className="px-3 py-1.5">STT</th>
+                          <th className="px-3 py-1.5">MSSV</th>
+                          <th className="px-3 py-1.5">Họ và tên</th>
+                          <th className="px-3 py-1.5">Ngày sinh</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {absentRosterStudents.map((st, idx) => (
+                          <tr key={st.studentCode}>
+                            <td className="px-3 py-1.5">{idx + 1}</td>
+                            <td className="px-3 py-1.5 font-mono font-bold">{st.studentCode}</td>
+                            <td className="px-3 py-1.5">{st.lastName} {st.firstName}</td>
+                            <td className="px-3 py-1.5 font-mono">{st.dob}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-ink-700">
+                  2. Ghi nhận Vi phạm Quy chế / Cảnh báo Giám sát ({violatedAttempts.length})
+                </h4>
+                {violatedAttempts.length === 0 ? (
+                  <p className="text-xs text-support-700 font-semibold">
+                    ✓ Ca thi diễn ra nghiêm túc, không ghi nhận thí sinh vi phạm rời màn hình hoặc nghi vấn thiết bị.
+                  </p>
+                ) : (
+                  <div className="overflow-x-auto border border-slate-200 rounded-xl">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-slate-50 border-b border-slate-200 font-bold text-ink-600">
+                        <tr>
+                          <th className="px-3 py-1.5">MSSV</th>
+                          <th className="px-3 py-1.5">Họ tên</th>
+                          <th className="px-3 py-1.5 text-center">Rời màn hình</th>
+                          <th className="px-3 py-1.5 text-center">Vắng mặt</th>
+                          <th className="px-3 py-1.5">Ghi chú</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {violatedAttempts.map((a) => (
+                          <tr key={a.id}>
+                            <td className="px-3 py-1.5 font-mono font-bold">{a.studentCode}</td>
+                            <td className="px-3 py-1.5">{a.studentName}</td>
+                            <td className="px-3 py-1.5 text-center font-mono">{a.leaveCount} lần</td>
+                            <td className="px-3 py-1.5 text-center font-mono">{a.totalAwaySeconds}s</td>
+                            <td className="px-3 py-1.5 text-[11px]">
+                              {a.aiFlagReason || (a.status === 'LOCKED' ? 'Đang bị khóa' : 'Vượt ngưỡng giám sát')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-6 pt-6 text-center text-xs">
+                <div>
+                  <p className="font-bold text-ink-800 uppercase">Cán bộ Coi thi 1 / Giảng viên</p>
+                  <p className="text-[11px] text-ink-500 mt-1">(Ký và ghi rõ họ tên)</p>
+                  <div className="h-16" />
+                </div>
+                <div>
+                  <p className="font-bold text-ink-800 uppercase">Đại diện Khoa / Bộ môn (nếu có)</p>
+                  <p className="text-[11px] text-ink-500 mt-1">(Ký và ghi rõ họ tên)</p>
+                  <div className="h-16" />
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };

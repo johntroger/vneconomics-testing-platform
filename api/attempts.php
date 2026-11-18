@@ -124,7 +124,32 @@ function buildAssignedQuestionsPhp(array $exam, array $courseQuestions, string $
                 static fn ($q) => $q['chapterCategory'] === $cat && empty($usedIds[$q['id']])
             ));
             $rng = createSeededRngPhp($studentCode . '::' . $exam['id'] . '::pool::' . $cat);
-            if (!empty($exam['shuffleQuestions']) && (($exam['shuffleMode'] ?? 'FULL_RANDOM') !== 'NONE')) {
+            $doShuffle = !empty($exam['shuffleQuestions']) && (($exam['shuffleMode'] ?? 'FULL_RANDOM') !== 'NONE');
+            $reqEasy = max(0, (int) ($rule['easyCount'] ?? 0));
+            $reqMed = max(0, (int) ($rule['mediumCount'] ?? 0));
+            $reqHard = max(0, (int) ($rule['hardCount'] ?? 0));
+            if ($reqEasy + $reqMed + $reqHard > 0) {
+                $easyPool = array_values(array_filter($pool, static fn ($q) => ($q['difficulty'] ?? 'MEDIUM') === 'EASY'));
+                $medPool = array_values(array_filter($pool, static fn ($q) => ($q['difficulty'] ?? 'MEDIUM') === 'MEDIUM'));
+                $hardPool = array_values(array_filter($pool, static fn ($q) => !in_array($q['difficulty'] ?? 'MEDIUM', ['EASY', 'MEDIUM'], true)));
+                if ($doShuffle) {
+                    $easyPool = seededShufflePhp($easyPool, $rng);
+                    $medPool = seededShufflePhp($medPool, $rng);
+                    $hardPool = seededShufflePhp($hardPool, $rng);
+                }
+                $pickedDiff = array_merge(
+                    array_slice($easyPool, 0, $reqEasy),
+                    array_slice($medPool, 0, $reqMed),
+                    array_slice($hardPool, 0, $reqHard)
+                );
+                $diffIds = [];
+                foreach ($pickedDiff as $pd) {
+                    $diffIds[$pd['id']] = true;
+                }
+                $restPool = $doShuffle ? seededShufflePhp($pool, $rng) : $pool;
+                $leftovers = array_values(array_filter($restPool, static fn ($q) => empty($diffIds[$q['id']])));
+                $selected = array_merge($pickedDiff, $leftovers);
+            } elseif ($doShuffle) {
                 $easy = seededShufflePhp(array_values(array_filter($pool, static fn ($q) => ($q['difficulty'] ?? 'MEDIUM') === 'EASY')), $rng);
                 $medium = seededShufflePhp(array_values(array_filter($pool, static fn ($q) => ($q['difficulty'] ?? 'MEDIUM') === 'MEDIUM')), $rng);
                 $hard = seededShufflePhp(array_values(array_filter($pool, static fn ($q) => !in_array($q['difficulty'] ?? 'MEDIUM', ['EASY', 'MEDIUM'], true))), $rng);
@@ -721,8 +746,23 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         if ($shiftRow) {
             $exam['status'] = (string) ($shiftRow['status'] ?? $exam['status']);
             $exam['roomPin'] = (string) ($shiftRow['room_pin'] ?? $exam['roomPin']);
+            $exam['lateEntryMinutes'] = max(0, (int) ($shiftRow['late_entry_minutes'] ?? $exam['lateEntryMinutes'] ?? 0));
+            $exam['scheduledStartAt'] = !empty($shiftRow['scheduled_start_at']) ? (string) $shiftRow['scheduled_start_at'] : ($exam['scheduledStartAt'] ?? '');
+            $exam['scheduledEndAt'] = !empty($shiftRow['scheduled_end_at']) ? (string) $shiftRow['scheduled_end_at'] : ($exam['scheduledEndAt'] ?? '');
             $exam['rosterWhitelist'] = decodeJsonSafe($shiftRow['roster_whitelist_json'] ?? null, []);
             $exam['rosterEntries'] = decodeJsonSafe($shiftRow['roster_entries_json'] ?? null, []);
+        }
+        $nowTs = time();
+        $schedStart = !empty($exam['scheduledStartAt']) ? strtotime((string) $exam['scheduledStartAt']) : false;
+        $schedEnd = !empty($exam['scheduledEndAt']) ? strtotime((string) $exam['scheduledEndAt']) : false;
+        if ($exam['status'] !== 'CLOSED') {
+            if ($schedEnd !== false && $nowTs > $schedEnd) {
+                $exam['status'] = 'CLOSED';
+            } elseif ($schedStart !== false && $nowTs < $schedStart) {
+                jsonError('Chưa tới giờ mở phòng thi theo lịch hẹn.', 403);
+            } elseif ($schedStart !== false && $nowTs >= $schedStart && $exam['status'] === 'DRAFT') {
+                $exam['status'] = 'OPEN';
+            }
         }
         if ($exam['status'] !== 'OPEN') {
             jsonError('Phòng thi hiện không ở trạng thái MỞ.', 403);
@@ -771,6 +811,27 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             $existingStmt->execute([':eid' => $exam['id'], ':sc' => $studentCode]);
         }
         $existing = $existingStmt->fetch();
+
+        if (!$existing && ((int) ($exam['lateEntryMinutes'] ?? 0)) > 0) {
+            $lateLimitSec = ((int) $exam['lateEntryMinutes']) * 60;
+            $anchorTs = $schedStart !== false ? $schedStart : false;
+            if ($anchorTs === false) {
+                if ($resolvedShiftId !== null) {
+                    $firstStmt = $pdo->prepare('SELECT MIN(started_at) FROM exam_attempts WHERE shift_id = :sid');
+                    $firstStmt->execute([':sid' => $resolvedShiftId]);
+                } else {
+                    $firstStmt = $pdo->prepare('SELECT MIN(started_at) FROM exam_attempts WHERE exam_id = :eid');
+                    $firstStmt->execute([':eid' => $exam['id']]);
+                }
+                $firstIso = $firstStmt->fetchColumn();
+                if ($firstIso) {
+                    $anchorTs = strtotime((string) $firstIso);
+                }
+            }
+            if ($anchorTs !== false && ($nowTs - $anchorTs) > $lateLimitSec) {
+                jsonError("Đã quá thời gian cho phép vào thi muộn ({$exam['lateEntryMinutes']} phút). Vui lòng liên hệ giám thị.", 403);
+            }
+        }
 
         if ($existing) {
             if (in_array($existing['status'], ['SUBMITTED', 'AUTO_SUBMITTED'], true)) {

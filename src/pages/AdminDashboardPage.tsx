@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'rea
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   Activity,
+  AlertTriangle,
   BarChart3,
   BookOpen,
   CheckCircle2,
@@ -104,6 +105,7 @@ export const AdminDashboardPage: React.FC = () => {
     closeExamAndSweep,
     overrideEssayScore,
     enrichRubricAndRegradeExam,
+    regradeExamAttempts,
     addCourse,
     updateCourse,
     deleteCourse,
@@ -398,11 +400,13 @@ export const AdminDashboardPage: React.FC = () => {
     () =>
       selectedExam
         ? computeItemAnalysis(
-            attempts.filter((a) => a.examId === selectedExam.id),
+            selectedShift
+              ? shiftScopedAttempts
+              : attempts.filter((a) => a.examId === selectedExam.id),
             questions,
           )
         : [],
-    [attempts, questions, selectedExam],
+    [attempts, questions, selectedExam, selectedShift, shiftScopedAttempts],
   );
 
   const previewAssigned = useMemo(() => {
@@ -429,6 +433,7 @@ export const AdminDashboardPage: React.FC = () => {
   };
 
   const [savingExamConfig, setSavingExamConfig] = useState(false);
+  const [regradingExam, setRegradingExam] = useState(false);
   const [showAdvancedExamSettings, setShowAdvancedExamSettings] = useState(false);
   const [projectorModalOpen, setProjectorModalOpen] = useState(false);
   const [projectorCopied, setProjectorCopied] = useState(false);
@@ -1394,8 +1399,20 @@ export const AdminDashboardPage: React.FC = () => {
                       (r) => r.chapterCategory === chapterName,
                     );
                     const qCount = rule?.questionCount ?? 0;
+                    const reqEasy = rule?.easyCount ?? 0;
+                    const reqMed = rule?.mediumCount ?? 0;
+                    const reqHard = rule?.hardCount ?? 0;
+                    const easyInPool = qs.filter((q) => q.difficulty === 'EASY').length;
+                    const medInPool = qs.filter((q) => q.difficulty === 'MEDIUM').length;
+                    const hardInPool = qs.filter(
+                      (q) => q.difficulty !== 'EASY' && q.difficulty !== 'MEDIUM',
+                    ).length;
                     const slotPts = rule?.pointsPerQuestion ?? 1;
-                    const shortfall = qCount > qs.length;
+                    const shortfall =
+                      qCount > qs.length ||
+                      reqEasy > easyInPool ||
+                      reqMed > medInPool ||
+                      reqHard > hardInPool;
                     const pct =
                       totalMatrixQuestions > 0
                         ? Math.round((qCount / totalMatrixQuestions) * 100)
@@ -1417,6 +1434,9 @@ export const AdminDashboardPage: React.FC = () => {
                           <span className="font-mono text-[11px] text-ink-500 shrink-0">
                             Kho: {qs.length} câu ({pct}%)
                           </span>
+                        </div>
+                        <div className="text-[10px] text-ink-500 font-mono">
+                          Phân bổ kho — Dễ: {easyInPool} • TB: {medInPool} • Khó: {hardInPool}
                         </div>
                         <div className="grid grid-cols-2 gap-2">
                           <label className="flex items-center justify-between gap-1 bg-white px-2.5 py-1.5 rounded-lg border">
@@ -1471,9 +1491,65 @@ export const AdminDashboardPage: React.FC = () => {
                             />
                           </label>
                         </div>
+                        <div className="grid grid-cols-3 gap-1.5 text-[11px]">
+                          <label className="flex items-center justify-between gap-1 bg-white px-2 py-1 rounded-lg border border-emerald-200">
+                            <span className="text-emerald-800 font-semibold">Dễ:</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={easyInPool + 5}
+                              value={reqEasy}
+                              onChange={(e) => {
+                                const nextE = Math.max(0, Number(e.target.value) || 0);
+                                const sumDiff = nextE + reqMed + reqHard;
+                                updateMatrixRule(chapterName, {
+                                  easyCount: nextE,
+                                  ...(sumDiff > 0 ? { questionCount: sumDiff } : {}),
+                                });
+                              }}
+                              className="w-9 text-right font-mono font-bold outline-none"
+                            />
+                          </label>
+                          <label className="flex items-center justify-between gap-1 bg-white px-2 py-1 rounded-lg border border-amber-200">
+                            <span className="text-amber-800 font-semibold">TB:</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={medInPool + 5}
+                              value={reqMed}
+                              onChange={(e) => {
+                                const nextM = Math.max(0, Number(e.target.value) || 0);
+                                const sumDiff = reqEasy + nextM + reqHard;
+                                updateMatrixRule(chapterName, {
+                                  mediumCount: nextM,
+                                  ...(sumDiff > 0 ? { questionCount: sumDiff } : {}),
+                                });
+                              }}
+                              className="w-9 text-right font-mono font-bold outline-none"
+                            />
+                          </label>
+                          <label className="flex items-center justify-between gap-1 bg-white px-2 py-1 rounded-lg border border-rose-200">
+                            <span className="text-rose-800 font-semibold">Khó:</span>
+                            <input
+                              type="number"
+                              min={0}
+                              max={hardInPool + 5}
+                              value={reqHard}
+                              onChange={(e) => {
+                                const nextH = Math.max(0, Number(e.target.value) || 0);
+                                const sumDiff = reqEasy + reqMed + nextH;
+                                updateMatrixRule(chapterName, {
+                                  hardCount: nextH,
+                                  ...(sumDiff > 0 ? { questionCount: sumDiff } : {}),
+                                });
+                              }}
+                              className="w-9 text-right font-mono font-bold outline-none"
+                            />
+                          </label>
+                        </div>
                         {shortfall && (
                           <p className="text-[11px] text-rose-700 font-semibold">
-                            Cảnh báo: Số câu bốc ({qCount}) vượt quá kho câu hiện có ({qs.length})!
+                            Cảnh báo: Số câu bốc vượt quá số câu hiện có trong kho hoặc nhóm độ khó!
                           </p>
                         )}
                       </div>
@@ -1916,6 +1992,89 @@ export const AdminDashboardPage: React.FC = () => {
                           })
                         }
                         className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-mono font-bold"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 font-semibold mb-1">
+                        <span>Khóa vào phòng muộn sau (phút)</span>
+                        <InfoHint
+                          title="Chặn sinh viên đi muộn tự ý vào phòng"
+                          text={
+                            '• Đặt = 0: Không giới hạn (miễn phòng còn ĐANG MỞ).\n• Ví dụ đặt = 10: Sau khi mở ca thi hoặc sau giờ hẹn mở 10 phút, sinh viên mới vào sẽ bị chặn (sinh viên bị rớt mạng thi lại vẫn vào bình thường).'
+                          }
+                        />
+                      </label>
+                      <input
+                        type="number"
+                        min={0}
+                        max={180}
+                        value={selectedExam.lateEntryMinutes ?? 0}
+                        onChange={(e) =>
+                          saveExamSetting({
+                            ...selectedExam,
+                            lateEntryMinutes: Math.max(0, Number(e.target.value) || 0),
+                          })
+                        }
+                        placeholder="0"
+                        className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-mono font-bold"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Scheduled Auto Open / Close Window */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                      <label className="flex items-center gap-1.5 font-semibold mb-1">
+                        <span>Hẹn giờ mở tự động (tùy chọn)</span>
+                        <InfoHint
+                          title="Tự động mở phòng thi đúng lịch"
+                          text={
+                            '• Bỏ trống nếu thầy/cô tự bấm Mở/Đóng thủ công.\n• Nếu đặt giờ, sinh viên bấm vào trước giờ hẹn sẽ được thông báo chờ đúng khung giờ.'
+                          }
+                        />
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={(() => {
+                          if (!selectedExam.scheduledStartAt) return '';
+                          const d = new Date(selectedExam.scheduledStartAt);
+                          if (Number.isNaN(d.getTime())) return '';
+                          const p = (n: number) => String(n).padStart(2, '0');
+                          return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+                        })()}
+                        onChange={(e) =>
+                          saveExamSetting({
+                            ...selectedExam,
+                            scheduledStartAt: e.target.value
+                              ? new Date(e.target.value).toISOString()
+                              : '',
+                          })
+                        }
+                        className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-mono text-xs"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 font-semibold mb-1">
+                        <span>Hẹn giờ đóng tự động (tùy chọn)</span>
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={(() => {
+                          if (!selectedExam.scheduledEndAt) return '';
+                          const d = new Date(selectedExam.scheduledEndAt);
+                          if (Number.isNaN(d.getTime())) return '';
+                          const p = (n: number) => String(n).padStart(2, '0');
+                          return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+                        })()}
+                        onChange={(e) =>
+                          saveExamSetting({
+                            ...selectedExam,
+                            scheduledEndAt: e.target.value
+                              ? new Date(e.target.value).toISOString()
+                              : '',
+                          })
+                        }
+                        className="w-full h-9 px-2.5 rounded-lg border border-slate-300 font-mono text-xs"
                       />
                     </div>
                   </div>
@@ -2725,20 +2884,55 @@ export const AdminDashboardPage: React.FC = () => {
 
             {/* Item Analysis Card */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-3">
-              <div>
-                <h3 className="text-sm font-extrabold text-ink-900 flex items-center gap-1.5 flex-wrap">
-                  <span>Phân tích Chất lượng Câu hỏi (Item Analysis)</span>
-                  <InfoHint
-                    title="Cách đọc Độ khó (p) & Độ phân cách (D) chuẩn khảo thí"
-                    text={
-                      '• Tỷ lệ đúng (p): % sinh viên trả lời đúng câu đó. Nếu p < 25% ("Cần rà soát"), có thể câu hỏi bị lỗi đề, đáp án nhầm hoặc kiến thức quá khó.\n• Độ phân cách (D): Đo xem câu hỏi có tách được sinh viên giỏi (nhóm 27% điểm cao) với nhóm yếu (27% điểm thấp) hay không. D >= 0.20 là câu phân loại tốt; D < 0.20 ("Phân hóa kém") nghĩa là sinh viên giỏi và yếu làm đúng ngang nhau.'
-                    }
-                  />
-                </h3>
-                <p className="text-xs text-ink-500">
-                  Sắp xếp từ câu có tỷ lệ làm đúng thấp nhất lên cao nhất để giảng viên nhanh chóng phát hiện câu hỏi cần rà soát.
-                </p>
+              <div className="flex flex-wrap items-center justify-between gap-2.5">
+                <div>
+                  <h3 className="text-sm font-extrabold text-ink-900 flex items-center gap-1.5 flex-wrap">
+                    <span>Phân tích Chất lượng Câu hỏi (Item Analysis)</span>
+                    <InfoHint
+                      title="Cách đọc Độ khó (p) & Độ phân cách (D) chuẩn khảo thí"
+                      text={
+                        '• Tỷ lệ đúng (p): % sinh viên trả lời đúng câu đó. Nếu p < 20% ("Cần rà soát"), có thể câu hỏi bị lỗi đề hoặc nhầm đáp án gốc.\n• Độ phân cách (D): Đo xem câu hỏi có tách được sinh viên giỏi với nhóm yếu hay không. D < 0 nghĩa là nhóm yếu làm đúng nhiều hơn nhóm giỏi — dấu hiệu rất rõ của câu sai đáp án.'
+                      }
+                    />
+                  </h3>
+                  <p className="text-xs text-ink-500">
+                    Sắp xếp từ câu có tỷ lệ làm đúng thấp nhất lên cao nhất; cho phép sửa đáp án gốc và chấm lại toàn bộ ca thi chỉ với 1 chạm.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  disabled={regradingExam || !selectedExam}
+                  onClick={() => {
+                    if (!requireOfficialOrPrompt() || !selectedExam) return;
+                    setRegradingExam(true);
+                    void regradeExamAttempts(selectedExam.id, selectedShift?.id).then((res) => {
+                      setRegradingExam(false);
+                      showToast(`Đã chấm lại toàn bộ ${res.regradedCount} bài đã nộp theo đáp án mới nhất!`);
+                    });
+                  }}
+                  className="h-9 px-3.5 rounded-xl bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white text-xs font-bold flex items-center gap-1.5 shadow-xs shrink-0"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${regradingExam ? 'animate-spin' : ''}`} />
+                  <span>{regradingExam ? 'Đang chấm lại...' : 'Chấm lại toàn bộ ca thi'}</span>
+                </button>
               </div>
+              {(() => {
+                const suspectItems = itemAnalysisRows.filter(
+                  (r) =>
+                    r.correctRatePercent < 20 ||
+                    (r.discriminationIndex !== null && r.discriminationIndex < 0),
+                );
+                if (suspectItems.length === 0) return null;
+                return (
+                  <div className="rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-2.5 text-xs text-rose-900 flex items-start gap-2">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    <div>
+                      <strong>Cảnh báo Hậu kiểm Khảo thí:</strong> Phát hiện{' '}
+                      <strong>{suspectItems.length} câu hỏi</strong> có tỷ lệ đúng dưới 20% hoặc Độ phân cách âm (<em>D &lt; 0</em> — sinh viên điểm cao làm sai nhiều hơn sinh viên điểm thấp). Thầy/cô nên bấm <strong>Sửa &amp; Chấm lại</strong> ở bảng dưới để kiểm tra khóa đáp án!
+                    </div>
+                  </div>
+                );
+              })()}
               {itemAnalysisRows.length === 0 ? (
                 <p className="text-xs text-ink-500 py-3">
                   Chưa có bài thi đã nộp để tính độ khó và độ phân cách từng câu.
@@ -2754,41 +2948,72 @@ export const AdminDashboardPage: React.FC = () => {
                         <th className="py-2.5 px-3 text-center">Tỷ lệ đúng (p)</th>
                         <th className="py-2.5 px-3 text-center">Phân cách (D)</th>
                         <th className="py-2.5 px-3 text-right">Đánh giá</th>
+                        <th className="py-2.5 px-3 text-right">Hành động</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                      {itemAnalysisRows.map((row) => (
-                        <tr key={row.questionId} className="hover:bg-slate-50/70">
-                          <td className="py-2.5 px-3 max-w-[320px]">
-                            <p className="font-semibold text-ink-900 line-clamp-2">{row.content}</p>
-                          </td>
-                          <td className="py-2.5 px-3 text-[11px] text-ink-600 whitespace-nowrap">
-                            {row.chapterCategory}
-                          </td>
-                          <td className="py-2.5 px-3 text-center font-mono">{row.attemptCount}</td>
-                          <td className="py-2.5 px-3 text-center font-mono font-bold text-ink-900">
-                            {row.correctRatePercent}%
-                          </td>
-                          <td className="py-2.5 px-3 text-center font-mono text-ink-700">
-                            {row.discriminationIndex !== null ? row.discriminationIndex.toFixed(2) : '—'}
-                          </td>
-                          <td className="py-2.5 px-3 text-right whitespace-nowrap">
-                            <span
-                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                row.statusTag === 'Cần rà soát'
-                                  ? 'bg-rose-100 text-rose-800'
-                                  : row.statusTag === 'Phân hóa kém'
-                                    ? 'bg-amber-100 text-amber-800'
-                                    : row.statusTag === 'Quá dễ'
-                                      ? 'bg-sky-100 text-sky-800'
-                                      : 'bg-support-100 text-support-800'
+                      {itemAnalysisRows.map((row) => {
+                        const qObj = questions.find((q) => q.id === row.questionId);
+                        const isSuspect =
+                          row.correctRatePercent < 20 ||
+                          (row.discriminationIndex !== null && row.discriminationIndex < 0);
+                        return (
+                          <tr
+                            key={row.questionId}
+                            className={isSuspect ? 'bg-rose-50/40 hover:bg-rose-50/70' : 'hover:bg-slate-50/70'}
+                          >
+                            <td className="py-2.5 px-3 max-w-[320px]">
+                              <p className="font-semibold text-ink-900 line-clamp-2">{row.content}</p>
+                            </td>
+                            <td className="py-2.5 px-3 text-[11px] text-ink-600 whitespace-nowrap">
+                              {row.chapterCategory}
+                            </td>
+                            <td className="py-2.5 px-3 text-center font-mono">{row.attemptCount}</td>
+                            <td className="py-2.5 px-3 text-center font-mono font-bold text-ink-900">
+                              {row.correctRatePercent}%
+                            </td>
+                            <td
+                              className={`py-2.5 px-3 text-center font-mono ${
+                                row.discriminationIndex !== null && row.discriminationIndex < 0
+                                  ? 'text-rose-700 font-extrabold'
+                                  : 'text-ink-700'
                               }`}
                             >
-                              {row.statusTag}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
+                              {row.discriminationIndex !== null ? row.discriminationIndex.toFixed(2) : '—'}
+                            </td>
+                            <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  row.statusTag === 'Cần rà soát' || isSuspect
+                                    ? 'bg-rose-100 text-rose-800'
+                                    : row.statusTag === 'Phân hóa kém'
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : row.statusTag === 'Quá dễ'
+                                        ? 'bg-sky-100 text-sky-800'
+                                        : 'bg-support-100 text-support-800'
+                                }`}
+                              >
+                                {isSuspect ? 'Nghi sai đáp án / Cần sửa' : row.statusTag}
+                              </span>
+                            </td>
+                            <td className="py-2.5 px-3 text-right whitespace-nowrap">
+                              {qObj && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (!requireOfficialOrPrompt()) return;
+                                    setEditingQuestion(qObj);
+                                    setQuestionModalOpen(true);
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg border border-brand-200 bg-brand-50 hover:bg-brand-100 text-brand-700 font-bold text-[11px]"
+                                >
+                                  Sửa &amp; Chấm lại
+                                </button>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -3051,9 +3276,25 @@ export const AdminDashboardPage: React.FC = () => {
           defaultChapter={questionModalDefaultChapter}
           initialQuestion={editingQuestion}
           onClose={() => setQuestionModalOpen(false)}
-          onSave={(q) => {
-            upsertQuestion(q);
-            showToast('Đã lưu câu hỏi vào ngân hàng.');
+          onSave={async (q) => {
+            await upsertQuestion(q);
+            const isExistingUsedInExam =
+              Boolean(editingQuestion) &&
+              Boolean(selectedExam) &&
+              attempts.some(
+                (a) =>
+                  a.examId === selectedExam?.id &&
+                  (a.status === 'SUBMITTED' || a.status === 'AUTO_SUBMITTED') &&
+                  a.assignedQuestions.some((s) => s.questionId === q.id),
+              );
+            if (isExistingUsedInExam && selectedExam) {
+              const res = await regradeExamAttempts(selectedExam.id, selectedShift?.id);
+              showToast(
+                `Đã cập nhật đáp án câu hỏi và tự động chấm lại ${res.regradedCount} bài đã nộp!`,
+              );
+            } else {
+              showToast('Đã lưu câu hỏi vào ngân hàng.');
+            }
           }}
         />
       )}

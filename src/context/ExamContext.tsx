@@ -157,10 +157,14 @@ interface ExamContextValue extends ExamPlatformState {
     slotId: string,
     newPhrase: string,
   ) => { updatedCount: number };
+  regradeExamAttempts: (
+    examId: string,
+    shiftId?: string,
+  ) => Promise<{ regradedCount: number }>;
   addCourse: (course: Omit<Course, 'id'>) => Course;
   updateCourse: (course: Course) => Promise<{ ok: boolean; error?: string }>;
   deleteCourse: (courseId: string) => Promise<{ ok: boolean; error?: string }>;
-  upsertQuestion: (question: Question) => void;
+  upsertQuestion: (question: Question) => Promise<void>;
   deleteQuestion: (questionId: string) => void;
   importQuestionsBulk: (
     questions: Question[],
@@ -821,11 +825,27 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
           }
 
           const serverExam = normalizeServerExam(roomRes.data.exam);
-          if (serverExam.status !== 'OPEN') {
+          const nowMs = Date.now();
+          const schedStartMs = serverExam.scheduledStartAt ? Date.parse(serverExam.scheduledStartAt) : Number.NaN;
+          const schedEndMs = serverExam.scheduledEndAt ? Date.parse(serverExam.scheduledEndAt) : Number.NaN;
+          let effectiveStatus = serverExam.status;
+          if (effectiveStatus !== 'CLOSED') {
+            if (!Number.isNaN(schedEndMs) && nowMs > schedEndMs) {
+              effectiveStatus = 'CLOSED';
+            } else if (!Number.isNaN(schedStartMs) && nowMs < schedStartMs) {
+              return {
+                ok: false,
+                error: `Phòng thi chưa mở. Thời gian mở dự kiến: ${new Date(schedStartMs).toLocaleString('vi-VN')}.`,
+              };
+            } else if (!Number.isNaN(schedStartMs) && nowMs >= schedStartMs && effectiveStatus === 'DRAFT') {
+              effectiveStatus = 'OPEN';
+            }
+          }
+          if (effectiveStatus !== 'OPEN') {
             return {
               ok: false,
               error:
-                serverExam.status === 'CLOSED'
+                effectiveStatus === 'CLOSED'
                   ? 'Ca thi này đã kết thúc và đóng cổng nộp bài.'
                   : 'Phòng thi đang ở trạng thái Nháp, giảng viên chưa mở phòng.',
             };
@@ -2333,23 +2353,71 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
   );
 
   const upsertQuestion = useCallback(
-    (question: Question) => {
+    async (question: Question): Promise<void> => {
+      mutationEpochRef.current += 1;
       updateState((prev) => {
         const exists = prev.questions.some((q) => q.id === question.id);
+        const nextQuestions = exists
+          ? prev.questions.map((q) => (q.id === question.id ? question : q))
+          : [question, ...prev.questions];
+        const nextAttempts = prev.attempts.map((a) => {
+          const usesQ = a.assignedQuestions.some((s) => s.questionId === question.id);
+          return usesQ ? recalculateAttemptScores(a, nextQuestions) : a;
+        });
         return {
           ...prev,
-          questions: exists
-            ? prev.questions.map((q) => (q.id === question.id ? question : q))
-            : [question, ...prev.questions],
+          questions: nextQuestions,
+          attempts: nextAttempts,
         };
       });
 
       if (backendConnected) {
-        void apiRequest('/api/exams.php?action=save_question', {
+        await apiRequest('/api/exams.php?action=save_question', {
           method: 'POST',
           body: JSON.stringify(question),
         });
       }
+    },
+    [backendConnected, updateState],
+  );
+
+  const regradeExamAttempts = useCallback(
+    async (examId: string, shiftId?: string): Promise<{ regradedCount: number }> => {
+      mutationEpochRef.current += 1;
+      let localCount = 0;
+      updateState((prev) => ({
+        ...prev,
+        attempts: prev.attempts.map((a) => {
+          if (a.examId !== examId) return a;
+          if (shiftId && a.shiftId && a.shiftId !== shiftId) return a;
+          if (a.status !== 'SUBMITTED' && a.status !== 'AUTO_SUBMITTED') return a;
+          localCount += 1;
+          return recalculateAttemptScores(a, prev.questions);
+        }),
+      }));
+
+      if (backendConnected) {
+        const res = await apiRequestDetailed<{
+          ok: boolean;
+          regradedCount?: number;
+          attempts?: Array<Record<string, unknown>>;
+        }>('/api/exams.php?action=regrade_exam', {
+          method: 'POST',
+          body: JSON.stringify({ examId, shiftId }),
+        });
+        if (res.ok && res.data?.ok) {
+          if (Array.isArray(res.data.attempts) && res.data.attempts.length > 0) {
+            const hydrated = res.data.attempts.map(normalizeServerAttempt);
+            updateState((prev) => ({
+              ...prev,
+              attempts: upsertById(prev.attempts, hydrated),
+            }));
+          }
+          return { regradedCount: res.data.regradedCount ?? localCount };
+        }
+      }
+
+      return { regradedCount: localCount };
     },
     [backendConnected, updateState],
   );
@@ -2959,6 +3027,7 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
         closeExamAndSweep,
         overrideEssayScore,
         enrichRubricAndRegradeExam,
+        regradeExamAttempts,
         addCourse,
         updateCourse,
         deleteCourse,

@@ -116,6 +116,9 @@ function formatExamRow(array $r, bool $stripSecrets = false): array
         'requiresWhitelist' => is_array($whitelist) && count($whitelist) > 0,
         'requiresRosterVerification' => is_array($rosterEntries) && count($rosterEntries) > 0,
         'status' => (string) ($r['status'] ?? 'DRAFT'),
+        'lateEntryMinutes' => max(0, (int) ($r['late_entry_minutes'] ?? 0)),
+        'scheduledStartAt' => !empty($r['scheduled_start_at']) ? (string) $r['scheduled_start_at'] : '',
+        'scheduledEndAt' => !empty($r['scheduled_end_at']) ? (string) $r['scheduled_end_at'] : '',
         'reportSentStatus' => (string) ($r['report_sent_status'] ?? 'PENDING'),
         'reportSentAt' => $r['report_sent_at'] ?? null,
         'createdAt' => (string) $r['created_at'],
@@ -141,6 +144,9 @@ function formatShiftRow(array $r, bool $stripSecrets = false): array
         'title' => (string) $r['title'],
         'roomPin' => (string) $r['room_pin'],
         'status' => (string) ($r['status'] ?? 'DRAFT'),
+        'lateEntryMinutes' => max(0, (int) ($r['late_entry_minutes'] ?? 0)),
+        'scheduledStartAt' => !empty($r['scheduled_start_at']) ? (string) $r['scheduled_start_at'] : '',
+        'scheduledEndAt' => !empty($r['scheduled_end_at']) ? (string) $r['scheduled_end_at'] : '',
         'requiresWhitelist' => is_array($whitelist) && count($whitelist) > 0,
         'requiresRosterVerification' => is_array($rosterEntries) && count($rosterEntries) > 0,
         'reportSentStatus' => (string) ($r['report_sent_status'] ?? 'PENDING'),
@@ -293,6 +299,9 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             if ($row) {
                 $row['room_pin'] = $activeShift['room_pin'];
                 $row['status'] = $activeShift['status'];
+                $row['late_entry_minutes'] = $activeShift['late_entry_minutes'] ?? ($row['late_entry_minutes'] ?? 0);
+                $row['scheduled_start_at'] = !empty($activeShift['scheduled_start_at']) ? $activeShift['scheduled_start_at'] : ($row['scheduled_start_at'] ?? null);
+                $row['scheduled_end_at'] = !empty($activeShift['scheduled_end_at']) ? $activeShift['scheduled_end_at'] : ($row['scheduled_end_at'] ?? null);
                 $row['roster_whitelist_json'] = $activeShift['roster_whitelist_json'];
                 $row['roster_entries_json'] = $activeShift['roster_entries_json'];
                 $rows = [$row];
@@ -330,6 +339,28 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
 
         if (!$row) {
             jsonError('Không tìm thấy phòng thi với mã PIN này.', 404);
+        }
+
+        $nowTs = time();
+        $schedStart = !empty($row['scheduled_start_at']) ? strtotime((string) $row['scheduled_start_at']) : false;
+        $schedEnd = !empty($row['scheduled_end_at']) ? strtotime((string) $row['scheduled_end_at']) : false;
+        if (($row['status'] ?? 'DRAFT') !== 'CLOSED') {
+            if ($schedEnd !== false && $nowTs > $schedEnd) {
+                $row['status'] = 'CLOSED';
+                if ($activeShift) {
+                    $activeShift['status'] = 'CLOSED';
+                }
+            } elseif ($schedStart !== false && $nowTs < $schedStart) {
+                $row['status'] = 'DRAFT';
+                if ($activeShift) {
+                    $activeShift['status'] = 'DRAFT';
+                }
+            } elseif ($schedStart !== false && $nowTs >= $schedStart && ($row['status'] ?? 'DRAFT') === 'DRAFT') {
+                $row['status'] = 'OPEN';
+                if ($activeShift) {
+                    $activeShift['status'] = 'OPEN';
+                }
+            }
         }
 
         $stmtC = $pdo->prepare('SELECT * FROM courses WHERE id = :cid LIMIT 1');
@@ -631,16 +662,19 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             ':roster_whitelist_json' => json_encode($body['rosterWhitelist'] ?? [], JSON_UNESCAPED_UNICODE),
             ':roster_entries_json' => json_encode($body['rosterEntries'] ?? [], JSON_UNESCAPED_UNICODE),
             ':status' => (string) ($body['status'] ?? 'DRAFT'),
+            ':late_entry_minutes' => max(0, (int) ($body['lateEntryMinutes'] ?? 0)),
+            ':scheduled_start_at' => trim((string) ($body['scheduledStartAt'] ?? '')) ?: null,
+            ':scheduled_end_at' => trim((string) ($body['scheduledEndAt'] ?? '')) ?: null,
         ];
 
         if ($isUpdate) {
-            $sql = 'UPDATE exams SET course_id=:course_id, title=:title, room_pin=:room_pin, unlock_pin=:unlock_pin, instructor_email=:instructor_email, duration_minutes=:duration_minutes, chapter_matrix_json=:chapter_matrix_json, pinned_question_ids_json=:pinned_question_ids_json, shuffle_questions=:shuffle_questions, shuffle_mode=:shuffle_mode, shuffle_options=:shuffle_options, max_leave_count=:max_leave_count, max_away_seconds=:max_away_seconds, grace_period_ms=:grace_period_ms, one_way_mode=:one_way_mode, per_question_seconds=:per_question_seconds, canvas_anti_ocr=:canvas_anti_ocr, require_fullscreen=:require_fullscreen, allow_review_after_submit=:allow_review_after_submit, email_delivery_mode=:email_delivery_mode, roster_whitelist_json=:roster_whitelist_json, roster_entries_json=:roster_entries_json, status=:status WHERE id=:id';
+            $sql = 'UPDATE exams SET course_id=:course_id, title=:title, room_pin=:room_pin, unlock_pin=:unlock_pin, instructor_email=:instructor_email, duration_minutes=:duration_minutes, chapter_matrix_json=:chapter_matrix_json, pinned_question_ids_json=:pinned_question_ids_json, shuffle_questions=:shuffle_questions, shuffle_mode=:shuffle_mode, shuffle_options=:shuffle_options, max_leave_count=:max_leave_count, max_away_seconds=:max_away_seconds, grace_period_ms=:grace_period_ms, one_way_mode=:one_way_mode, per_question_seconds=:per_question_seconds, canvas_anti_ocr=:canvas_anti_ocr, require_fullscreen=:require_fullscreen, allow_review_after_submit=:allow_review_after_submit, email_delivery_mode=:email_delivery_mode, roster_whitelist_json=:roster_whitelist_json, roster_entries_json=:roster_entries_json, status=:status, late_entry_minutes=:late_entry_minutes, scheduled_start_at=:scheduled_start_at, scheduled_end_at=:scheduled_end_at WHERE id=:id';
         } else {
             $params[':owner_id'] = $actorId;
             $params[':report_sent_status'] = 'PENDING';
             $params[':created_at'] = nowIso();
-            $sql = 'INSERT INTO exams (id, course_id, owner_id, title, room_pin, unlock_pin, instructor_email, duration_minutes, chapter_matrix_json, pinned_question_ids_json, shuffle_questions, shuffle_mode, shuffle_options, max_leave_count, max_away_seconds, grace_period_ms, one_way_mode, per_question_seconds, canvas_anti_ocr, require_fullscreen, allow_review_after_submit, email_delivery_mode, roster_whitelist_json, roster_entries_json, status, report_sent_status, created_at)
-                    VALUES (:id, :course_id, :owner_id, :title, :room_pin, :unlock_pin, :instructor_email, :duration_minutes, :chapter_matrix_json, :pinned_question_ids_json, :shuffle_questions, :shuffle_mode, :shuffle_options, :max_leave_count, :max_away_seconds, :grace_period_ms, :one_way_mode, :per_question_seconds, :canvas_anti_ocr, :require_fullscreen, :allow_review_after_submit, :email_delivery_mode, :roster_whitelist_json, :roster_entries_json, :status, :report_sent_status, :created_at)';
+            $sql = 'INSERT INTO exams (id, course_id, owner_id, title, room_pin, unlock_pin, instructor_email, duration_minutes, chapter_matrix_json, pinned_question_ids_json, shuffle_questions, shuffle_mode, shuffle_options, max_leave_count, max_away_seconds, grace_period_ms, one_way_mode, per_question_seconds, canvas_anti_ocr, require_fullscreen, allow_review_after_submit, email_delivery_mode, roster_whitelist_json, roster_entries_json, status, late_entry_minutes, scheduled_start_at, scheduled_end_at, report_sent_status, created_at)
+                    VALUES (:id, :course_id, :owner_id, :title, :room_pin, :unlock_pin, :instructor_email, :duration_minutes, :chapter_matrix_json, :pinned_question_ids_json, :shuffle_questions, :shuffle_mode, :shuffle_options, :max_leave_count, :max_away_seconds, :grace_period_ms, :one_way_mode, :per_question_seconds, :canvas_anti_ocr, :require_fullscreen, :allow_review_after_submit, :email_delivery_mode, :roster_whitelist_json, :roster_entries_json, :status, :late_entry_minutes, :scheduled_start_at, :scheduled_end_at, :report_sent_status, :created_at)';
         }
         try {
             $pdo->prepare($sql)->execute($params);
@@ -820,6 +854,54 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
         }
     }
 
+    if ($action === 'regrade_exam') {
+        $official = requireOfficialInstructor();
+        $actorId = (string) $official['instructorId'];
+        $isMaster = ($actorId === 'MASTER_ADMIN');
+        $examId = trim((string) ($body['examId'] ?? ''));
+        $shiftId = trim((string) ($body['shiftId'] ?? ''));
+        if ($examId === '') {
+            jsonError('Thiếu examId cần chấm lại.', 400);
+        }
+        $exChk = $pdo->prepare('SELECT owner_id FROM exams WHERE id = :id LIMIT 1');
+        $exChk->execute([':id' => $examId]);
+        $exOwner = $exChk->fetchColumn();
+        if ($exOwner === false) {
+            jsonError('Không tìm thấy đề thi.', 404);
+        }
+        if (!$isMaster && (string) $exOwner !== $actorId) {
+            jsonError('Không có quyền chấm lại đề thi của giảng viên khác.', 403);
+        }
+
+        require_once __DIR__ . '/attempts.php';
+        if ($shiftId !== '') {
+            $attStmt = $pdo->prepare("SELECT id, status FROM exam_attempts WHERE shift_id = :sid AND status IN ('SUBMITTED', 'AUTO_SUBMITTED')");
+            $attStmt->execute([':sid' => $shiftId]);
+        } else {
+            $attStmt = $pdo->prepare("SELECT id, status FROM exam_attempts WHERE exam_id = :eid AND status IN ('SUBMITTED', 'AUTO_SUBMITTED')");
+            $attStmt->execute([':eid' => $examId]);
+        }
+        $attRows = $attStmt->fetchAll();
+        $regradedCount = 0;
+        $updatedAttempts = [];
+        foreach ($attRows as $ar) {
+            $res = finalizeAndGradeAttempt(
+                $pdo,
+                (string) $ar['id'],
+                ($ar['status'] ?? '') === 'AUTO_SUBMITTED'
+            );
+            if (!empty($res['attempt'])) {
+                $updatedAttempts[] = $res['attempt'];
+                $regradedCount++;
+            }
+        }
+        jsonResponse([
+            'ok' => true,
+            'regradedCount' => $regradedCount,
+            'attempts' => $updatedAttempts,
+        ]);
+    }
+
     if ($action === 'save_shift') {
         $official = requireOfficialInstructor();
         $actorId = (string) $official['instructorId'];
@@ -859,18 +941,21 @@ if (isset($_SERVER['SCRIPT_FILENAME']) && realpath($_SERVER['SCRIPT_FILENAME']) 
             ':room_pin' => $pin,
             ':unlock_pin' => trim((string) ($body['unlockPin'] ?? '8888')),
             ':status' => (string) ($body['status'] ?? 'DRAFT'),
+            ':late_entry_minutes' => max(0, (int) ($body['lateEntryMinutes'] ?? 0)),
+            ':scheduled_start_at' => trim((string) ($body['scheduledStartAt'] ?? '')) ?: null,
+            ':scheduled_end_at' => trim((string) ($body['scheduledEndAt'] ?? '')) ?: null,
             ':rw' => json_encode($body['rosterWhitelist'] ?? [], JSON_UNESCAPED_UNICODE),
             ':re' => json_encode($body['rosterEntries'] ?? [], JSON_UNESCAPED_UNICODE),
         ];
 
         if ($isUpdate) {
-            $sql = 'UPDATE exam_shifts SET exam_id=:exam_id, title=:title, room_pin=:room_pin, unlock_pin=:unlock_pin, status=:status, roster_whitelist_json=:rw, roster_entries_json=:re WHERE id=:id';
+            $sql = 'UPDATE exam_shifts SET exam_id=:exam_id, title=:title, room_pin=:room_pin, unlock_pin=:unlock_pin, status=:status, late_entry_minutes=:late_entry_minutes, scheduled_start_at=:scheduled_start_at, scheduled_end_at=:scheduled_end_at, roster_whitelist_json=:rw, roster_entries_json=:re WHERE id=:id';
         } else {
             $params[':owner_id'] = $actorId;
             $params[':rss'] = 'PENDING';
             $params[':ca'] = nowIso();
-            $sql = 'INSERT INTO exam_shifts (id, exam_id, owner_id, title, room_pin, unlock_pin, status, roster_whitelist_json, roster_entries_json, report_sent_status, created_at)
-                    VALUES (:id, :exam_id, :owner_id, :title, :room_pin, :unlock_pin, :status, :rw, :re, :rss, :ca)';
+            $sql = 'INSERT INTO exam_shifts (id, exam_id, owner_id, title, room_pin, unlock_pin, status, late_entry_minutes, scheduled_start_at, scheduled_end_at, roster_whitelist_json, roster_entries_json, report_sent_status, created_at)
+                    VALUES (:id, :exam_id, :owner_id, :title, :room_pin, :unlock_pin, :status, :late_entry_minutes, :scheduled_start_at, :scheduled_end_at, :rw, :re, :rss, :ca)';
         }
         $pdo->prepare($sql)->execute($params);
 

@@ -235,7 +235,35 @@ export function buildAssignedQuestions(
         `${studentCode}::${exam.id}::pool::${rule.chapterCategory}`,
       );
       let selected: Question[];
-      if (exam.shuffleQuestions && exam.shuffleMode !== 'NONE') {
+      const reqEasy = Math.max(0, rule.easyCount ?? 0);
+      const reqMed = Math.max(0, rule.mediumCount ?? 0);
+      const reqHard = Math.max(0, rule.hardCount ?? 0);
+      const hasDifficultyQuota = reqEasy + reqMed + reqHard > 0;
+
+      if (hasDifficultyQuota) {
+        const easyPool = exam.shuffleQuestions && exam.shuffleMode !== 'NONE'
+          ? seededShuffle(pool.filter((q) => q.difficulty === 'EASY'), chapterRng)
+          : pool.filter((q) => q.difficulty === 'EASY');
+        const medPool = exam.shuffleQuestions && exam.shuffleMode !== 'NONE'
+          ? seededShuffle(pool.filter((q) => q.difficulty === 'MEDIUM'), chapterRng)
+          : pool.filter((q) => q.difficulty === 'MEDIUM');
+        const hardPool = exam.shuffleQuestions && exam.shuffleMode !== 'NONE'
+          ? seededShuffle(pool.filter((q) => q.difficulty !== 'EASY' && q.difficulty !== 'MEDIUM'), chapterRng)
+          : pool.filter((q) => q.difficulty !== 'EASY' && q.difficulty !== 'MEDIUM');
+
+        const pickedByDiff: Question[] = [
+          ...easyPool.slice(0, reqEasy),
+          ...medPool.slice(0, reqMed),
+          ...hardPool.slice(0, reqHard),
+        ];
+        const pickedSet = new Set(pickedByDiff.map((q) => q.id));
+        const leftovers = (
+          exam.shuffleQuestions && exam.shuffleMode !== 'NONE'
+            ? seededShuffle(pool, chapterRng)
+            : pool
+        ).filter((q) => !pickedSet.has(q.id));
+        selected = [...pickedByDiff, ...leftovers];
+      } else if (exam.shuffleQuestions && exam.shuffleMode !== 'NONE') {
         const easy = seededShuffle(pool.filter((q) => q.difficulty === 'EASY'), chapterRng);
         const medium = seededShuffle(pool.filter((q) => q.difficulty === 'MEDIUM'), chapterRng);
         const hard = seededShuffle(

@@ -15,12 +15,12 @@ function ensureExamSchema(PDO $pdo, string $driver): void
 
     // Fast check if core tables with latest columns exist
     try {
-        $pdo->query('SELECT shuffle_mode, pinned_question_ids_json, owner_id, roster_entries_json, allow_review_after_submit, require_fullscreen FROM exams LIMIT 1');
+        $pdo->query('SELECT shuffle_mode, pinned_question_ids_json, owner_id, roster_entries_json, allow_review_after_submit, require_fullscreen, late_entry_minutes, scheduled_start_at, scheduled_end_at FROM exams LIMIT 1');
         $pdo->query('SELECT owner_id FROM courses LIMIT 1');
         $pdo->query('SELECT owner_id FROM questions LIMIT 1');
         $pdo->query('SELECT id, auth_provider FROM instructors LIMIT 1');
         $pdo->query('SELECT flagged_question_ids_json, email_edit_count, device_label, location_lat, location_lng, location_accuracy, login_devices_json, shift_id FROM exam_attempts LIMIT 1');
-        $pdo->query('SELECT id FROM exam_shifts LIMIT 1');
+        $pdo->query('SELECT id, late_entry_minutes, scheduled_start_at, scheduled_end_at FROM exam_shifts LIMIT 1');
         $pdo->query('SELECT grading_rubric_json, numerical_formula, blank_slots_json, blank_all_or_nothing, variant_group FROM questions LIMIT 1');
         $pdo->query('SELECT status FROM email_queue LIMIT 1');
         $pdo->query('SELECT id FROM demo_mailer_quota LIMIT 1');
@@ -499,6 +499,12 @@ function ensureExamSchema(PDO $pdo, string $driver): void
             "ALTER TABLE questions ADD COLUMN variant_group VARCHAR(120) NULL",
             "ALTER TABLE exams ADD COLUMN allow_review_after_submit TINYINT(1) NOT NULL DEFAULT 0",
             "ALTER TABLE exams ADD COLUMN require_fullscreen TINYINT(1) NOT NULL DEFAULT 0",
+            "ALTER TABLE exams ADD COLUMN late_entry_minutes INT NOT NULL DEFAULT 0",
+            "ALTER TABLE exams ADD COLUMN scheduled_start_at VARCHAR(40) NULL",
+            "ALTER TABLE exams ADD COLUMN scheduled_end_at VARCHAR(40) NULL",
+            "ALTER TABLE exam_shifts ADD COLUMN late_entry_minutes INT NOT NULL DEFAULT 0",
+            "ALTER TABLE exam_shifts ADD COLUMN scheduled_start_at VARCHAR(40) NULL",
+            "ALTER TABLE exam_shifts ADD COLUMN scheduled_end_at VARCHAR(40) NULL",
         ]
         : [
             "ALTER TABLE courses ADD COLUMN owner_id TEXT NOT NULL DEFAULT 'SYSTEM_DEMO'",
@@ -516,6 +522,12 @@ function ensureExamSchema(PDO $pdo, string $driver): void
             "ALTER TABLE questions ADD COLUMN variant_group TEXT NULL",
             "ALTER TABLE exams ADD COLUMN allow_review_after_submit INTEGER NOT NULL DEFAULT 0",
             "ALTER TABLE exams ADD COLUMN require_fullscreen INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE exams ADD COLUMN late_entry_minutes INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE exams ADD COLUMN scheduled_start_at TEXT NULL",
+            "ALTER TABLE exams ADD COLUMN scheduled_end_at TEXT NULL",
+            "ALTER TABLE exam_shifts ADD COLUMN late_entry_minutes INTEGER NOT NULL DEFAULT 0",
+            "ALTER TABLE exam_shifts ADD COLUMN scheduled_start_at TEXT NULL",
+            "ALTER TABLE exam_shifts ADD COLUMN scheduled_end_at TEXT NULL",
         ];
     foreach ($ownerMigrations as $alterSql) {
         try {
