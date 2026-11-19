@@ -872,6 +872,32 @@ export const HomePortalPage: React.FC = () => {
               <ExternalLink className="w-3.5 h-3.5 shrink-0" />
             </a>
           </div>
+
+          {/* IELTS Practice Vietnamese Promo Card */}
+          <div className="bg-gradient-to-br from-emerald-50/90 via-white to-teal-50/80 rounded-2xl border border-emerald-200/90 shadow-sm p-4 sm:p-5 space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100/80 px-2.5 py-0.5 rounded-full">
+                  <Sparkles className="w-3 h-3" /> Luyện thi IELTS &amp; AI Engine
+                </span>
+                <h2 className="text-sm sm:text-base font-extrabold text-ink-900 mt-2 leading-snug">
+                  IELTS Practice Vietnamese — Luyện thi IELTS &amp; Multi-Model AI
+                </h2>
+              </div>
+            </div>
+            <p className="text-xs text-ink-600 leading-relaxed">
+              Nền tảng luyện tập IELTS chuyên sâu cho người Việt với không gian thực hành trực tiếp và công cụ hỗ trợ đa mô hình AI.
+            </p>
+            <a
+              href="https://ielts-practice-vietnamese.vercel.app/about"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition"
+            >
+              <span>Truy cập IELTS Practice Vietnamese</span>
+              <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+            </a>
+          </div>
           </div>
         </div>
       </main>
