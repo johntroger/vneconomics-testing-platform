@@ -1,0 +1,225 @@
+{
+    "description": "DO NOT DELETE THIS FILE. This file is used to keep track of which files have been synced in the most recent deployment. If you delete this file a resync will need to be done (which can take a while) - read more: https://github.com/SamKirkland/FTP-Deploy-Action",
+    "version": "1.0.0",
+    "generatedTime": 1795095353851,
+    "data": [
+        {
+            "type": "file",
+            "name": ".htaccess",
+            "size": 1634,
+            "hash": "39e24abb35cf7eea09bbbe294110e15bd05822fe77db54a3efddf484d01c8fbf"
+        },
+        {
+            "type": "folder",
+            "name": "api"
+        },
+        {
+            "type": "folder",
+            "name": "assets"
+        },
+        {
+            "type": "file",
+            "name": "build-info.txt",
+            "size": 88,
+            "hash": "478f9f1257ded94621ff14ec95fcd6e7c4e013b2c96b8c60c7aa8bfe424c3f64"
+        },
+        {
+            "type": "file",
+            "name": "favicon.svg",
+            "size": 322,
+            "hash": "a8385ee4650a4e9a8f4d33f723742d523435a3d45381487192cf5ab3a15462b2"
+        },
+        {
+            "type": "file",
+            "name": "index.html",
+            "size": 2212,
+            "hash": "b37d9316a284f025afa5d31a02bd34baa22cb80b22b093e9a2a42f1b7b4b1d33"
+        },
+        {
+            "type": "file",
+            "name": "logo.png",
+            "size": 10965,
+            "hash": "94871e7ac2dce03a6b7d416e7f90557b4efe22f0867f7e65fff032b20b9723bf"
+        },
+        {
+            "type": "file",
+            "name": "api/admin_auth.php",
+            "size": 21419,
+            "hash": "dc98cb84d60866c4df3142b9e314c28bb05f29f8f0a947791bf68caa65697dd4"
+        },
+        {
+            "type": "file",
+            "name": "api/attempts.php",
+            "size": 68337,
+            "hash": "346a7354555348fc10af2fbda8e692d8ae6c6cb7df1078c1da8dd7caf197c68c"
+        },
+        {
+            "type": "file",
+            "name": "api/config.sample.php",
+            "size": 2125,
+            "hash": "554d76d65a72b6034e0f2951b298a68acfdfcdb1a56bffc4762bc395d1a26ecb"
+        },
+        {
+            "type": "file",
+            "name": "api/db.php",
+            "size": 8033,
+            "hash": "b503796da8cd47b875a41c399e30e53f1045b348885a85e9c271ea7d378a22fa"
+        },
+        {
+            "type": "file",
+            "name": "api/essay_grader.php",
+            "size": 24402,
+            "hash": "95c26bb408091a72593a0dc094082384a40b485dbca1756e641542c1e6ea6732"
+        },
+        {
+            "type": "file",
+            "name": "api/exams.php",
+            "size": 58038,
+            "hash": "c0abed87b90cbcd53e6a29715b6634807d8c79470035faba298ab427627d6180"
+        },
+        {
+            "type": "file",
+            "name": "api/game.php",
+            "size": 44543,
+            "hash": "f0ec47905ccc3ea1b357be600cfa6cf0339f5ea2b93ac6b5f6717ffc7f2b0312"
+        },
+        {
+            "type": "file",
+            "name": "api/mailer.php",
+            "size": 39339,
+            "hash": "debd27943635d5566e8f8324bf2141c4d17e2ce5dee8e7f8abb5994d84acc1af"
+        },
+        {
+            "type": "file",
+            "name": "api/proctor.php",
+            "size": 23792,
+            "hash": "998da5bd74b645dbffd23c9bf51c3adc8a4f28c05d5672a81348b6fb9087948d"
+        },
+        {
+            "type": "file",
+            "name": "api/schema.php",
+            "size": 92658,
+            "hash": "2831b2a0b6965582f08001de484f04a522ec9fb59807e5c5eb1a5937764fb094"
+        },
+        {
+            "type": "file",
+            "name": "assets/AdminDashboardPage-BHQU6ljU.js",
+            "size": 272326,
+            "hash": "77950dc485e1d34a8a6cc0a81acd163199297aa60f63cd72620fe4ba3b6b5cee"
+        },
+        {
+            "type": "file",
+            "name": "assets/ConfettiBurst-mcuHEu5a.js",
+            "size": 2129,
+            "hash": "1ad16767c4db03436cfdb5c5d47492a9e9410b39a7cd0c710810f83edc831d94"
+        },
+        {
+            "type": "file",
+            "name": "assets/ExamLobbyPage-B3LL1hmW.js",
+            "size": 17006,
+            "hash": "27202c6613e4334a92f54356b1cb4f2c2d115acb86c78a27285036ce0bca1e31"
+        },
+        {
+            "type": "file",
+            "name": "assets/ExamResultPage-NXrUc0-k.js",
+            "size": 8290,
+            "hash": "152661f2b820f2009ce3364cb7369f11caf4ae7cc33076d7514fea5a7b9cb1f6"
+        },
+        {
+            "type": "file",
+            "name": "assets/ExamTakePage-DmxqOAXF.js",
+            "size": 54250,
+            "hash": "0fac1a1c1f5227369138cfb4a3f899aa40e33c8e9de53c4bfdfda086c563638d"
+        },
+        {
+            "type": "file",
+            "name": "assets/ExcelQuestionBankModal-DPsmVtOb.js",
+            "size": 19829,
+            "hash": "b53a0fad79a2177cd0f30db382cfe52a209bf302ac50a4131163a8f851fb363e"
+        },
+        {
+            "type": "file",
+            "name": "assets/GameAvatarBadge-CGkUir1e.js",
+            "size": 6461,
+            "hash": "8cc5b0396894f46394ad11adcde9b4c8b3f7137f286d8586dcabb3681fac4e5c"
+        },
+        {
+            "type": "file",
+            "name": "assets/GameHostPage-BbKprTxX.js",
+            "size": 23887,
+            "hash": "974d784a73e02d9f79450ea2c8c4fa64745f58f123ab337d86113736a275fe4a"
+        },
+        {
+            "type": "file",
+            "name": "assets/GameJoinPage-LaUwSYQ4.js",
+            "size": 7876,
+            "hash": "1858bb5710e67368b7b48599686f18cf97365979c5e9984d6253fdc9894037ba"
+        },
+        {
+            "type": "file",
+            "name": "assets/GamePlayPage-T0l5_nWb.js",
+            "size": 20286,
+            "hash": "d80bb3b4e4a03f2cd04fd5102240e0c3fbfaeaa38893bd7a3e26fe778c1fced3"
+        },
+        {
+            "type": "file",
+            "name": "assets/InstructorGuidePage-Dy_CtWfi.js",
+            "size": 14589,
+            "hash": "89b847398fd713d8d996b73155ee4105e8850a581da254aa50c449f7cc7f3f3d"
+        },
+        {
+            "type": "file",
+            "name": "assets/exam-seed-data-ycLEzOHo.js",
+            "size": 50098,
+            "hash": "1360e3883c40829efd5f1badf8712475294e21d311817fab5123569059ebe04b"
+        },
+        {
+            "type": "file",
+            "name": "assets/excelQuestionBank-Dur3wrNH.js",
+            "size": 28823,
+            "hash": "6ed989b6210337760e794178960425df09cc4ccf2fc6f8291f902509e4c12fd5"
+        },
+        {
+            "type": "file",
+            "name": "assets/gameApi-Dz4M7FoN.js",
+            "size": 15289,
+            "hash": "04dcdf3b1bb6b294ebe80ef39ce1a2ce5cfbfa989e2981cf23bfee1683fe42f6"
+        },
+        {
+            "type": "file",
+            "name": "assets/gameAudio-BLf-KodE.js",
+            "size": 3511,
+            "hash": "06b2e7d7f683e9239104e6308c0b6e8e3057275dd1b52de461b004c52483408d"
+        },
+        {
+            "type": "file",
+            "name": "assets/index-D_ReCCsV.js",
+            "size": 98943,
+            "hash": "732f4f252a6cb97b5bcb98ae31164fa426ad7dbf3dd6715cfdc5f9abd0978c07"
+        },
+        {
+            "type": "file",
+            "name": "assets/vendor-icons-DggXf3vQ.js",
+            "size": 34179,
+            "hash": "698a16dd9eb71f913001510253147869d6aa207e06c7ed8285fbbc71ab71040f"
+        },
+        {
+            "type": "file",
+            "name": "assets/index-BETO32ZN.css",
+            "size": 74913,
+            "hash": "060bef3b0c18a1d17204153a21edc0f4bae7c0974201905eb5c16a06be18bdd0"
+        },
+        {
+            "type": "file",
+            "name": "assets/vendor-react-BG6G4Fxs.js",
+            "size": 182875,
+            "hash": "6011a63fef09b0a20302a680930b3f5573c7813c9ea530943301a8e15492c462"
+        },
+        {
+            "type": "file",
+            "name": "assets/vendor-xlsx-E6fsrTKx.js",
+            "size": 424857,
+            "hash": "4dfd821266b18cec826cff0183012d7c7205ae5334e1362f228d0a54a1651dd4"
+        }
+    ]
+}
