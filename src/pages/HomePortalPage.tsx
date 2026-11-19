@@ -762,8 +762,9 @@ export const HomePortalPage: React.FC = () => {
           </div>
           </div>
 
-          {/* Collapsible Demo Sandbox Card (Placed below Student Form on mobile, right column on desktop) */}
-          <div className="lg:col-span-5 order-2 bg-gradient-to-br from-brand-50 via-white to-support-50 rounded-2xl border border-brand-200/90 shadow-sm p-4 sm:p-5 space-y-3">
+          {/* Right Column: Collapsible Demo Sandbox + VNResearch Dictionary Promo */}
+          <div className="lg:col-span-5 order-2 space-y-4">
+          <div className="bg-gradient-to-br from-brand-50 via-white to-support-50 rounded-2xl border border-brand-200/90 shadow-sm p-4 sm:p-5 space-y-3">
             <button
               type="button"
               onClick={() => setShowDemoSandbox((prev) => !prev)}
@@ -844,6 +845,33 @@ export const HomePortalPage: React.FC = () => {
                 </div>
               </div>
             )}
+          </div>
+
+          {/* VNResearch Dictionary Promo Card for Lecturers */}
+          <div className="bg-gradient-to-br from-indigo-50/90 via-white to-violet-50/80 rounded-2xl border border-indigo-200/90 shadow-sm p-4 sm:p-5 space-y-3">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-100/80 px-2.5 py-0.5 rounded-full">
+                  <BookOpen className="w-3 h-3" /> Hệ sinh thái Giảng viên &amp; Nghiên cứu
+                </span>
+                <h2 className="text-sm sm:text-base font-extrabold text-ink-900 mt-2 leading-snug">
+                  Từ điển Thuật ngữ Phương pháp Nghiên cứu Khoa học
+                </h2>
+              </div>
+            </div>
+            <p className="text-xs text-ink-600 leading-relaxed">
+              Tra cứu thuật ngữ nghiên cứu Anh – Việt chuẩn Q1, công thức toán học, ngưỡng kiểm định thực nghiệm, cảnh báo bẫy phương pháp và xuất trích dẫn APA 7th / BibTeX.
+            </p>
+            <a
+              href="https://vnresearch-dictionary.vercel.app/home"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white text-xs font-bold flex items-center justify-center gap-2 shadow-sm transition"
+            >
+              <span>Truy cập VNResearch Dictionary</span>
+              <ExternalLink className="w-3.5 h-3.5 shrink-0" />
+            </a>
+          </div>
           </div>
         </div>
       </main>
