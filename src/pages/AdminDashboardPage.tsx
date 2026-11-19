@@ -3085,6 +3085,7 @@ export const AdminDashboardPage: React.FC = () => {
                         activeExportExam,
                         selectedShift ? shiftScopedAttempts : attempts,
                         chapterMasteryStats,
+                        questions,
                       );
                       downloadTextFile(
                         `VNE_BangDiem_${activeExportExam.roomPin}.csv`,

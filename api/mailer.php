@@ -400,6 +400,106 @@ function buildStudentScoreEmailHtml(array $exam, array $attempt, array $answers)
         . "</div></div>";
 }
 
+function formatStudentAnswerForReportPhp(mixed $payload, ?array $questionMeta = null): string
+{
+    if ($payload === null || $payload === '') {
+        return 'Chưa trả lời';
+    }
+
+    $qType = (string) ($questionMeta['type'] ?? '');
+    $options = [];
+    if (!empty($questionMeta['options_json'])) {
+        $decodedOpts = json_decode((string) $questionMeta['options_json'], true);
+        if (is_array($decodedOpts)) {
+            $options = $decodedOpts;
+        }
+    }
+    $optTextById = [];
+    foreach ($options as $opt) {
+        if (is_array($opt) && isset($opt['id'])) {
+            $optTextById[(string) $opt['id']] = (string) ($opt['text'] ?? $opt['id']);
+        }
+    }
+
+    if (is_string($payload)) {
+        $trimmed = trim($payload);
+        if ($trimmed === '') {
+            return 'Chưa trả lời';
+        }
+        if ($qType === 'SINGLE_CHOICE' && isset($optTextById[$trimmed])) {
+            return $optTextById[$trimmed];
+        }
+        return $trimmed;
+    }
+
+    if (is_numeric($payload)) {
+        return (string) $payload;
+    }
+
+    if (is_array($payload)) {
+        if (count($payload) === 0) {
+            return 'Chưa trả lời';
+        }
+
+        if ($qType === 'MULTI_CHOICE') {
+            $labels = [];
+            foreach ($payload as $oid) {
+                $idStr = trim((string) $oid);
+                if ($idStr !== '') {
+                    $labels[] = $optTextById[$idStr] ?? $idStr;
+                }
+            }
+            return count($labels) > 0 ? implode(' ; ', $labels) : 'Chưa trả lời';
+        }
+
+        $isAssoc = array_keys($payload) !== range(0, count($payload) - 1);
+        if ($qType === 'TRUE_FALSE' || $isAssoc) {
+            $tfItems = [];
+            if (!empty($questionMeta['true_false_items_json'])) {
+                $decodedTf = json_decode((string) $questionMeta['true_false_items_json'], true);
+                if (is_array($decodedTf)) {
+                    $tfItems = $decodedTf;
+                }
+            }
+            if (count($tfItems) > 0) {
+                $parts = [];
+                $hasAny = false;
+                foreach ($tfItems as $i => $it) {
+                    $tid = (string) ($it['id'] ?? '');
+                    $letter = chr(97 + ($i % 26));
+                    if ($tid !== '' && array_key_exists($tid, $payload)) {
+                        $hasAny = true;
+                        $parts[] = $letter . ') ' . ($payload[$tid] ? 'Đúng' : 'Sai');
+                    } else {
+                        $parts[] = $letter . ') Chưa chọn';
+                    }
+                }
+                return $hasAny ? implode(' · ', $parts) : 'Chưa trả lời';
+            }
+            $parts = [];
+            $i = 0;
+            foreach ($payload as $val) {
+                $parts[] = chr(97 + ($i % 26)) . ') ' . ($val ? 'Đúng' : 'Sai');
+                $i++;
+            }
+            return count($parts) > 0 ? implode(' · ', $parts) : 'Chưa trả lời';
+        }
+
+        $hasNonEmpty = false;
+        $parts = [];
+        foreach (array_values($payload) as $bi => $val) {
+            $t = trim((string) $val);
+            if ($t !== '') {
+                $hasNonEmpty = true;
+            }
+            $parts[] = 'Ô #' . ($bi + 1) . ': ' . ($t !== '' ? $t : '(trống)');
+        }
+        return $hasNonEmpty ? implode(' | ', $parts) : 'Chưa trả lời';
+    }
+
+    return 'Chưa trả lời';
+}
+
 function buildInstructorCsvAttachment(array $exam, array $attempts, ?PDO $pdo = null): string
 {
     $esc = static function (mixed $v): string {
@@ -421,7 +521,7 @@ function buildInstructorCsvAttachment(array $exam, array $attempts, ?PDO $pdo = 
         $ansByAttQ = [];
         foreach (array_chunk($attemptIds, 200) as $chunk) {
             $ph = implode(',', array_fill(0, count($chunk), '?'));
-            $stmt = $pdo->prepare("SELECT attempt_id, question_id, chapter_category, max_points, earned_points, grading_feedback FROM attempt_answers WHERE attempt_id IN ($ph)");
+            $stmt = $pdo->prepare("SELECT attempt_id, question_id, chapter_category, answer_payload, max_points, earned_points, grading_feedback FROM attempt_answers WHERE attempt_id IN ($ph)");
             $stmt->execute($chunk);
             foreach ($stmt->fetchAll() as $ansRow) {
                 $aid = (string) ($ansRow['attempt_id'] ?? '');
@@ -433,15 +533,32 @@ function buildInstructorCsvAttachment(array $exam, array $attempts, ?PDO $pdo = 
         }
 
         $hasAnyAssigned = false;
+        $questionIds = [];
         foreach ($attempts as $a) {
             $assigned = json_decode((string) ($a['assigned_questions_json'] ?? '[]'), true);
             if (is_array($assigned) && count($assigned) > 0) {
                 $hasAnyAssigned = true;
-                break;
+                foreach ($assigned as $snap) {
+                    $qid = (string) ($snap['questionId'] ?? '');
+                    if ($qid !== '') {
+                        $questionIds[$qid] = true;
+                    }
+                }
             }
         }
         if (!$hasAnyAssigned) {
             return;
+        }
+
+        $qMetaById = [];
+        $uniqueQIds = array_keys($questionIds);
+        foreach (array_chunk($uniqueQIds, 200) as $qChunk) {
+            $ph = implode(',', array_fill(0, count($qChunk), '?'));
+            $qStmt = $pdo->prepare("SELECT id, type, options_json, true_false_items_json FROM questions WHERE id IN ($ph)");
+            $qStmt->execute($qChunk);
+            foreach ($qStmt->fetchAll() as $qRow) {
+                $qMetaById[(string) $qRow['id']] = $qRow;
+            }
         }
 
         $lines[] = '';
@@ -451,7 +568,7 @@ function buildInstructorCsvAttachment(array $exam, array $attempts, ?PDO $pdo = 
             'Câu số',
             'Chương / Chuyên đề',
             'Nội dung câu hỏi',
-            'Kết quả',
+            'Kết quả / Bài làm sinh viên',
             'Điểm đạt',
             'Điểm tối đa',
             'Nhận xét chấm',
@@ -468,16 +585,27 @@ function buildInstructorCsvAttachment(array $exam, array $attempts, ?PDO $pdo = 
                 $ans = $ansByAttQ[$aid][$qid] ?? null;
                 $maxP = (float) ($ans['max_points'] ?? ($snap['maxPoints'] ?? 1));
                 $earned = (float) ($ans['earned_points'] ?? 0);
-                $statusLabel = ($maxP > 0 && $earned >= $maxP - 1e-6)
-                    ? 'Đúng'
-                    : ($earned > 0 ? 'Một phần' : 'Sai');
+                $isFullCorrect = $maxP > 0 && $earned >= $maxP - 1e-6;
+                if ($isFullCorrect) {
+                    $resultCell = 'Đúng';
+                } else {
+                    $rawPayload = $ans['answer_payload'] ?? null;
+                    $decodedPayload = null;
+                    if (is_string($rawPayload) && $rawPayload !== '') {
+                        $jsonVal = json_decode($rawPayload, true);
+                        $decodedPayload = json_last_error() === JSON_ERROR_NONE ? $jsonVal : $rawPayload;
+                    } elseif ($rawPayload !== null) {
+                        $decodedPayload = $rawPayload;
+                    }
+                    $resultCell = formatStudentAnswerForReportPhp($decodedPayload, $qMetaById[$qid] ?? null);
+                }
                 $lines[] = implode(',', array_map($esc, [
                     (string) ($a['student_code'] ?? ''),
                     (string) ($a['student_name'] ?? ''),
                     'Câu ' . ($idx + 1),
                     (string) ($snap['chapterCategory'] ?? ($ans['chapter_category'] ?? '')),
                     (string) ($snap['renderedContent'] ?? ''),
-                    $statusLabel,
+                    $resultCell,
                     $earned,
                     $maxP,
                     (string) ($ans['grading_feedback'] ?? ''),

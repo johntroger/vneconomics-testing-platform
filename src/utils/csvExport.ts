@@ -1,5 +1,11 @@
 import * as XLSX from 'xlsx';
-import type { ChapterMasteryStat, Exam, ExamAttempt, Question } from '../types/exam';
+import type {
+  AttemptAnswer,
+  ChapterMasteryStat,
+  Exam,
+  ExamAttempt,
+  Question,
+} from '../types/exam';
 
 function escapeCsvCell(value: string | number | boolean | undefined): string {
   const str = value === undefined || value === null ? '' : String(value);
@@ -9,10 +15,64 @@ function escapeCsvCell(value: string | number | boolean | undefined): string {
   return str;
 }
 
+export function formatStudentAnswerForReport(
+  ans?: AttemptAnswer,
+  question?: Question,
+): string {
+  if (!ans) return 'Chưa trả lời';
+  const p = ans.answerPayload;
+  if (p === undefined || p === null) return 'Chưa trả lời';
+
+  if (Array.isArray(p)) {
+    if (p.length === 0) return 'Chưa trả lời';
+    if (question?.type === 'MULTI_CHOICE' && question.options) {
+      const labels = p
+        .map((oid) => String(oid).trim())
+        .filter(Boolean)
+        .map((oid) => question.options?.find((o) => o.id === oid)?.text ?? oid);
+      return labels.length > 0 ? labels.join(' ; ') : 'Chưa trả lời';
+    }
+    const hasNonEmpty = p.some((x) => String(x).trim() !== '');
+    return hasNonEmpty
+      ? p.map((x, bi) => `Ô #${bi + 1}: ${String(x).trim() || '(trống)'}`).join(' | ')
+      : 'Chưa trả lời';
+  }
+
+  if (typeof p === 'object') {
+    const map = p as Record<string, boolean>;
+    if (question?.type === 'TRUE_FALSE' && question.trueFalseItems && question.trueFalseItems.length > 0) {
+      let hasAny = false;
+      const parts = question.trueFalseItems.map((it, i) => {
+        const letter = String.fromCharCode(97 + (i % 26));
+        if (Object.prototype.hasOwnProperty.call(map, it.id)) {
+          hasAny = true;
+          return `${letter}) ${map[it.id] ? 'Đúng' : 'Sai'}`;
+        }
+        return `${letter}) Chưa chọn`;
+      });
+      return hasAny ? parts.join(' · ') : 'Chưa trả lời';
+    }
+    const entries = Object.entries(map);
+    return entries.length > 0
+      ? entries
+          .map(([, val], i) => `${String.fromCharCode(97 + (i % 26))}) ${val ? 'Đúng' : 'Sai'}`)
+          .join(' · ')
+      : 'Chưa trả lời';
+  }
+
+  const text = String(p).trim();
+  if (text === '') return 'Chưa trả lời';
+  if (question?.type === 'SINGLE_CHOICE' && question.options) {
+    return question.options.find((o) => o.id === text)?.text ?? text;
+  }
+  return text;
+}
+
 export function buildExamCsvContent(
   exam: Exam,
   attempts: ExamAttempt[],
   chapterStats: ChapterMasteryStat[],
+  questions: Question[] = [],
 ): string {
   const examAttempts = attempts.filter((a) => a.examId === exam.id);
   if (exam.rosterEntries && exam.rosterEntries.length > 0) {
@@ -99,28 +159,27 @@ export function buildExamCsvContent(
 
   const attemptsWithQuestions = examAttempts.filter((a) => a.assignedQuestions.length > 0);
   if (attemptsWithQuestions.length > 0) {
+    const qMap = new Map(questions.map((q) => [q.id, q]));
     lines.push('');
     lines.push(
-      'CHI TIẾT KẾT QUẢ TỪNG CÂU HỎI CỦA TỪNG THÍ SINH,Họ tên,Câu số,Chương,Kết quả,Điểm đạt,Điểm tối đa,Nhận xét chấm',
+      'CHI TIẾT KẾT QUẢ TỪNG CÂU HỎI CỦA TỪNG THÍ SINH,Họ tên,Câu số,Chương,Kết quả / Bài làm sinh viên,Điểm đạt,Điểm tối đa,Nhận xét chấm',
     );
     for (const a of attemptsWithQuestions) {
       a.assignedQuestions.forEach((snap, idx) => {
         const ans = a.answers[snap.questionId];
         const earned = ans?.earnedPoints ?? 0;
         const maxP = ans?.maxPoints ?? snap.maxPoints;
-        const statusLabel =
-          maxP > 0 && earned >= maxP - 1e-6
-            ? 'Đúng'
-            : earned > 0
-              ? 'Một phần'
-              : 'Sai';
+        const isFullCorrect = maxP > 0 && earned >= maxP - 1e-6;
+        const resultLabel = isFullCorrect
+          ? 'Đúng'
+          : formatStudentAnswerForReport(ans, qMap.get(snap.questionId));
         lines.push(
           [
             a.studentCode,
             a.studentName,
             `Câu ${idx + 1}`,
             snap.chapterCategory,
-            statusLabel,
+            resultLabel,
             earned,
             maxP,
             ans?.gradingFeedback ?? '',
@@ -278,12 +337,10 @@ export function exportExamGradebookXlsx(
         const ans = a.answers[qid];
         const earned = ans?.earnedPoints ?? 0;
         const maxP = ans?.maxPoints ?? 1;
-        row[colKey] =
-          maxP > 0 && earned >= maxP - 1e-6
-            ? `Đúng (${earned}/${maxP})`
-            : earned > 0
-              ? `Một phần (${earned}/${maxP})`
-              : `Sai (0/${maxP})`;
+        const isFullCorrect = maxP > 0 && earned >= maxP - 1e-6;
+        row[colKey] = isFullCorrect
+          ? 'Đúng'
+          : `${formatStudentAnswerForReport(ans, qMap.get(qid))} (${earned}/${maxP})`;
       });
       return row;
     });
@@ -297,12 +354,10 @@ export function exportExamGradebookXlsx(
         const earned = ans?.earnedPoints ?? 0;
         const maxP = ans?.maxPoints ?? snap.maxPoints;
         const qObj = qMap.get(snap.questionId);
-        const statusLabel =
-          maxP > 0 && earned >= maxP - 1e-6
-            ? 'Đúng'
-            : earned > 0
-              ? 'Một phần'
-              : 'Sai';
+        const isFullCorrect = maxP > 0 && earned >= maxP - 1e-6;
+        const resultLabel = isFullCorrect
+          ? 'Đúng'
+          : formatStudentAnswerForReport(ans, qObj);
         detailRows.push({
           MSSV: a.studentCode,
           'Họ tên': a.studentName,
@@ -310,7 +365,7 @@ export function exportExamGradebookXlsx(
           'Câu số': `Câu ${idx + 1}`,
           Chương: snap.chapterCategory,
           'Nội dung câu hỏi': qObj?.content || snap.renderedContent,
-          'Kết quả': statusLabel,
+          'Kết quả / Bài làm sinh viên': resultLabel,
           'Điểm đạt': earned,
           'Điểm tối đa': maxP,
           'Nhận xét chấm': ans?.gradingFeedback ?? '',
