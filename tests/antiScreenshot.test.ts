@@ -94,8 +94,8 @@ test('isPreemptiveModifierKey triggers on Meta anytime and Ctrl+Shift/Alt+Shift 
   );
 });
 
-test('shouldLockSingleQuestionViewport locks viewport to 1 question when canvasAntiOcr or oneWayMode is active', () => {
-  assert.equal(shouldLockSingleQuestionViewport({ canvasAntiOcr: true, oneWayMode: false }), true);
+test('shouldLockSingleQuestionViewport locks viewport to 1 question only when oneWayMode is active', () => {
+  assert.equal(shouldLockSingleQuestionViewport({ canvasAntiOcr: true, oneWayMode: false }), false);
   assert.equal(shouldLockSingleQuestionViewport({ canvasAntiOcr: false, oneWayMode: true }), true);
   assert.equal(shouldLockSingleQuestionViewport({ canvasAntiOcr: true, oneWayMode: true }), true);
   assert.equal(shouldLockSingleQuestionViewport({ canvasAntiOcr: false, oneWayMode: false }), false);
