@@ -355,22 +355,8 @@ export const ExamTakePage: React.FC = () => {
         </div>
       </header>
 
-      {/* View Mode Switcher Bar (Locked to 1-per-screen when canvasAntiOcr is enabled to block scrolling screenshots) */}
-      {!exam.oneWayMode && exam.canvasAntiOcr ? (
-        <div className="bg-slate-50 border-b border-slate-200 px-2.5 sm:px-4 py-1.5 flex items-center justify-between gap-2 text-[11px] z-30 shrink-0">
-          <span className="font-semibold text-ink-700 truncate">
-            Chế độ Chống chụp toàn đề: Hiển thị 1 câu/màn hình • Thủy vân{' '}
-            <span className="font-mono text-brand-700">#{forensicCode}</span>
-          </span>
-          <button
-            type="button"
-            onClick={() => setGridOpen(true)}
-            className="px-2.5 py-1 rounded-lg bg-white border border-slate-200 hover:border-brand-300 font-bold text-brand-700 shrink-0 whitespace-nowrap"
-          >
-            Bảng câu hỏi ({answeredCount}/{totalQuestions})
-          </button>
-        </div>
-      ) : !exam.oneWayMode ? (
+      {/* View Mode Switcher Bar */}
+      {!exam.oneWayMode && (
         <div className="bg-slate-50 border-b border-slate-200 px-2.5 sm:px-4 py-1.5 flex items-center justify-between gap-2 z-30 shrink-0">
           <span className="text-[11px] font-semibold text-ink-600 hidden sm:inline">
             Chế độ hiển thị:
@@ -400,13 +386,17 @@ export const ExamTakePage: React.FC = () => {
               </button>
             ))}
           </div>
-          {effectiveViewMode === 'TEN' && (
+          {effectiveViewMode === 'TEN' ? (
             <span className="text-[11px] font-mono font-bold text-brand-700 whitespace-nowrap">
               Trang {currentPage + 1}/{totalPages}
             </span>
-          )}
+          ) : exam.canvasAntiOcr ? (
+            <span className="text-[11px] font-mono font-semibold text-ink-500 hidden sm:inline whitespace-nowrap">
+              Thủy vân #{forensicCode}
+            </span>
+          ) : null}
         </div>
-      ) : null}
+      )}
 
       {/* One-way micro-timer bar */}
       {exam.oneWayMode && (

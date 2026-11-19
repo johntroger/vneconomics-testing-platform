@@ -2309,7 +2309,7 @@ export const AdminDashboardPage: React.FC = () => {
                       <InfoHint
                         title="Chống chụp màn hình, Anti-OCR & Truy vết thủy vân vi điểm"
                         text={
-                          '• Vẽ câu hỏi lẫn các phương án trả lời lên ảnh Canvas kèm lưới nhiễu Moiré và thủy vân vi điểm 2 lớp chống cắt ảnh.\n• Tự động khóa hiển thị 1 câu/màn hình để chặn chụp cuộn toàn đề, che đen đón đầu tổ hợp phím chụp ảnh (Win+Shift+S, Cmd+Shift+4), chặn API chia sẻ màn hình và tự làm mờ câu hỏi sau 12 giây không tương tác.'
+                          '• Vẽ câu hỏi lẫn các phương án trả lời lên ảnh Canvas kèm lưới nhiễu Moiré và thủy vân vi điểm 2 lớp chống cắt ảnh.\n• Che đen đón đầu tổ hợp phím chụp ảnh (Win+Shift+S, Cmd+Shift+4), chặn API chia sẻ màn hình và tự làm mờ câu hỏi sau 12 giây không tương tác.'
                         }
                       />
                     </label>

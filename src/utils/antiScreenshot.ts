@@ -113,14 +113,14 @@ export function isPreemptiveModifierKey(
 }
 
 /**
- * Locks exam viewport to a single question at a time when strict anti-capture or one-way mode is enabled
- * to defeat scrolling full-page screenshots.
+ * Locks exam viewport to a single question at a time when one-way mode is enabled
+ * (going back to previous questions is disallowed).
  */
 export function shouldLockSingleQuestionViewport(exam: {
   oneWayMode?: boolean;
   canvasAntiOcr?: boolean;
 }): boolean {
-  return Boolean(exam.oneWayMode || exam.canvasAntiOcr);
+  return Boolean(exam.oneWayMode);
 }
 
 /**
