@@ -2,6 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import type { MinigameProps, RosterStudent } from '../types';
 import { cryptoRandomInt } from '../rosterStorage';
 import { useMinigameStageSettings, type PaceMode } from '../stageContext';
+import {
+  playDogBarkSound,
+  playRevealSound,
+  startChaseMusic,
+  stopBackgroundMusic,
+  unlockGameAudio,
+} from '../../utils/gameAudio';
 
 const MAX_VISIBLE_CROWD = 22;
 
@@ -66,40 +73,6 @@ function shortDisplayName(fullName: string): string {
   const parts = fullName.trim().split(/\s+/);
   if (parts.length <= 2) return fullName.trim();
   return parts.slice(-2).join(' ');
-}
-
-function playDogBark(muted: boolean): void {
-  if (muted || typeof window === 'undefined') return;
-  try {
-    const Ctx =
-      window.AudioContext ||
-      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
-    const now = ctx.currentTime;
-
-    // Two playful low-mid barks ("Gâu! Gâu!")
-    [0, 0.19].forEach((offset) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sawtooth';
-      osc.frequency.setValueAtTime(240, now + offset);
-      osc.frequency.exponentialRampToValueAtTime(115, now + offset + 0.13);
-      gain.gain.setValueAtTime(0.001, now + offset);
-      gain.gain.linearRampToValueAtTime(0.14, now + offset + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.15);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start(now + offset);
-      osc.stop(now + offset + 0.16);
-    });
-
-    window.setTimeout(() => {
-      void ctx.close().catch(() => {});
-    }, 600);
-  } catch {
-    // Ignore audio restrictions
-  }
 }
 
 export const DogChaseGame: React.FC<MinigameProps> = ({
@@ -176,10 +149,20 @@ export const DogChaseGame: React.FC<MinigameProps> = ({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
+      stopBackgroundMusic();
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
       if (finishTimerRef.current !== null) window.clearTimeout(finishTimerRef.current);
     };
   }, []);
+
+  // Sync chase music with running & muted state
+  useEffect(() => {
+    if (running && !muted) {
+      startChaseMusic();
+    } else {
+      stopBackgroundMusic();
+    }
+  }, [running, muted]);
 
   // Main 60fps Canvas Render Loop
   useEffect(() => {
@@ -702,7 +685,7 @@ export const DogChaseGame: React.FC<MinigameProps> = ({
           dogBubble = { text: 'GÂU!!', bg: '#ef4444', fg: '#ffffff', scale: 1.35 };
           if (!sim.barked) {
             sim.barked = true;
-            playDogBark(mutedRef.current);
+            if (!mutedRef.current) playDogBarkSound();
             setStatusText('Cả lớp chạy tán loạn! Chú chó đang truy tìm...');
           }
         } else if (p < 0.85) {
@@ -791,11 +774,17 @@ export const DogChaseGame: React.FC<MinigameProps> = ({
             winnerBubble = 'Em... em chưa chuẩn bị!';
           } else {
             dogBubble = { text: 'Cha cha cha nào! 💃', bg: '#fef08a', fg: '#7c2d12', scale: 1.1 };
+            if (sim.fakeoutShown !== 99) {
+              sim.fakeoutShown = 99;
+              stopBackgroundMusic();
+              if (!mutedRef.current) playRevealSound();
+            }
           }
 
           if (p >= 1 && !sim.finished) {
             sim.finished = true;
             sim.active = false;
+            stopBackgroundMusic();
             setRunning(false);
             if (sim.winner) {
               setStatusText(`Đã tóm gọn: ${sim.winner.name}!`);
@@ -877,6 +866,11 @@ export const DogChaseGame: React.FC<MinigameProps> = ({
 
   const handleStart = () => {
     if (running || students.length === 0) return;
+    void unlockGameAudio().then((ok) => {
+      if (ok && !mutedRef.current && simRef.current.active) {
+        startChaseMusic();
+      }
+    });
     const winner = students[cryptoRandomInt(students.length)];
 
     // Ensure winner is in the visible crowd

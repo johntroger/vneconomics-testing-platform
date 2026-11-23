@@ -1,7 +1,7 @@
 let sharedAudioCtx: AudioContext | null = null;
 let noiseBuffer: AudioBuffer | null = null;
 let musicTimer: number | null = null;
-let currentTrack: 'NONE' | 'LOBBY' | 'COUNTDOWN' = 'NONE';
+let currentTrack: 'NONE' | 'LOBBY' | 'COUNTDOWN' | 'CHASE' = 'NONE';
 let stepIndex = 0;
 
 function getAudioCtx(): AudioContext | null {
@@ -177,6 +177,56 @@ export function startCountdownMusic(): void {
       // Ignore
     }
   }, 250);
+}
+
+// Fast 150 BPM playful chase music (Kick + Hi-hat + bouncy Bass + Lead)
+export function startChaseMusic(): void {
+  if (currentTrack === 'CHASE') return;
+  stopBackgroundMusic();
+  currentTrack = 'CHASE';
+  const bassNotes = [164.81, 0, 196.0, 220.0, 164.81, 0, 246.94, 196.0];
+  const leadNotes = [659.25, 783.99, 880.0, 783.99, 659.25, 587.33, 659.25, 987.77];
+
+  musicTimer = window.setInterval(() => {
+    try {
+      const ctx = getAudioCtx();
+      if (!ctx || ctx.state !== 'running') return;
+      const t = ctx.currentTime + 0.02;
+      const step = stepIndex % 8;
+      if (step % 2 === 0) playKick(ctx, t, 0.16);
+      playHiHat(ctx, t, step % 2 === 1 ? 0.05 : 0.025);
+      const bass = bassNotes[step];
+      if (bass > 0) playSynthNote(ctx, bass, t, 0.12, 'triangle', 0.085);
+      playSynthNote(ctx, leadNotes[step], t, 0.11, 'square', 0.028);
+      stepIndex++;
+    } catch {
+      // Ignore
+    }
+  }, 190);
+}
+
+export function playDogBarkSound(): void {
+  try {
+    const ctx = getAudioCtx();
+    if (!ctx || ctx.state !== 'running') return;
+    const now = ctx.currentTime;
+    [0, 0.18].forEach((offset) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(250, now + offset);
+      osc.frequency.exponentialRampToValueAtTime(115, now + offset + 0.13);
+      gain.gain.setValueAtTime(0.001, now + offset);
+      gain.gain.linearRampToValueAtTime(0.14, now + offset + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + offset + 0.15);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now + offset);
+      osc.stop(now + offset + 0.16);
+    });
+  } catch {
+    // Ignore
+  }
 }
 
 export function playTickSound(urgent = false): void {
