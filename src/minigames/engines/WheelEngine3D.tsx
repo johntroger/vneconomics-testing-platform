@@ -409,7 +409,7 @@ export const WheelEngine3D: React.FC<WheelEngine3DProps> = ({
         const elapsed = now - refs.spinState.startTime;
         const t = Math.min(1, elapsed / refs.spinState.duration);
         // Ultra-dramatic ease-out curve for long suspense crawl
-        const ease = 1 - Math.pow(1 - t, 4.2);
+        const ease = 1 - Math.pow(1 - t, 3.4);
         const currentRot =
           refs.spinState.startAngle + (refs.spinState.targetAngle - refs.spinState.startAngle) * ease;
         refs.rotZ = currentRot;

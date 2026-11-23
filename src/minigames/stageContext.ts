@@ -14,24 +14,24 @@ export const PACE_META: Record<
   { label: string; shortLabel: string; wheelMs: number; raceSpeedMult: number; badge: string }
 > = {
   FAST: {
-    label: 'Nhanh (~6s)',
-    shortLabel: '⚡ 6s',
-    wheelMs: 6000,
-    raceSpeedMult: 0.56,
+    label: 'Nhanh (~4.5s)',
+    shortLabel: '⚡ 4.5s',
+    wheelMs: 4500,
+    raceSpeedMult: 0.78,
     badge: 'Nhanh',
   },
   NORMAL: {
-    label: 'Chuẩn (~12s)',
-    shortLabel: '⏱️ 12s',
-    wheelMs: 12000,
-    raceSpeedMult: 0.3,
+    label: 'Chuẩn (~8.5s)',
+    shortLabel: '⏱️ 8.5s',
+    wheelMs: 8500,
+    raceSpeedMult: 0.44,
     badge: 'Chuẩn',
   },
   EPIC: {
-    label: 'Kịch tính (~16s)',
-    shortLabel: '🔥 16s',
-    wheelMs: 16500,
-    raceSpeedMult: 0.21,
+    label: 'Kịch tính (~13s)',
+    shortLabel: '🔥 13s',
+    wheelMs: 13000,
+    raceSpeedMult: 0.28,
     badge: 'Kịch tính',
   },
 };

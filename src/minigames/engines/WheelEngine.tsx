@@ -212,7 +212,7 @@ export const WheelEngine: React.FC<WheelEngineProps> = ({
     const animate = (now: number) => {
       const elapsed = now - startTime;
       const t = Math.min(1, elapsed / duration);
-      const ease = 1 - Math.pow(1 - t, 4.2);
+      const ease = 1 - Math.pow(1 - t, 3.4);
       const current = startAngle + (targetAngle - startAngle) * ease;
       angleRef.current = current;
       setSpinProgress(t);

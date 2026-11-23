@@ -75,6 +75,168 @@ function createCheckeredTexture(): THREE.CanvasTexture {
   return tex;
 }
 
+function buildThematicRacerModel(
+  emoji: string,
+  laneColor: number,
+): { model: THREE.Group; bodyMat: THREE.MeshStandardMaterial; flame: THREE.Mesh } {
+  const model = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color: laneColor,
+    emissive: laneColor,
+    emissiveIntensity: 0.2,
+    metalness: 0.45,
+    roughness: 0.25,
+  });
+  const darkMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.65, metalness: 0.2 });
+  const whiteMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.3 });
+  const accentMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.35 });
+
+  // Nitro / Exhaust Flame behind (-Z is forward, so +Z is rear)
+  const flameGeo = new THREE.ConeGeometry(0.16, 0.75, 12);
+  flameGeo.rotateX(Math.PI / 2);
+  const flameMat = new THREE.MeshBasicMaterial({ color: 0xfde047, transparent: true, opacity: 0.9 });
+  const flame = new THREE.Mesh(flameGeo, flameMat);
+  flame.position.set(0, 0.32, 1.05);
+  flame.visible = false;
+  model.add(flame);
+
+  if (emoji === '🏎️') {
+    // 3D Formula 1 Car
+    const chassis = new THREE.Mesh(new THREE.BoxGeometry(0.56, 0.24, 1.45), bodyMat);
+    chassis.position.set(0, 0.24, 0);
+    model.add(chassis);
+
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.75, 8), bodyMat);
+    nose.rotation.x = -Math.PI / 2;
+    nose.position.set(0, 0.22, -1.0);
+    model.add(nose);
+
+    const helmet = new THREE.Mesh(new THREE.SphereGeometry(0.15, 14, 14), whiteMat);
+    helmet.position.set(0, 0.43, 0.08);
+    model.add(helmet);
+
+    const frontWing = new THREE.Mesh(new THREE.BoxGeometry(0.95, 0.06, 0.24), darkMat);
+    frontWing.position.set(0, 0.14, -1.15);
+    model.add(frontWing);
+
+    const rearWing = new THREE.Mesh(new THREE.BoxGeometry(0.92, 0.08, 0.26), darkMat);
+    rearWing.position.set(0, 0.52, 0.68);
+    model.add(rearWing);
+
+    const wheelGeo = new THREE.CylinderGeometry(0.2, 0.2, 0.16, 16);
+    wheelGeo.rotateZ(Math.PI / 2);
+    [
+      [-0.4, 0.2, -0.52],
+      [0.4, 0.2, -0.52],
+      [-0.42, 0.2, 0.48],
+      [0.42, 0.2, 0.48],
+    ].forEach(([wx, wy, wz]) => {
+      const w = new THREE.Mesh(wheelGeo, darkMat);
+      w.position.set(wx, wy, wz);
+      model.add(w);
+    });
+  } else if (emoji === '🚀') {
+    // 3D Space Rocket
+    const hull = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.28, 1.35, 18), whiteMat);
+    hull.rotation.x = Math.PI / 2;
+    hull.position.set(0, 0.48, 0);
+    model.add(hull);
+
+    const nose = new THREE.Mesh(new THREE.ConeGeometry(0.24, 0.6, 18), bodyMat);
+    nose.rotation.x = -Math.PI / 2;
+    nose.position.set(0, 0.48, -0.96);
+    model.add(nose);
+
+    const finGeo = new THREE.BoxGeometry(0.06, 0.34, 0.42);
+    [-0.26, 0.26].forEach((fx) => {
+      const fin = new THREE.Mesh(finGeo, bodyMat);
+      fin.position.set(fx, 0.48, 0.48);
+      model.add(fin);
+    });
+    const topFin = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.38, 0.4), bodyMat);
+    topFin.position.set(0, 0.72, 0.48);
+    model.add(topFin);
+    flame.position.set(0, 0.48, 1.02);
+  } else if (emoji === '🐉') {
+    // 3D Dragon Boat
+    const hull = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.24, 1.85), bodyMat);
+    hull.position.set(0, 0.16, 0);
+    model.add(hull);
+
+    const prow = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.65, 6), accentMat);
+    prow.rotation.x = -Math.PI / 4;
+    prow.position.set(0, 0.42, -1.05);
+    model.add(prow);
+
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.16, 0.5, 6), accentMat);
+    tail.rotation.x = Math.PI / 4;
+    tail.position.set(0, 0.36, 0.98);
+    model.add(tail);
+  } else if (emoji === '🦆') {
+    // 3D Duck
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.36, 16, 16), bodyMat);
+    body.scale.set(0.9, 0.8, 1.35);
+    body.position.set(0, 0.3, 0.08);
+    model.add(body);
+
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 16, 16), bodyMat);
+    head.position.set(0, 0.64, -0.34);
+    model.add(head);
+
+    const beak = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.26, 10), accentMat);
+    beak.rotation.x = -Math.PI / 2;
+    beak.position.set(0, 0.62, -0.62);
+    model.add(beak);
+  } else if (emoji === '🐎') {
+    // 3D Racing Horse
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.36, 0.95), bodyMat);
+    torso.position.set(0, 0.56, 0.05);
+    model.add(torso);
+
+    const neck = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.48, 0.26), bodyMat);
+    neck.rotation.x = -0.45;
+    neck.position.set(0, 0.82, -0.42);
+    model.add(neck);
+
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.22, 0.4), bodyMat);
+    head.position.set(0, 0.98, -0.64);
+    model.add(head);
+
+    const legGeo = new THREE.BoxGeometry(0.11, 0.44, 0.11);
+    [
+      [-0.14, 0.22, -0.3],
+      [0.14, 0.22, -0.3],
+      [-0.14, 0.22, 0.35],
+      [0.14, 0.22, 0.35],
+    ].forEach(([lx, ly, lz]) => {
+      const leg = new THREE.Mesh(legGeo, darkMat);
+      leg.position.set(lx, ly, lz);
+      model.add(leg);
+    });
+  } else if (emoji === '🐸') {
+    // 3D Frog
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.36, 16, 16), bodyMat);
+    body.scale.set(1.15, 0.72, 1.15);
+    body.position.set(0, 0.28, 0);
+    model.add(body);
+
+    [-0.16, 0.16].forEach((ex) => {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 12), whiteMat);
+      eye.position.set(ex, 0.54, -0.22);
+      model.add(eye);
+    });
+  } else {
+    // Sleek Speed Craft (Swim / Climb / Default)
+    const craft = new THREE.Mesh(new THREE.ConeGeometry(0.34, 1.35, 16), bodyMat);
+    craft.rotation.x = -Math.PI / 2;
+    craft.scale.set(1.1, 1, 0.55);
+    craft.position.set(0, 0.26, 0);
+    model.add(craft);
+  }
+
+  return { model, bodyMat, flame };
+}
+
 export const RaceEngine3D: React.FC<RaceEngine3DProps> = ({
   racers,
   racerEmoji,
@@ -147,7 +309,7 @@ export const RaceEngine3D: React.FC<RaceEngine3DProps> = ({
     const racerMeshes: Array<{
       group: THREE.Group;
       podMat: THREE.MeshStandardMaterial;
-      ringMesh: THREE.Mesh;
+      flameMesh: THREE.Mesh;
       sprite: THREE.Sprite;
     }> = [];
 
@@ -259,38 +421,23 @@ export const RaceEngine3D: React.FC<RaceEngine3DProps> = ({
         const rGroup = new THREE.Group();
         rGroup.position.set(laneX, 0, 0);
 
-        // 3D Racer Pod
-        const podGeo = new THREE.CylinderGeometry(0.46, 0.54, 0.34, 24);
-        const podMat = new THREE.MeshStandardMaterial({
-          color: laneColor,
-          emissive: laneColor,
-          emissiveIntensity: 0.25,
-          metalness: 0.45,
-          roughness: 0.25,
-        });
-        const podMesh = new THREE.Mesh(podGeo, podMat);
-        podMesh.position.y = 0.2;
-        rGroup.add(podMesh);
-
-        // Neon underglow ring
-        const ringGeo = new THREE.TorusGeometry(0.55, 0.05, 10, 24);
-        ringGeo.rotateX(Math.PI / 2);
-        const ringMat = new THREE.MeshBasicMaterial({ color: 0xfde047 });
-        const ringMesh = new THREE.Mesh(ringGeo, ringMat);
-        ringMesh.position.y = 0.06;
-        ringMesh.visible = false;
-        rGroup.add(ringMesh);
+        // Thematic 3D Model (F1 car, Rocket, Dragon Boat, Duck, Horse, Frog, Craft)
+        const { model, bodyMat: podMat, flame: flameMesh } = buildThematicRacerModel(
+          racerEmoji,
+          laneColor,
+        );
+        rGroup.add(model);
 
         // Billboard Sprite
         const tex = createRacerBillboard(r.student.name, racerEmoji, laneColor);
         const spriteMat = new THREE.SpriteMaterial({ map: tex, transparent: true });
         const sprite = new THREE.Sprite(spriteMat);
-        sprite.position.set(0, 1.35, 0);
-        sprite.scale.set(2.35, 1.02, 1);
+        sprite.position.set(0, 1.55, 0);
+        sprite.scale.set(2.25, 0.96, 1);
         rGroup.add(sprite);
 
         dynamicGroup.add(rGroup);
-        racerMeshes.push({ group: rGroup, podMat, ringMesh, sprite });
+        racerMeshes.push({ group: rGroup, podMat, flameMesh, sprite });
       });
     };
 
@@ -320,12 +467,15 @@ export const RaceEngine3D: React.FC<RaceEngine3DProps> = ({
         m.group.position.z = THREE.MathUtils.lerp(m.group.position.z, targetZ, 0.35);
 
         const bounce = racingRef.current && r.progress < 100
-          ? Math.abs(Math.sin(now * 0.012 + i * 1.1)) * 0.16
+          ? Math.abs(Math.sin(now * 0.014 + i * 1.1)) * (racerEmoji === '🐸' ? 0.42 : 0.14)
           : 0;
         m.group.position.y = bounce;
 
-        m.ringMesh.visible = r.boosting && r.progress < 100;
-        m.podMat.emissiveIntensity = r.boosting ? 0.9 : 0.25;
+        m.flameMesh.visible = r.boosting && r.progress < 100;
+        if (m.flameMesh.visible) {
+          m.flameMesh.scale.setScalar(0.85 + Math.sin(now * 0.04 + i) * 0.25);
+        }
+        m.podMat.emissiveIntensity = r.boosting ? 0.75 : 0.2;
 
         if (r.progress > leadProgress) leadProgress = r.progress;
       }
