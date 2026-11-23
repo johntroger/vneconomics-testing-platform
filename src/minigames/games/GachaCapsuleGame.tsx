@@ -12,6 +12,15 @@ export const GachaCapsuleGame: React.FC<MinigameProps> = ({ students, muted, onP
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [spinning, setSpinning] = useState(false);
   const speedMultRef = useRef(1);
+  const tickIvRef = useRef<number | null>(null);
+  const doneTidRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (tickIvRef.current) window.clearInterval(tickIvRef.current);
+      if (doneTidRef.current) window.clearTimeout(doneTidRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -103,12 +112,12 @@ export const GachaCapsuleGame: React.FC<MinigameProps> = ({ students, muted, onP
     speedMultRef.current = 4.2;
     if (!muted) playDrumroll(spinMs - 200);
 
-    const tickInterval = window.setInterval(() => {
+    tickIvRef.current = window.setInterval(() => {
       if (!muted) playWheelTick();
     }, 180);
 
-    window.setTimeout(() => {
-      window.clearInterval(tickInterval);
+    doneTidRef.current = window.setTimeout(() => {
+      if (tickIvRef.current) window.clearInterval(tickIvRef.current);
       speedMultRef.current = 1;
       setSpinning(false);
       const winner = students[cryptoRandomInt(students.length)];

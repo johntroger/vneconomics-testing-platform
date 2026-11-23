@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { playRevealSound, playWheelTick, unlockGameAudio } from '../../utils/gameAudio';
 import { cryptoRandomInt } from '../rosterStorage';
@@ -12,12 +12,22 @@ export const SlotMachineGame: React.FC<MinigameProps> = ({ students, muted, onPi
   const [reels, setReels] = useState<string[]>(['?', '?', '?']);
   const [locked, setLocked] = useState<boolean[]>([false, false, false]);
   const timersRef = useRef<number[]>([]);
+  const timeoutsRef = useRef<number[]>([]);
+
+  useEffect(() => {
+    return () => {
+      timersRef.current.forEach((t) => window.clearInterval(t));
+      timeoutsRef.current.forEach((t) => window.clearTimeout(t));
+    };
+  }, []);
 
   const handlePull = () => {
     if (spinning || students.length === 0) return;
     void unlockGameAudio();
     timersRef.current.forEach((t) => window.clearInterval(t));
     timersRef.current = [];
+    timeoutsRef.current.forEach((t) => window.clearTimeout(t));
+    timeoutsRef.current = [];
 
     setSpinning(true);
     setLocked([false, false, false]);
@@ -43,7 +53,7 @@ export const SlotMachineGame: React.FC<MinigameProps> = ({ students, muted, onPi
       intervals.push(iv);
       timersRef.current.push(iv);
 
-      window.setTimeout(() => {
+      const tid = window.setTimeout(() => {
         window.clearInterval(iv);
         setReels((prev) => {
           const next = [...prev];
@@ -62,6 +72,7 @@ export const SlotMachineGame: React.FC<MinigameProps> = ({ students, muted, onPi
           onPickStudent(winners[0]);
         }
       }, scalePaceMs(4200 + r * 2400, paceMode));
+      timeoutsRef.current.push(tid);
     }
   };
 

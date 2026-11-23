@@ -42,6 +42,13 @@ export const WheelEngine: React.FC<WheelEngineProps> = ({
   const angleRef = useRef(0);
   const spinningRef = useRef(false);
   const tickStepRef = useRef(0);
+  const raf2DRef = useRef<number>(0);
+
+  useEffect(() => {
+    return () => {
+      if (raf2DRef.current) cancelAnimationFrame(raf2DRef.current);
+    };
+  }, []);
   const [spinning, setSpinning] = useState(false);
   const [spinTrigger, setSpinTrigger] = useState(0);
   const [spinProgress, setSpinProgress] = useState(0);
@@ -232,7 +239,7 @@ export const WheelEngine: React.FC<WheelEngineProps> = ({
       drawWheel(tickStepRef.current);
 
       if (t < 1) {
-        requestAnimationFrame(animate);
+        raf2DRef.current = requestAnimationFrame(animate);
       } else {
         spinningRef.current = false;
         setSpinning(false);
@@ -241,7 +248,7 @@ export const WheelEngine: React.FC<WheelEngineProps> = ({
       }
     };
 
-    requestAnimationFrame(animate);
+    raf2DRef.current = requestAnimationFrame(animate);
   };
 
   return (

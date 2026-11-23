@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { playBalloonPop, playDrumroll, unlockGameAudio } from '../../utils/gameAudio';
 import { cryptoShuffle } from '../rosterStorage';
@@ -33,6 +33,13 @@ export const GridPickEngine: React.FC<GridPickEngineProps> = ({
   const [openedIds, setOpenedIds] = useState<Record<string, boolean>>({});
   const [pendingItem, setPendingItem] = useState<{ stu: RosterStudent; num: number } | null>(null);
   const [shaking, setShaking] = useState(false);
+  const timerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) window.clearTimeout(timerRef.current);
+    };
+  }, []);
 
   const cards = useMemo(() => {
     const shuffled = cryptoShuffle(students);
@@ -52,7 +59,7 @@ export const GridPickEngine: React.FC<GridPickEngineProps> = ({
     setPendingItem({ stu, num });
     if (!muted) playDrumroll(waitMs - 100);
 
-    window.setTimeout(() => {
+    timerRef.current = window.setTimeout(() => {
       setPendingItem(null);
       setOpenedIds((prev) => ({ ...prev, [stu.id]: true }));
       if (smashEffect) {

@@ -31,6 +31,15 @@ export const AimTargetEngine: React.FC<AimTargetEngineProps> = ({
   const angleRef = useRef(0);
   const speedRef = useRef(0.032);
   const firingRef = useRef(false);
+  const decelRafRef = useRef<number>(0);
+  const finishTimeoutRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (decelRafRef.current) cancelAnimationFrame(decelRafRef.current);
+      if (finishTimeoutRef.current) window.clearTimeout(finishTimeoutRef.current);
+    };
+  }, []);
   const [firing, setFiring] = useState(false);
   const [arrowFlying, setArrowFlying] = useState(false);
   const [sampleSeed, setSampleSeed] = useState(0);
@@ -142,7 +151,7 @@ export const AimTargetEngine: React.FC<AimTargetEngineProps> = ({
       const t = Math.min(1, (performance.now() - start) / slowMs);
       speedRef.current = origSpeed * Math.pow(1 - t, 1.85);
       if (t < 1) {
-        requestAnimationFrame(decel);
+        decelRafRef.current = requestAnimationFrame(decel);
       } else {
         speedRef.current = 0;
         if (!muted) playBalloonPop();
@@ -152,7 +161,7 @@ export const AimTargetEngine: React.FC<AimTargetEngineProps> = ({
           (((-Math.PI / 2 - angleRef.current) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
         const idx = Math.floor(norm / slice) % count;
         const winner = boardStudents[idx];
-        window.setTimeout(() => {
+        finishTimeoutRef.current = window.setTimeout(() => {
           firingRef.current = false;
           setFiring(false);
           setArrowFlying(false);
@@ -162,7 +171,7 @@ export const AimTargetEngine: React.FC<AimTargetEngineProps> = ({
       }
     };
     if (!muted) playWheelTick();
-    requestAnimationFrame(decel);
+    decelRafRef.current = requestAnimationFrame(decel);
   };
 
   return (

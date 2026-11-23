@@ -13,6 +13,13 @@ export const GoldMinerGame: React.FC<MinigameProps> = ({ students, muted, onPick
   const [sampleSeed, setSampleSeed] = useState(0);
   const dirRef = useRef(1);
   const extendingRef = useRef(false);
+  const tidsRef = useRef<number[]>([]);
+
+  useEffect(() => {
+    return () => {
+      tidsRef.current.forEach((t) => window.clearTimeout(t));
+    };
+  }, []);
 
   const nuggets = useMemo(() => {
     const pool = students.length <= 7 ? students : cryptoShuffle(students).slice(0, 7);
@@ -57,16 +64,18 @@ export const GoldMinerGame: React.FC<MinigameProps> = ({ students, muted, onPick
     const extendMs = scalePaceMs(1800, paceMode);
     const reelMs = scalePaceMs(1600, paceMode);
     setGrabLen(200);
-    window.setTimeout(() => {
+    const t1 = window.setTimeout(() => {
       if (!muted) playWheelTick();
       setGrabLen(40);
-      window.setTimeout(() => {
+      const t2 = window.setTimeout(() => {
         extendingRef.current = false;
         setExtending(false);
         const picked: RosterStudent = best.student;
         onPickStudent(picked);
       }, reelMs);
+      tidsRef.current.push(t2);
     }, extendMs);
+    tidsRef.current.push(t1);
   };
 
   return (

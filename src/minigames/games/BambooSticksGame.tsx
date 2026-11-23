@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { playDrumroll, playWheelTick, unlockGameAudio } from '../../utils/gameAudio';
 import { cryptoRandomInt } from '../rosterStorage';
@@ -9,6 +9,15 @@ export const BambooSticksGame: React.FC<MinigameProps> = ({ students, muted, onP
   const { paceMode } = useMinigameStageSettings();
   const [shaking, setShaking] = useState(false);
   const [risenName, setRisenName] = useState<string | null>(null);
+  const clackRef = useRef<number | null>(null);
+  const tidsRef = useRef<number[]>([]);
+
+  useEffect(() => {
+    return () => {
+      if (clackRef.current) window.clearInterval(clackRef.current);
+      tidsRef.current.forEach((t) => window.clearTimeout(t));
+    };
+  }, []);
 
   const handleShake = () => {
     if (shaking || students.length === 0) return;
@@ -23,17 +32,19 @@ export const BambooSticksGame: React.FC<MinigameProps> = ({ students, muted, onP
     setRisenName(null);
     if (!muted) playDrumroll(shakeMs - 200);
 
-    const clack = window.setInterval(() => {
+    clackRef.current = window.setInterval(() => {
       if (!muted) playWheelTick();
     }, 170);
 
-    window.setTimeout(() => {
-      window.clearInterval(clack);
+    const t1 = window.setTimeout(() => {
+      if (clackRef.current) window.clearInterval(clackRef.current);
       setShaking(false);
       const winner = students[cryptoRandomInt(students.length)];
       setRisenName(winner.name);
-      window.setTimeout(() => onPickStudent(winner), 500);
+      const t2 = window.setTimeout(() => onPickStudent(winner), 500);
+      tidsRef.current.push(t2);
     }, shakeMs);
+    tidsRef.current.push(t1);
   };
 
   return (

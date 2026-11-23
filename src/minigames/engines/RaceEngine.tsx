@@ -50,6 +50,7 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
   const [racers, setRacers] = useState<RacerState[]>([]);
   const racingRef = useRef(false);
   const rafRef = useRef<number>(0);
+  const timeoutsRef = useRef<number[]>([]);
 
   const use3D = render3D && !webglFailed;
 
@@ -71,6 +72,8 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
     setCommentary('Sẵn sàng tại vạch xuất phát!');
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      timeoutsRef.current.forEach((t) => window.clearTimeout(t));
+      timeoutsRef.current = [];
       racingRef.current = false;
     };
   }, [laneStudents]);
@@ -87,18 +90,21 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
     setRacing(true);
 
     // 3 - 2 - 1 - XUẤT PHÁT! (snappy 1.2s countdown)
+    timeoutsRef.current.forEach((t) => window.clearTimeout(t));
+    timeoutsRef.current = [];
     const seq = ['3', '2', '1', 'XUẤT PHÁT!'];
     seq.forEach((label, idx) => {
-      window.setTimeout(() => {
+      const tid = window.setTimeout(() => {
         setCountdownText(label);
         if (!muted) {
           if (idx < 3) playTickSound(idx === 2);
           else playRaceStartHorn();
         }
       }, idx * 400);
+      timeoutsRef.current.push(tid);
     });
 
-    window.setTimeout(() => {
+    const startTid = window.setTimeout(() => {
       setCountdownText(null);
       const mult = PACE_META[paceMode].raceSpeedMult;
       const state: RacerState[] = laneStudents.map((s) => ({
@@ -183,6 +189,7 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
 
       rafRef.current = requestAnimationFrame(step);
     }, 1650);
+    timeoutsRef.current.push(startTid);
   };
 
   // Compute live ranks

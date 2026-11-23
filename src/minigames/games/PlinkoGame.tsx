@@ -2,13 +2,22 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Play, RefreshCw } from 'lucide-react';
 import { playWheelTick, unlockGameAudio } from '../../utils/gameAudio';
 import { cryptoRandomInt, cryptoShuffle } from '../rosterStorage';
+import { useMinigameStageSettings } from '../stageContext';
 import type { MinigameProps } from '../types';
 
 export const PlinkoGame: React.FC<MinigameProps> = ({ students, muted, onPickStudent }) => {
+  const { paceMode } = useMinigameStageSettings();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [dropping, setDropping] = useState(false);
   const [sampleSeed, setSampleSeed] = useState(0);
   const droppingRef = useRef(false);
+  const rafRef = useRef<number>(0);
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    };
+  }, []);
 
   const slots = useMemo(() => {
     if (students.length <= 10) return students;
@@ -110,8 +119,9 @@ export const PlinkoGame: React.FC<MinigameProps> = ({ students, muted, onPickStu
 
     let seg = 0;
     let prog = 0;
+    const progStep = paceMode === 'EPIC' ? 0.018 : paceMode === 'NORMAL' ? 0.032 : 0.06;
     const step = () => {
-      prog += 0.085;
+      prog += progStep;
       if (prog >= 1) {
         prog = 0;
         seg++;
@@ -130,9 +140,9 @@ export const PlinkoGame: React.FC<MinigameProps> = ({ students, muted, onPickStu
       const bounceY = Math.sin(prog * Math.PI) * -10;
       const y = p0.y + (p1.y - p0.y) * prog + bounceY;
       drawBoard({ x, y });
-      requestAnimationFrame(step);
+      rafRef.current = requestAnimationFrame(step);
     };
-    requestAnimationFrame(step);
+    rafRef.current = requestAnimationFrame(step);
   };
 
   return (
