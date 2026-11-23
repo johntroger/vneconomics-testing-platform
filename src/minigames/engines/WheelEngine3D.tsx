@@ -548,7 +548,7 @@ export const WheelEngine3D: React.FC<WheelEngine3DProps> = ({
     }
 
     const duration = PACE_META[paceRef.current].wheelMs;
-    const extraLoops = paceRef.current === 'EPIC' ? 15 + cryptoRandomInt(4) : paceRef.current === 'NORMAL' ? 10 + cryptoRandomInt(3) : 6 + cryptoRandomInt(2);
+    const extraLoops = paceRef.current === 'EPIC' ? 9 + cryptoRandomInt(3) : paceRef.current === 'NORMAL' ? 6 + cryptoRandomInt(3) : 4 + cryptoRandomInt(2);
     const extraSpins = extraLoops * Math.PI * 2;
     const randomOffset = (cryptoRandomInt(3600) / 3600) * Math.PI * 2;
 

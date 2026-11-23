@@ -201,7 +201,7 @@ export const WheelEngine: React.FC<WheelEngineProps> = ({
     const count = wheelStudents.length;
     const sliceAngle = (Math.PI * 2) / count;
     const startAngle = angleRef.current;
-    const extraLoops = paceMode === 'EPIC' ? 15 + cryptoRandomInt(4) : paceMode === 'NORMAL' ? 10 + cryptoRandomInt(3) : 6 + cryptoRandomInt(2);
+    const extraLoops = paceMode === 'EPIC' ? 9 + cryptoRandomInt(3) : paceMode === 'NORMAL' ? 6 + cryptoRandomInt(3) : 4 + cryptoRandomInt(2);
     const extraSpins = extraLoops * Math.PI * 2;
     const randomOffset = (cryptoRandomInt(3600) / 3600) * Math.PI * 2;
     const targetAngle = startAngle + extraSpins + randomOffset;

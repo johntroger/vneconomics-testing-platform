@@ -85,7 +85,7 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
     racingRef.current = true;
     setRacing(true);
 
-    // 3 - 2 - 1 - XUẤT PHÁT!
+    // 3 - 2 - 1 - XUẤT PHÁT! (snappy 1.2s countdown)
     const seq = ['3', '2', '1', 'XUẤT PHÁT!'];
     seq.forEach((label, idx) => {
       window.setTimeout(() => {
@@ -94,7 +94,7 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
           if (idx < 3) playTickSound(idx === 2);
           else playRaceStartHorn();
         }
-      }, idx * 620);
+      }, idx * 300);
     });
 
     window.setTimeout(() => {
@@ -181,7 +181,7 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
       };
 
       rafRef.current = requestAnimationFrame(step);
-    }, 2500);
+    }, 1250);
   };
 
   // Compute live ranks
