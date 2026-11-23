@@ -24,6 +24,14 @@ const DragonBoatGame = lazy(() => import('./games/DragonBoatGame'));
 const MountainClimbGame = lazy(() => import('./games/MountainClimbGame'));
 const SwimRaceGame = lazy(() => import('./games/SwimRaceGame'));
 const FrogJumpGame = lazy(() => import('./games/FrogJumpGame'));
+const PlinkoGame = lazy(() => import('./games/PlinkoGame'));
+const GachaCapsuleGame = lazy(() => import('./games/GachaCapsuleGame'));
+const ScratchCardGame = lazy(() => import('./games/ScratchCardGame'));
+const BattleRoyaleGame = lazy(() => import('./games/BattleRoyaleGame'));
+const SlotMachineGame = lazy(() => import('./games/SlotMachineGame'));
+const BombPassGame = lazy(() => import('./games/BombPassGame'));
+const BambooSticksGame = lazy(() => import('./games/BambooSticksGame'));
+const GoldMinerGame = lazy(() => import('./games/GoldMinerGame'));
 
 export const MINIGAME_REGISTRY: MinigamePlugin[] = [
   // Nhóm 1: Vòng quay & Nhắm bắn (8)
@@ -300,22 +308,22 @@ export const MINIGAME_REGISTRY: MinigamePlugin[] = [
     name: 'Đào Vàng Cổ điển',
     category: 'MYSTERY',
     description: 'Thả móc câu kéo khối vàng mang tên sinh viên lên.',
-    badge: 'Lô 4',
+    badge: 'Mới',
     gradient: 'from-amber-500 to-stone-700',
     icon: '⛏️',
-    ready: false,
-    component: WheelGame,
+    ready: true,
+    component: GoldMinerGame,
   },
   {
     id: 'scratch-card',
     name: 'Thẻ cào Bạc',
     category: 'MYSTERY',
     description: 'Rê chuột/tay cào lớp phủ bạc trên máy chiếu để dần hé lộ tên.',
-    badge: 'Lô 4',
+    badge: 'Mới',
     gradient: 'from-slate-500 to-zinc-700',
     icon: '🪙',
-    ready: false,
-    component: WheelGame,
+    ready: true,
+    component: ScratchCardGame,
   },
 
   // Nhóm 4: Vật lý, Xác suất & Sinh tồn (6)
@@ -324,66 +332,66 @@ export const MINIGAME_REGISTRY: MinigamePlugin[] = [
     name: 'Bảng Đinh Plinko',
     category: 'PHYSICS',
     description: 'Thả bóng từ đỉnh qua ma trận chốt đinh nảy zíc-zắc rơi vào ô tên.',
-    badge: 'Lô 4',
+    badge: 'Hot',
     gradient: 'from-teal-500 to-emerald-700',
     icon: '⚪',
-    ready: false,
-    component: WheelGame,
+    ready: true,
+    component: PlinkoGame,
   },
   {
     id: 'gacha-capsule',
     name: 'Máy quay Bóng Gacha',
     category: 'PHYSICS',
     description: 'Quả cầu nảy vật lý trong lồng kính rơi xuống ống và bung mở tên.',
-    badge: 'Lô 4',
+    badge: 'Mới',
     gradient: 'from-rose-500 to-pink-700',
     icon: '🔮',
-    ready: false,
-    component: WheelGame,
+    ready: true,
+    component: GachaCapsuleGame,
   },
   {
     id: 'bamboo-sticks',
     name: 'Rút Thẻ Tre',
     category: 'PHYSICS',
     description: 'Lắc ống xăm tre lách tách rơi vọt ra 1 thẻ tên.',
-    badge: 'Lô 4',
+    badge: 'Mới',
     gradient: 'from-lime-600 to-green-800',
     icon: '🎋',
-    ready: false,
-    component: WheelGame,
+    ready: true,
+    component: BambooSticksGame,
   },
   {
     id: 'slot-machine',
     name: 'Máy Xèng 3 Cuộn',
     category: 'PHYSICS',
     description: 'Quay 3 cuộn song song, gọi cùng lúc 1, 2 hoặc 3 sinh viên!',
-    badge: 'Lô 4',
+    badge: 'Hot',
     gradient: 'from-amber-500 to-red-600',
     icon: '🎰',
-    ready: false,
-    component: WheelGame,
+    ready: true,
+    component: SlotMachineGame,
   },
   {
     id: 'battle-royale',
     name: 'Loại trừ Sinh tồn',
     category: 'PHYSICS',
     description: 'Loại dần từng nhóm nhỏ mỗi giây đến người sống sót cuối cùng.',
-    badge: 'Lô 4',
+    badge: 'Hot',
     gradient: 'from-purple-600 to-rose-700',
     icon: '⚡',
-    ready: false,
-    component: WheelGame,
+    ready: true,
+    component: BattleRoyaleGame,
   },
   {
     id: 'bomb-pass',
     name: 'Chuyền Bom Hẹn giờ',
     category: 'PHYSICS',
     description: 'Bom chuyền qua các thẻ tên, hết giờ nổ trúng ai người đó lên bảng.',
-    badge: 'Lô 4',
+    badge: 'Mới',
     gradient: 'from-red-600 to-orange-700',
     icon: '💣',
-    ready: false,
-    component: WheelGame,
+    ready: true,
+    component: BombPassGame,
   },
 
   // Nhóm 5: Chia nhóm, Ghép cặp & Thứ tự (4)
