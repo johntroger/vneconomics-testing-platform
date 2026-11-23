@@ -5,7 +5,8 @@ export type MinigameCategory =
   | 'RACE'
   | 'MYSTERY'
   | 'PHYSICS'
-  | 'TEAM_ORDER';
+  | 'TEAM_ORDER'
+  | 'VIETNAM';
 
 export type StageTheme = 'NEON' | 'SUNNY' | 'GOLD';
 
@@ -80,4 +81,5 @@ export const MINIGAME_CATEGORIES: Array<{
   { id: 'MYSTERY', label: 'Bí ẩn & Đập phá', icon: '🎁' },
   { id: 'PHYSICS', label: 'Vật lý & Sinh tồn', icon: '⚡' },
   { id: 'TEAM_ORDER', label: 'Chia nhóm & Thứ tự', icon: '👥' },
+  { id: 'VIETNAM', label: 'Game Việt', icon: '🇻🇳' },
 ];

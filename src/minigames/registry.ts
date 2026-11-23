@@ -37,6 +37,7 @@ const SpotlightSweepGame = lazy(() => import('./games/SpotlightSweepGame'));
 const TurnOrderGame = lazy(() => import('./games/TurnOrderGame'));
 const PairMatchGame = lazy(() => import('./games/PairMatchGame'));
 const CaptainDraftGame = lazy(() => import('./games/CaptainDraftGame'));
+const DogChaseGame = lazy(() => import('./games/DogChaseGame'));
 
 export const MINIGAME_REGISTRY: MinigamePlugin[] = [
   // Nhóm 1: Vòng quay & Nhắm bắn (8)
@@ -443,5 +444,17 @@ export const MINIGAME_REGISTRY: MinigamePlugin[] = [
     icon: '👑',
     ready: true,
     component: CaptainDraftGame,
+  },
+  // Nhóm 6: Game Việt
+  {
+    id: 'cho-ruot-kiem-tra-bai',
+    name: 'Chó Rượt Kiểm Tra Bài',
+    category: 'VIETNAM',
+    description: 'Cả lớp chạy tán loạn trước cổng trường Việt Nam, chú chó rượt và chốt 1 bạn nhảy Cha Cha Cha!',
+    badge: 'Game Việt',
+    gradient: 'from-red-500 via-amber-500 to-yellow-500',
+    icon: '🐕',
+    ready: true,
+    component: DogChaseGame,
   },
 ];
