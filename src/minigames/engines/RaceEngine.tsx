@@ -5,6 +5,7 @@ import { playRaceStartHorn, playTickSound, unlockGameAudio } from '../../utils/g
 import { cryptoShuffle } from '../rosterStorage';
 import { PACE_META, useMinigameStageSettings } from '../stageContext';
 import type { RosterStudent } from '../types';
+import { RacerSvgIcon, getLaneHexColor } from './RacerSvgIcon';
 
 const RaceEngine3D = lazy(() =>
   import('./RaceEngine3D').then((m) => ({ default: m.RaceEngine3D })),
@@ -199,8 +200,9 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
       {/* Controls */}
       <div className="bg-white/10 backdrop-blur-md border border-white/15 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h2 className="font-black text-base sm:text-lg flex items-center gap-2">
-            <span>{racerEmoji}</span> {title}
+          <h2 className="font-black text-base sm:text-lg flex items-center gap-2.5">
+            <RacerSvgIcon emoji={racerEmoji} accentColor="#f59e0b" className="w-9 h-6 shrink-0" />
+            <span>{title}</span>
           </h2>
           <p className="text-xs text-amber-300 font-bold mt-0.5">{commentary}</p>
         </div>
@@ -325,16 +327,23 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
             )}
           </div>
         ) : (
-          racers.map((r) => {
+          racers.map((r, laneIdx) => {
             const rank = rankMap.get(r.student.id);
+            const laneHex = getLaneHexColor(laneIdx);
             return (
               <div
                 key={r.student.id}
-                className={`relative h-11 rounded-xl border px-3 flex items-center ${laneBgClass} ${
-                  rank === 1 ? 'ring-1 ring-amber-400/60 bg-amber-400/10' : ''
+                className={`relative h-12 rounded-xl border px-3 flex items-center overflow-hidden ${laneBgClass} ${
+                  rank === 1 ? 'ring-2 ring-amber-400/70 bg-amber-400/10' : ''
                 }`}
               >
                 <div className="w-40 sm:w-48 truncate text-xs font-bold z-10 pr-2 flex items-center gap-1.5 drop-shadow">
+                  <span
+                    className="w-5 h-5 rounded-md text-[10px] font-black text-white flex items-center justify-center shrink-0 shadow"
+                    style={{ backgroundColor: laneHex }}
+                  >
+                    {laneIdx + 1}
+                  </span>
                   {rank && rank <= 3 && (
                     <span
                       className={`px-1.5 py-0.5 rounded text-[10px] font-black shrink-0 ${
@@ -351,18 +360,31 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
                   <span className="truncate">{r.student.name}</span>
                 </div>
 
-                <div className="flex-1 relative h-full flex items-center mr-8">
+                <div className="flex-1 relative h-full flex items-center mr-10">
+                  {/* Colored speed trail */}
                   <div
-                    className="absolute flex items-center gap-1 transition-none"
-                    style={{ left: `calc(${r.progress}% - 24px)` }}
+                    className="absolute left-0 h-2 rounded-full opacity-45 transition-none"
+                    style={{
+                      width: `${r.progress}%`,
+                      background: `linear-gradient(90deg, transparent, ${laneHex})`,
+                    }}
+                  />
+                  <div
+                    className="absolute flex items-center gap-1.5 transition-none"
+                    style={{ left: `calc(${r.progress}% - 32px)` }}
                   >
                     {r.boosting && (
-                      <span className="text-[10px] font-black text-amber-300 flex items-center animate-pulse bg-black/40 px-1.5 py-0.5 rounded-full">
+                      <span className="text-[10px] font-black text-amber-300 flex items-center animate-pulse bg-black/50 px-1.5 py-0.5 rounded-full">
                         <Zap className="w-3 h-3" /> {trailEmoji}
                       </span>
                     )}
                     <GameAvatarBadge avatarId={r.student.avatarId} streak={r.boosting ? 2 : 0} size="sm" />
-                    <span className="text-2xl leading-none drop-shadow-md">{racerEmoji}</span>
+                    <RacerSvgIcon
+                      emoji={racerEmoji}
+                      accentColor={laneHex}
+                      boosting={r.boosting}
+                      className="w-12 h-7 shrink-0"
+                    />
                   </div>
                 </div>
               </div>

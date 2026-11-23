@@ -38,7 +38,7 @@ export const PACE_META: Record<
 
 export const MinigameStageContext = createContext<MinigameStageSettings>({
   paceMode: 'NORMAL',
-  render3D: true,
+  render3D: false,
   theme: 'NEON',
 });
 

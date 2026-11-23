@@ -83,7 +83,7 @@ export const MinigameStageLayout: React.FC = () => {
   const [store, setStore] = useState<MinigameStateStore>(() => readMinigameStore());
   const [theme, setTheme] = useState<StageTheme>('NEON');
   const [paceMode, setPaceMode] = useState<PaceMode>('NORMAL');
-  const [render3D, setRender3D] = useState(true);
+  const [render3D, setRender3D] = useState(false);
   const [muted, setMuted] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
