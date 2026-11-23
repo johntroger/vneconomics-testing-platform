@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Flag, RefreshCw, Zap } from 'lucide-react';
 import { GameAvatarBadge } from '../../components/game/GameAvatarBadge';
-import { playRaceStartHorn, unlockGameAudio } from '../../utils/gameAudio';
+import { playRaceStartHorn, playTickSound, unlockGameAudio } from '../../utils/gameAudio';
 import { cryptoShuffle } from '../rosterStorage';
 import type { RosterStudent } from '../types';
 
@@ -18,10 +18,10 @@ export interface RaceEngineProps {
 
 interface RacerState {
   student: RosterStudent;
-  progress: number; // 0 to 100
+  progress: number;
   speed: number;
   boosting: boolean;
-  finishedOrder: number; // 0 if not finished
+  finishedOrder: number;
 }
 
 export const RaceEngine: React.FC<RaceEngineProps> = ({
@@ -37,14 +37,15 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
   const [sampleSeed, setSampleSeed] = useState(0);
   const [pickMode, setPickMode] = useState<'FIRST' | 'LAST'>('FIRST');
   const [speedMode, setSpeedMode] = useState<'DRAMA' | 'FAST'>('DRAMA');
+  const [countdownText, setCountdownText] = useState<string | null>(null);
+  const [commentary, setCommentary] = useState<string>('Sẵn sàng tại vạch xuất phát!');
   const [racing, setRacing] = useState(false);
   const [racers, setRacers] = useState<RacerState[]>([]);
   const racingRef = useRef(false);
   const rafRef = useRef<number>(0);
 
   const laneStudents = useMemo(() => {
-    const pool = students.length <= 14 ? students : cryptoShuffle(students).slice(0, 14);
-    return pool;
+    return students.length <= 14 ? students : cryptoShuffle(students).slice(0, 14);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [students, sampleSeed]);
 
@@ -58,6 +59,7 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
         finishedOrder: 0,
       })),
     );
+    setCommentary('Sẵn sàng tại vạch xuất phát!');
     return () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       racingRef.current = false;
@@ -72,89 +74,125 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
       return;
     }
 
-    if (!muted) playRaceStartHorn();
     racingRef.current = true;
     setRacing(true);
 
-    const mult = speedMode === 'DRAMA' ? 0.36 : 0.72;
-    const state: RacerState[] = laneStudents.map((s) => ({
-      student: s,
-      progress: 0,
-      speed: (0.24 + Math.random() * 0.22) * mult,
-      boosting: false,
-      finishedOrder: 0,
-    }));
-
-    let finishCounter = 0;
-    let frameCount = 0;
-
-    const step = () => {
-      frameCount++;
-      let allFinished = true;
-      let firstWinner: RosterStudent | null = null;
-      let lastWinner: RosterStudent | null = null;
-
-      for (const r of state) {
-        if (r.progress >= 100) continue;
-        allFinished = false;
-
-        // Random burst / slowdown every ~24 frames for dramatic overtakes
-        if (frameCount % 24 === 0) {
-          const roll = Math.random();
-          r.boosting = roll > 0.75;
-          r.speed = r.boosting
-            ? (0.52 + Math.random() * 0.32) * mult
-            : (0.12 + Math.random() * 0.28) * mult;
+    // 3 - 2 - 1 - XUẤT PHÁT!
+    const seq = ['3', '2', '1', 'XUẤT PHÁT!'];
+    seq.forEach((label, idx) => {
+      window.setTimeout(() => {
+        setCountdownText(label);
+        if (!muted) {
+          if (idx < 3) playTickSound(idx === 2);
+          else playRaceStartHorn();
         }
-
-        r.progress = Math.min(100, r.progress + r.speed);
-        if (r.progress >= 100 && r.finishedOrder === 0) {
-          finishCounter++;
-          r.finishedOrder = finishCounter;
-          if (finishCounter === 1) firstWinner = r.student;
-          if (finishCounter === state.length) lastWinner = r.student;
-        }
-      }
-
-      setRacers([...state]);
-
-      if (pickMode === 'FIRST' && firstWinner) {
-        racingRef.current = false;
-        setRacing(false);
-        onPickStudent(firstWinner);
-        return;
-      }
-
-      if (allFinished || (pickMode === 'LAST' && lastWinner)) {
-        racingRef.current = false;
-        setRacing(false);
-        const chosen =
-          pickMode === 'FIRST'
-            ? state.find((x) => x.finishedOrder === 1)?.student
-            : lastWinner ?? state[state.length - 1]?.student;
-        if (chosen) onPickStudent(chosen);
-        return;
-      }
-
-      rafRef.current = requestAnimationFrame(step);
-    };
+      }, idx * 620);
+    });
 
     window.setTimeout(() => {
+      setCountdownText(null);
+      const mult = speedMode === 'DRAMA' ? 0.22 : 0.55;
+      const state: RacerState[] = laneStudents.map((s) => ({
+        student: s,
+        progress: 0,
+        speed: (0.2 + Math.random() * 0.2) * mult,
+        boosting: false,
+        finishedOrder: 0,
+      }));
+
+      let finishCounter = 0;
+      let frameCount = 0;
+      let lastLeaderId = '';
+
+      const step = () => {
+        frameCount++;
+        let allFinished = true;
+        let firstWinner: RosterStudent | null = null;
+        let lastWinner: RosterStudent | null = null;
+
+        for (const r of state) {
+          if (r.progress >= 100) continue;
+          allFinished = false;
+
+          // Dynamic overtakes & comeback drama in final 30%
+          if (frameCount % 26 === 0) {
+            const roll = Math.random();
+            const isBehind = r.progress < 75 && roll > 0.7;
+            r.boosting = roll > 0.76 || isBehind;
+            r.speed = r.boosting
+              ? (0.55 + Math.random() * 0.35) * mult
+              : (0.1 + Math.random() * 0.26) * mult;
+          }
+
+          r.progress = Math.min(100, r.progress + r.speed);
+          if (r.progress >= 100 && r.finishedOrder === 0) {
+            finishCounter++;
+            r.finishedOrder = finishCounter;
+            if (finishCounter === 1) firstWinner = r.student;
+            if (finishCounter === state.length) lastWinner = r.student;
+          }
+        }
+
+        // Update live commentary when leader changes
+        if (frameCount % 15 === 0) {
+          const sorted = [...state].sort((a, b) => b.progress - a.progress);
+          const leader = sorted[0];
+          if (leader && leader.student.id !== lastLeaderId && leader.progress > 10) {
+            lastLeaderId = leader.student.id;
+            setCommentary(
+              leader.boosting
+                ? `🔥 ${leader.student.name} vừa bật Nitro vượt lên dẫn đầu!`
+                : `🏁 ${leader.student.name} đang tạm dẫn đầu đường đua!`,
+            );
+          }
+        }
+
+        setRacers([...state]);
+
+        if (pickMode === 'FIRST' && firstWinner) {
+          racingRef.current = false;
+          setRacing(false);
+          onPickStudent(firstWinner);
+          return;
+        }
+
+        if (allFinished || (pickMode === 'LAST' && lastWinner)) {
+          racingRef.current = false;
+          setRacing(false);
+          const chosen =
+            pickMode === 'FIRST'
+              ? state.find((x) => x.finishedOrder === 1)?.student
+              : lastWinner ?? state[state.length - 1]?.student;
+          if (chosen) onPickStudent(chosen);
+          return;
+        }
+
+        rafRef.current = requestAnimationFrame(step);
+      };
+
       rafRef.current = requestAnimationFrame(step);
-    }, 600);
+    }, 2500);
   };
 
+  // Compute live ranks
+  const rankMap = useMemo(() => {
+    const sorted = [...racers].sort((a, b) => b.progress - a.progress);
+    const map = new Map<string, number>();
+    sorted.forEach((r, idx) => {
+      if (r.progress > 2) map.set(r.student.id, idx + 1);
+    });
+    return map;
+  }, [racers]);
+
   return (
-    <div className="flex-1 flex flex-col gap-4 p-4 max-w-6xl w-full mx-auto">
+    <div className="flex-1 flex flex-col gap-3.5 p-4 max-w-6xl w-full mx-auto relative">
       {/* Controls */}
       <div className="bg-white/10 backdrop-blur-md border border-white/15 rounded-2xl p-4 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="font-black text-base sm:text-lg flex items-center gap-2">
             <span>{racerEmoji}</span> {title}
           </h2>
-          <p className="text-xs opacity-75">
-            Đang hiển thị {laneStudents.length} làn đua ({students.length} sinh viên chưa gọi)
-          </p>
+          <p className="text-xs text-amber-300 font-bold mt-0.5">{commentary}</p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
@@ -167,7 +205,7 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
                 speedMode === 'DRAMA' ? 'bg-indigo-500 text-white' : 'opacity-80'
               }`}
             >
-              Hồi hộp (11s)
+              Hồi hộp (17s)
             </button>
             <button
               type="button"
@@ -177,7 +215,7 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
                 speedMode === 'FAST' ? 'bg-indigo-500 text-white' : 'opacity-80'
               }`}
             >
-              Nhanh (5s)
+              Nhanh (7s)
             </button>
           </div>
 
@@ -231,9 +269,21 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
       <div
         className={`flex-1 rounded-3xl border border-white/15 p-4 relative overflow-hidden flex flex-col justify-center gap-2 ${trackBgClass}`}
       >
+        {/* 3 - 2 - 1 Countdown Overlay */}
+        {countdownText && (
+          <div className="absolute inset-0 z-30 bg-slate-950/60 backdrop-blur-sm flex items-center justify-center">
+            <div
+              key={countdownText}
+              className="text-7xl sm:text-8xl font-black text-amber-400 drop-shadow-[0_6px_25px_rgba(251,191,36,0.7)] animate-countdown-pop"
+            >
+              {countdownText}
+            </div>
+          </div>
+        )}
+
         {/* Finish Line */}
         <div
-          className="absolute top-0 bottom-0 right-10 w-3 opacity-80 pointer-events-none"
+          className="absolute top-0 bottom-0 right-10 w-3.5 opacity-85 pointer-events-none"
           style={{
             backgroundImage:
               'repeating-linear-gradient(0deg, #fff 0px, #fff 10px, #0f172a 10px, #0f172a 20px)',
@@ -245,31 +295,49 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
             Chưa có sinh viên khả dụng trong danh sách.
           </div>
         ) : (
-          racers.map((r) => (
-            <div
-              key={r.student.id}
-              className={`relative h-11 rounded-xl border px-3 flex items-center ${laneBgClass}`}
-            >
-              <div className="w-36 sm:w-44 truncate text-xs font-bold z-10 pr-2 drop-shadow">
-                {r.student.name}
-              </div>
-
-              <div className="flex-1 relative h-full flex items-center mr-8">
-                <div
-                  className="absolute flex items-center gap-1 transition-none"
-                  style={{ left: `calc(${r.progress}% - 24px)` }}
-                >
-                  {r.boosting && (
-                    <span className="text-[10px] font-black text-amber-300 flex items-center animate-pulse">
-                      <Zap className="w-3 h-3" /> {trailEmoji}
+          racers.map((r) => {
+            const rank = rankMap.get(r.student.id);
+            return (
+              <div
+                key={r.student.id}
+                className={`relative h-11 rounded-xl border px-3 flex items-center ${laneBgClass} ${
+                  rank === 1 ? 'ring-1 ring-amber-400/60 bg-amber-400/10' : ''
+                }`}
+              >
+                <div className="w-40 sm:w-48 truncate text-xs font-bold z-10 pr-2 flex items-center gap-1.5 drop-shadow">
+                  {rank && rank <= 3 && (
+                    <span
+                      className={`px-1.5 py-0.5 rounded text-[10px] font-black shrink-0 ${
+                        rank === 1
+                          ? 'bg-amber-400 text-slate-950'
+                          : rank === 2
+                            ? 'bg-slate-200 text-slate-900'
+                            : 'bg-orange-500 text-white'
+                      }`}
+                    >
+                      #{rank}
                     </span>
                   )}
-                  <GameAvatarBadge avatarId={r.student.avatarId} size="sm" />
-                  <span className="text-2xl leading-none drop-shadow-md">{racerEmoji}</span>
+                  <span className="truncate">{r.student.name}</span>
+                </div>
+
+                <div className="flex-1 relative h-full flex items-center mr-8">
+                  <div
+                    className="absolute flex items-center gap-1 transition-none"
+                    style={{ left: `calc(${r.progress}% - 24px)` }}
+                  >
+                    {r.boosting && (
+                      <span className="text-[10px] font-black text-amber-300 flex items-center animate-pulse bg-black/40 px-1.5 py-0.5 rounded-full">
+                        <Zap className="w-3 h-3" /> {trailEmoji}
+                      </span>
+                    )}
+                    <GameAvatarBadge avatarId={r.student.avatarId} streak={r.boosting ? 2 : 0} size="sm" />
+                    <span className="text-2xl leading-none drop-shadow-md">{racerEmoji}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

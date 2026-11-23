@@ -359,8 +359,15 @@ export const MinigameStageLayout: React.FC = () => {
 
       {/* Spotlight Winner Modal */}
       {winner && (
-        <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-gradient-to-b from-slate-900 to-indigo-950 border-2 border-amber-400/60 text-white rounded-3xl max-w-2xl w-full max-h-[90dvh] overflow-y-auto p-6 sm:p-8 text-center shadow-2xl space-y-5">
+        <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-hidden">
+          <div
+            className="absolute w-[620px] h-[620px] rounded-full opacity-25 pointer-events-none animate-sunburst"
+            style={{
+              background:
+                'conic-gradient(from 0deg, transparent 0deg 18deg, rgba(251,191,36,0.5) 18deg 36deg, transparent 36deg 54deg, rgba(251,191,36,0.5) 54deg 72deg, transparent 72deg 90deg, rgba(251,191,36,0.5) 90deg 108deg, transparent 108deg 126deg, rgba(251,191,36,0.5) 126deg 144deg, transparent 144deg 162deg, rgba(251,191,36,0.5) 162deg 180deg, transparent 180deg 198deg, rgba(251,191,36,0.5) 198deg 216deg, transparent 216deg 234deg, rgba(251,191,36,0.5) 234deg 252deg, transparent 252deg 270deg, rgba(251,191,36,0.5) 270deg 288deg, transparent 288deg 306deg, rgba(251,191,36,0.5) 306deg 324deg, transparent 324deg 342deg, rgba(251,191,36,0.5) 342deg 360deg)',
+            }}
+          />
+          <div className="relative z-10 bg-gradient-to-b from-slate-900 to-indigo-950 border-2 border-amber-400/70 text-white rounded-3xl max-w-2xl w-full max-h-[90dvh] overflow-y-auto p-6 sm:p-8 text-center shadow-[0_0_60px_rgba(251,191,36,0.3)] space-y-5">
             <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">
               🎉 Xin chúc mừng sinh viên được chọn!
             </div>
