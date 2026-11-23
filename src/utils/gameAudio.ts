@@ -233,3 +233,43 @@ export function playPodiumSound(): void {
   playTone(1046.5, 0.45, 'triangle', 0.11, 0.42);
   playTone(783.99, 0.45, 'sine', 0.07, 0.42);
 }
+
+export function playWheelTick(): void {
+  playTone(1350, 0.028, 'triangle', 0.09);
+}
+
+export function playDrumroll(durationMs = 1100): void {
+  const steps = Math.max(6, Math.floor(durationMs / 75));
+  for (let i = 0; i < steps; i++) {
+    playTone(165 + (i % 2) * 25, 0.05, 'triangle', 0.05, (i * 75) / 1000);
+  }
+}
+
+export function playBalloonPop(): void {
+  try {
+    const ctx = getAudioCtx();
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const src = ctx.createBufferSource();
+    src.buffer = getNoiseBuffer(ctx);
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.24, t);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + 0.09);
+    src.connect(gain);
+    gain.connect(ctx.destination);
+    src.start(t);
+    src.stop(t + 0.1);
+  } catch {
+    // Ignore
+  }
+}
+
+export function playRaceStartHorn(): void {
+  playTone(440, 0.14, 'sawtooth', 0.06, 0);
+  playTone(440, 0.14, 'sawtooth', 0.06, 0.28);
+  playTone(659.25, 0.35, 'sawtooth', 0.08, 0.56);
+}
+
+export function playWinnerFanfare(): void {
+  playPodiumSound();
+}

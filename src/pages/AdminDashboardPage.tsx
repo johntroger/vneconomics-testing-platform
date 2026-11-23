@@ -33,6 +33,7 @@ import { EmailLogsTabPanel } from '../components/admin/EmailLogsTabPanel';
 import { StudentQuestionMatrixCard } from '../components/admin/StudentQuestionMatrixCard';
 import { CreateGameModal } from '../components/admin/CreateGameModal';
 import { EssayGradingModal } from '../components/admin/EssayGradingModal';
+import { MinigameHubPanel } from '../components/admin/MinigameHubPanel';
 import { fetchInstructorGames, type GameListItem } from '../services/gameApi';
 import { ExamAnalyticsCharts } from '../components/admin/ExamAnalyticsCharts';
 const ExcelQuestionBankModal = lazy(() =>
@@ -203,6 +204,7 @@ export const AdminDashboardPage: React.FC = () => {
   } | null>(null);
   const [instructorGames, setInstructorGames] = useState<GameListItem[]>([]);
   const [loadingGames, setLoadingGames] = useState(false);
+  const [liveGameSubTab, setLiveGameSubTab] = useState<'KAHOOT' | 'MINIGAME'>('KAHOOT');
 
   const loadInstructorGames = async () => {
     setLoadingGames(true);
@@ -3483,9 +3485,40 @@ export const AdminDashboardPage: React.FC = () => {
           />
         )}
 
-        {/* TAB 7: LIVE GAME (KAHOOT) */}
+        {/* TAB 7: LIVE GAME & MINIGAME */}
         {activeTab === 'LIVE_GAME' && (
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-6 space-y-5">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 sm:p-6 space-y-5">
+            {/* 2 Sub-tabs inside Tab 7 */}
+            <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
+              <button
+                type="button"
+                onClick={() => setLiveGameSubTab('KAHOOT')}
+                className={`px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition ${
+                  liveGameSubTab === 'KAHOOT'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'bg-slate-100 text-ink-700 hover:bg-slate-200'
+                }`}
+              >
+                <Gamepad2 className="w-4 h-4" />
+                1. Kahoot Live Arena (Thi trắc nghiệm)
+              </button>
+              <button
+                type="button"
+                onClick={() => setLiveGameSubTab('MINIGAME')}
+                className={`px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition ${
+                  liveGameSubTab === 'MINIGAME'
+                    ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-sm'
+                    : 'bg-slate-100 text-ink-700 hover:bg-slate-200'
+                }`}
+              >
+                🎯 2. Gọi tên &amp; Chia nhóm (Minigame)
+              </button>
+            </div>
+
+            {liveGameSubTab === 'MINIGAME' ? (
+              <MinigameHubPanel exams={exams} />
+            ) : (
+              <>
             <div className="flex flex-wrap items-center justify-between gap-4">
               <div>
                 <h2 className="text-base font-extrabold text-ink-900 flex items-center gap-2">
@@ -3686,6 +3719,8 @@ export const AdminDashboardPage: React.FC = () => {
                 </div>
               )}
             </div>
+              </>
+            )}
           </div>
         )}
 
