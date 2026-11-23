@@ -27,7 +27,8 @@ export const RadarScanGame: React.FC<MinigameProps> = ({ students, muted, onPick
 
     setScanning(true);
     const winner = students[cryptoRandomInt(students.length)];
-    const totalSteps = paceMode === 'EPIC' ? 44 : paceMode === 'NORMAL' ? 34 : 22;
+    const totalSteps =
+      paceMode === 'EPIC' ? 44 : paceMode === 'NORMAL' ? 34 : paceMode === 'FAST' ? 22 : 12;
     let step = 0;
 
     const tick = () => {

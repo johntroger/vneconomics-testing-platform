@@ -55,7 +55,14 @@ export const GridPickEngine: React.FC<GridPickEngineProps> = ({
   const handleOpen = (stu: RosterStudent, num: number) => {
     if (openedIds[stu.id] || pendingItem) return;
     void unlockGameAudio();
-    const waitMs = paceMode === 'EPIC' ? 5200 : paceMode === 'NORMAL' ? 3200 : 1600;
+    const waitMs =
+      paceMode === 'EPIC'
+        ? 5200
+        : paceMode === 'NORMAL'
+          ? 3200
+          : paceMode === 'FAST'
+            ? 1600
+            : 600;
     setPendingItem({ stu, num });
     if (!muted) playDrumroll(waitMs - 100);
 

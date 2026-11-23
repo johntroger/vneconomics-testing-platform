@@ -146,7 +146,14 @@ export const AimTargetEngine: React.FC<AimTargetEngineProps> = ({
     // Decelerate target smoothly after firing based on paceMode
     const origSpeed = speedRef.current;
     const start = performance.now();
-    const slowMs = paceMode === 'EPIC' ? 8500 : paceMode === 'NORMAL' ? 5200 : 2800;
+    const slowMs =
+      paceMode === 'EPIC'
+        ? 8500
+        : paceMode === 'NORMAL'
+          ? 5200
+          : paceMode === 'FAST'
+            ? 2800
+            : 1000;
     const decel = () => {
       const t = Math.min(1, (performance.now() - start) / slowMs);
       speedRef.current = origSpeed * Math.pow(1 - t, 1.85);

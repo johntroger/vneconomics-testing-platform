@@ -1,7 +1,7 @@
 import { createContext, useContext } from 'react';
 import type { StageTheme } from './types';
 
-export type PaceMode = 'FAST' | 'NORMAL' | 'EPIC';
+export type PaceMode = 'TURBO' | 'FAST' | 'NORMAL' | 'EPIC';
 
 export interface MinigameStageSettings {
   paceMode: PaceMode;
@@ -20,6 +20,14 @@ export const PACE_META: Record<
     badge: string;
   }
 > = {
+  TURBO: {
+    label: 'Siêu tốc (~3s)',
+    shortLabel: '🚀 3s',
+    wheelMs: 3000,
+    raceSpeedMult: 1.15,
+    durationScale: 0.18,
+    badge: 'Siêu tốc',
+  },
   FAST: {
     label: 'Nhanh (~9s)',
     shortLabel: '⚡ 9s',

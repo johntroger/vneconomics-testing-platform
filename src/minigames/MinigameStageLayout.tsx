@@ -274,7 +274,7 @@ export const MinigameStageLayout: React.FC = () => {
             role="group"
             aria-label="Chọn tốc độ trò chơi"
           >
-            {(['FAST', 'NORMAL', 'EPIC'] as const).map((mode) => {
+            {(['TURBO', 'FAST', 'NORMAL', 'EPIC'] as const).map((mode) => {
               const active = paceMode === mode;
               return (
                 <button

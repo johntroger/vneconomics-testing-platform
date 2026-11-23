@@ -27,7 +27,8 @@ export const SpotlightSweepGame: React.FC<MinigameProps> = ({ students, muted, o
 
     setSweeping(true);
     const winner = students[cryptoRandomInt(students.length)];
-    const totalHops = paceMode === 'EPIC' ? 44 : paceMode === 'NORMAL' ? 34 : 22;
+    const totalHops =
+      paceMode === 'EPIC' ? 44 : paceMode === 'NORMAL' ? 34 : paceMode === 'FAST' ? 22 : 12;
     let hop = 0;
 
     const next = () => {

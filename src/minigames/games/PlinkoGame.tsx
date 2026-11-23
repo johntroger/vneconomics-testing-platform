@@ -119,7 +119,14 @@ export const PlinkoGame: React.FC<MinigameProps> = ({ students, muted, onPickStu
 
     let seg = 0;
     let prog = 0;
-    const progStep = paceMode === 'EPIC' ? 0.018 : paceMode === 'NORMAL' ? 0.032 : 0.06;
+    const progStep =
+      paceMode === 'EPIC'
+        ? 0.018
+        : paceMode === 'NORMAL'
+          ? 0.032
+          : paceMode === 'FAST'
+            ? 0.06
+            : 0.14;
     const step = () => {
       prog += progStep;
       if (prog >= 1) {
