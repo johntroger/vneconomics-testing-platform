@@ -1,9 +1,14 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { Flag, RefreshCw, Zap } from 'lucide-react';
 import { GameAvatarBadge } from '../../components/game/GameAvatarBadge';
 import { playRaceStartHorn, playTickSound, unlockGameAudio } from '../../utils/gameAudio';
 import { cryptoShuffle } from '../rosterStorage';
+import { PACE_META, useMinigameStageSettings } from '../stageContext';
 import type { RosterStudent } from '../types';
+
+const RaceEngine3D = lazy(() =>
+  import('./RaceEngine3D').then((m) => ({ default: m.RaceEngine3D })),
+);
 
 export interface RaceEngineProps {
   students: RosterStudent[];
@@ -34,15 +39,18 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
   trailEmoji = '💨',
   onPickStudent,
 }) => {
+  const { paceMode, render3D } = useMinigameStageSettings();
   const [sampleSeed, setSampleSeed] = useState(0);
   const [pickMode, setPickMode] = useState<'FIRST' | 'LAST'>('FIRST');
-  const [speedMode, setSpeedMode] = useState<'DRAMA' | 'FAST'>('DRAMA');
+  const [webglFailed, setWebglFailed] = useState(false);
   const [countdownText, setCountdownText] = useState<string | null>(null);
   const [commentary, setCommentary] = useState<string>('Sẵn sàng tại vạch xuất phát!');
   const [racing, setRacing] = useState(false);
   const [racers, setRacers] = useState<RacerState[]>([]);
   const racingRef = useRef(false);
   const rafRef = useRef<number>(0);
+
+  const use3D = render3D && !webglFailed;
 
   const laneStudents = useMemo(() => {
     return students.length <= 14 ? students : cryptoShuffle(students).slice(0, 14);
@@ -91,7 +99,7 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
 
     window.setTimeout(() => {
       setCountdownText(null);
-      const mult = speedMode === 'DRAMA' ? 0.22 : 0.55;
+      const mult = PACE_META[paceMode].raceSpeedMult;
       const state: RacerState[] = laneStudents.map((s) => ({
         student: s,
         progress: 0,
@@ -109,6 +117,8 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
         let allFinished = true;
         let firstWinner: RosterStudent | null = null;
         let lastWinner: RosterStudent | null = null;
+        const maxProg = Math.max(...state.map((x) => x.progress));
+        const photoFinishSlow = paceMode === 'EPIC' && maxProg >= 88 ? 0.58 : 1;
 
         for (const r of state) {
           if (r.progress >= 100) continue;
@@ -124,7 +134,7 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
               : (0.1 + Math.random() * 0.26) * mult;
           }
 
-          r.progress = Math.min(100, r.progress + r.speed);
+          r.progress = Math.min(100, r.progress + r.speed * photoFinishSlow);
           if (r.progress >= 100 && r.finishedOrder === 0) {
             finishCounter++;
             r.finishedOrder = finishCounter;
@@ -196,28 +206,9 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <div className="flex rounded-xl bg-black/25 p-1 text-xs font-bold">
-            <button
-              type="button"
-              disabled={racing}
-              onClick={() => setSpeedMode('DRAMA')}
-              className={`px-2.5 py-1.5 rounded-lg transition ${
-                speedMode === 'DRAMA' ? 'bg-indigo-500 text-white' : 'opacity-80'
-              }`}
-            >
-              Hồi hộp (17s)
-            </button>
-            <button
-              type="button"
-              disabled={racing}
-              onClick={() => setSpeedMode('FAST')}
-              className={`px-2.5 py-1.5 rounded-lg transition ${
-                speedMode === 'FAST' ? 'bg-indigo-500 text-white' : 'opacity-80'
-              }`}
-            >
-              Nhanh (7s)
-            </button>
-          </div>
+          <span className="px-2.5 py-1.5 rounded-xl bg-black/25 text-xs font-black text-amber-300">
+            Nhịp độ: {PACE_META[paceMode].shortLabel}
+          </span>
 
           <div className="flex rounded-xl bg-black/25 p-1 text-xs font-bold">
             <button
@@ -281,18 +272,57 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
           </div>
         )}
 
-        {/* Finish Line */}
-        <div
-          className="absolute top-0 bottom-0 right-10 w-3.5 opacity-85 pointer-events-none"
-          style={{
-            backgroundImage:
-              'repeating-linear-gradient(0deg, #fff 0px, #fff 10px, #0f172a 10px, #0f172a 20px)',
-          }}
-        />
+        {/* 2D Finish Line */}
+        {!use3D && (
+          <div
+            className="absolute top-0 bottom-0 right-10 w-3.5 opacity-85 pointer-events-none"
+            style={{
+              backgroundImage:
+                'repeating-linear-gradient(0deg, #fff 0px, #fff 10px, #0f172a 10px, #0f172a 20px)',
+            }}
+          />
+        )}
 
         {racers.length === 0 ? (
           <div className="text-center py-12 font-bold opacity-75">
             Chưa có sinh viên khả dụng trong danh sách.
+          </div>
+        ) : use3D ? (
+          <div className="relative">
+            <Suspense
+              fallback={
+                <div className="h-[360px] sm:h-[430px] lg:h-[470px] flex items-center justify-center font-bold opacity-75">
+                  Đang dựng đường đua 3D...
+                </div>
+              }
+            >
+              <RaceEngine3D
+                racers={racers}
+                racerEmoji={racerEmoji}
+                racing={racing}
+                onWebGLError={() => setWebglFailed(true)}
+              />
+            </Suspense>
+
+            {/* Live Top-3 Broadcast HUD */}
+            {racing && (
+              <div className="absolute top-3 left-3 z-20 bg-slate-950/80 backdrop-blur-md border border-white/15 rounded-2xl p-2.5 space-y-1 min-w-[180px]">
+                <div className="text-[10px] font-black uppercase tracking-wider text-amber-300">
+                  🏆 Bảng xếp hạng trực tiếp
+                </div>
+                {[...racers]
+                  .sort((a, b) => b.progress - a.progress)
+                  .slice(0, 3)
+                  .map((r, idx) => (
+                    <div key={r.student.id} className="flex items-center justify-between gap-2 text-xs font-bold">
+                      <span className="truncate max-w-[130px]">
+                        {idx === 0 ? '🥇' : idx === 1 ? '🥈' : '🥉'} {r.student.name}
+                      </span>
+                      <span className="text-amber-300 tabular-nums">{Math.round(r.progress)}%</span>
+                    </div>
+                  ))}
+              </div>
+            )}
           </div>
         ) : (
           racers.map((r) => {

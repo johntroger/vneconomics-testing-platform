@@ -1,8 +1,13 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
 import { RefreshCw, Sparkles } from 'lucide-react';
 import { cryptoRandomInt, cryptoShuffle } from '../rosterStorage';
+import { PACE_META, useMinigameStageSettings } from '../stageContext';
 import type { RosterStudent } from '../types';
 import { playWheelTick, unlockGameAudio } from '../../utils/gameAudio';
+
+const WheelEngine3D = lazy(() =>
+  import('./WheelEngine3D').then((m) => ({ default: m.WheelEngine3D })),
+);
 
 const WHEEL_PALETTE = [
   '#f43f5e',
@@ -32,14 +37,20 @@ export const WheelEngine: React.FC<WheelEngineProps> = ({
   centerEmoji = '🎯',
   onPickStudent,
 }) => {
+  const { paceMode, render3D } = useMinigameStageSettings();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const angleRef = useRef(0);
   const spinningRef = useRef(false);
   const tickStepRef = useRef(0);
   const [spinning, setSpinning] = useState(false);
+  const [spinTrigger, setSpinTrigger] = useState(0);
+  const [spinProgress, setSpinProgress] = useState(0);
+  const [webglFailed, setWebglFailed] = useState(false);
   const [pointerKick, setPointerKick] = useState(false);
   const [currentPointerName, setCurrentPointerName] = useState('');
   const [sampleSeed, setSampleSeed] = useState(0);
+
+  const use3D = render3D && !webglFailed;
 
   const wheelStudents = useMemo(() => {
     if (students.length <= 28) return students;
@@ -165,12 +176,12 @@ export const WheelEngine: React.FC<WheelEngineProps> = ({
   };
 
   useEffect(() => {
-    drawWheel(0);
+    if (!use3D) drawWheel(0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wheelStudents, palette]);
+  }, [wheelStudents, palette, use3D]);
 
   const handleSpin = () => {
-    if (spinningRef.current || wheelStudents.length === 0) return;
+    if (spinningRef.current || spinning || wheelStudents.length === 0) return;
     void unlockGameAudio();
 
     if (wheelStudents.length === 1) {
@@ -178,27 +189,33 @@ export const WheelEngine: React.FC<WheelEngineProps> = ({
       return;
     }
 
+    if (use3D) {
+      setSpinTrigger((c) => c + 1);
+      return;
+    }
+
     spinningRef.current = true;
     setSpinning(true);
+    setSpinProgress(0);
 
     const count = wheelStudents.length;
     const sliceAngle = (Math.PI * 2) / count;
     const startAngle = angleRef.current;
-    // 11 to 14 full rotations + random offset over 10.5 seconds
-    const extraSpins = (11 + cryptoRandomInt(4)) * Math.PI * 2;
+    const extraLoops = paceMode === 'EPIC' ? 15 + cryptoRandomInt(4) : paceMode === 'NORMAL' ? 10 + cryptoRandomInt(3) : 6 + cryptoRandomInt(2);
+    const extraSpins = extraLoops * Math.PI * 2;
     const randomOffset = (cryptoRandomInt(3600) / 3600) * Math.PI * 2;
     const targetAngle = startAngle + extraSpins + randomOffset;
-    const duration = 10500;
+    const duration = PACE_META[paceMode].wheelMs;
     const startTime = performance.now();
     let lastSliceIdx = -1;
 
     const animate = (now: number) => {
       const elapsed = now - startTime;
       const t = Math.min(1, elapsed / duration);
-      // Quintic-like ease-out for 4 seconds of nerve-wracking slow-motion crawl
-      const ease = 1 - Math.pow(1 - t, 4.8);
+      const ease = 1 - Math.pow(1 - t, 5.2);
       const current = startAngle + (targetAngle - startAngle) * ease;
       angleRef.current = current;
+      setSpinProgress(t);
 
       const normalized = (((-Math.PI / 2 - current) % (Math.PI * 2)) + Math.PI * 2) % (Math.PI * 2);
       const sliceIdx = Math.floor(normalized / sliceAngle) % count;
@@ -245,43 +262,84 @@ export const WheelEngine: React.FC<WheelEngineProps> = ({
 
       {/* Live Pointer Ticker Banner */}
       <div
-        className={`h-10 px-6 rounded-2xl border flex items-center justify-center min-w-[240px] transition-all ${
+        className={`h-11 px-6 rounded-2xl border flex items-center justify-center min-w-[260px] transition-all ${
           spinning
-            ? 'bg-amber-400/20 border-amber-300/60 text-amber-200 scale-105 shadow-lg shadow-amber-500/20'
+            ? spinProgress > 0.65
+              ? 'bg-rose-500/25 border-rose-400/70 text-rose-100 scale-110 shadow-xl shadow-rose-500/30 animate-pulse'
+              : 'bg-amber-400/20 border-amber-300/60 text-amber-200 scale-105 shadow-lg shadow-amber-500/20'
             : 'bg-white/10 border-white/15 text-white/70'
         }`}
       >
         <span className="font-black text-base tracking-wide truncate max-w-xs">
-          {currentPointerName ? `▼ ${currentPointerName}` : 'Sẵn sàng quay'}
+          {currentPointerName
+            ? `${spinProgress > 0.65 && spinning ? '🔥 SẮP DỪNG: ' : '▼ '}${currentPointerName}`
+            : 'Sẵn sàng quay'}
         </span>
       </div>
 
-      <div className="relative flex items-center justify-center">
-        {/* Top Pointer */}
-        <div
-          className={`absolute -top-4 left-1/2 -translate-x-1/2 z-20 transition-transform duration-75 ${
-            pointerKick ? '-rotate-12 scale-115' : 'rotate-0'
-          }`}
-        >
-          <div className="w-0 h-0 border-l-[18px] border-l-transparent border-r-[18px] border-r-transparent border-t-[34px] border-t-amber-400 drop-shadow-[0_4px_10px_rgba(251,191,36,0.6)]" />
+      {use3D ? (
+        <div className="w-full max-w-4xl relative rounded-3xl overflow-hidden border border-white/15 bg-slate-950/50 shadow-[0_24px_80px_rgba(0,0,0,0.65)]">
+          <Suspense
+            fallback={
+              <div className="h-[380px] sm:h-[480px] lg:h-[520px] flex items-center justify-center font-bold opacity-75">
+                Đang dựng sân khấu 3D...
+              </div>
+            }
+          >
+            <WheelEngine3D
+              students={wheelStudents}
+              palette={palette}
+              centerEmoji={centerEmoji}
+              muted={muted}
+              paceMode={paceMode}
+              spinTrigger={spinTrigger}
+              onSpinStateChange={(s) => {
+                spinningRef.current = s;
+                setSpinning(s);
+              }}
+              onPointerNameChange={setCurrentPointerName}
+              onProgressChange={setSpinProgress}
+              onPickStudent={onPickStudent}
+              onWebGLError={() => setWebglFailed(true)}
+            />
+          </Suspense>
+          {spinning && (
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 w-56 h-1.5 rounded-full bg-white/15 overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-cyan-400 via-amber-400 to-rose-500 transition-all duration-75"
+                style={{ width: `${Math.round(spinProgress * 100)}%` }}
+              />
+            </div>
+          )}
         </div>
+      ) : (
+        <div className="relative flex items-center justify-center">
+          {/* Top Pointer */}
+          <div
+            className={`absolute -top-4 left-1/2 -translate-x-1/2 z-20 transition-transform duration-75 ${
+              pointerKick ? '-rotate-12 scale-115' : 'rotate-0'
+            }`}
+          >
+            <div className="w-0 h-0 border-l-[18px] border-l-transparent border-r-[18px] border-r-transparent border-t-[34px] border-t-amber-400 drop-shadow-[0_4px_10px_rgba(251,191,36,0.6)]" />
+          </div>
 
-        <canvas
-          ref={canvasRef}
-          onClick={handleSpin}
-          className="w-[330px] h-[330px] sm:w-[480px] sm:h-[480px] cursor-pointer drop-shadow-[0_20px_50px_rgba(0,0,0,0.6)]"
-        />
+          <canvas
+            ref={canvasRef}
+            onClick={handleSpin}
+            className="w-[330px] h-[330px] sm:w-[480px] sm:h-[480px] cursor-pointer drop-shadow-[0_20px_50px_rgba(0,0,0,0.6)]"
+          />
 
-        <button
-          type="button"
-          onClick={handleSpin}
-          disabled={spinning || wheelStudents.length === 0}
-          className="absolute w-16 h-16 rounded-full bg-white text-slate-900 font-black text-3xl flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition disabled:opacity-50"
-          title="Quay ngay"
-        >
-          {centerEmoji}
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={handleSpin}
+            disabled={spinning || wheelStudents.length === 0}
+            className="absolute w-16 h-16 rounded-full bg-white text-slate-900 font-black text-3xl flex items-center justify-center shadow-xl hover:scale-105 active:scale-95 transition disabled:opacity-50"
+            title="Quay ngay"
+          >
+            {centerEmoji}
+          </button>
+        </div>
+      )}
 
       <button
         type="button"
@@ -290,7 +348,9 @@ export const WheelEngine: React.FC<WheelEngineProps> = ({
         className="px-10 py-4 rounded-2xl bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-black text-xl shadow-xl shadow-amber-500/30 flex items-center gap-2.5 transition active:scale-95 disabled:opacity-40"
       >
         <Sparkles className="w-6 h-6" />
-        {spinning ? 'Đang quay đầy hồi hộp...' : 'QUAY NGAY!'}
+        {spinning
+          ? `Đang quay (${PACE_META[paceMode].badge})...`
+          : `QUAY NGAY (${PACE_META[paceMode].shortLabel})!`}
       </button>
     </div>
   );

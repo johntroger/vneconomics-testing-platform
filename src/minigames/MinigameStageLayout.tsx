@@ -34,6 +34,7 @@ import {
   subscribeMinigameSync,
   writeMinigameStore,
 } from './rosterStorage';
+import { MinigameStageContext, PACE_META, type PaceMode } from './stageContext';
 import type { MinigameStateStore, RosterStudent, StageTheme } from './types';
 
 const THEME_CLASSES: Record<StageTheme, string> = {
@@ -81,6 +82,8 @@ export const MinigameStageLayout: React.FC = () => {
 
   const [store, setStore] = useState<MinigameStateStore>(() => readMinigameStore());
   const [theme, setTheme] = useState<StageTheme>('NEON');
+  const [paceMode, setPaceMode] = useState<PaceMode>('EPIC');
+  const [render3D, setRender3D] = useState(true);
   const [muted, setMuted] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -283,6 +286,34 @@ export const MinigameStageLayout: React.FC = () => {
           <button
             type="button"
             onClick={() =>
+              setPaceMode((p) => (p === 'EPIC' ? 'NORMAL' : p === 'NORMAL' ? 'FAST' : 'EPIC'))
+            }
+            className={`px-3 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1 ${
+              paceMode === 'EPIC'
+                ? 'bg-gradient-to-r from-rose-500 to-amber-500 text-slate-950 shadow-lg shadow-amber-500/25'
+                : 'bg-white/10 hover:bg-white/20'
+            }`}
+            title={`Nhịp độ hiện tại: ${PACE_META[paceMode].label} (bấm để đổi)`}
+          >
+            {PACE_META[paceMode].shortLabel}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setRender3D((v) => !v)}
+            className={`px-3 py-1.5 rounded-xl text-xs font-black transition ${
+              render3D
+                ? 'bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-500/25'
+                : 'bg-white/10 hover:bg-white/20'
+            }`}
+            title="Chuyển đổi chế độ đồ họa WebGL 3D / 2D nhẹ"
+          >
+            {render3D ? '🧊 3D' : '🖼️ 2D'}
+          </button>
+
+          <button
+            type="button"
+            onClick={() =>
               setTheme((t) => (t === 'NEON' ? 'SUNNY' : t === 'SUNNY' ? 'GOLD' : 'NEON'))
             }
             className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 text-xs font-bold flex items-center gap-1"
@@ -346,13 +377,15 @@ export const MinigameStageLayout: React.FC = () => {
               </div>
             }
           >
-            <GameComponent
-              students={availableStudents}
-              allStudents={store.students}
-              muted={muted}
-              theme={theme}
-              onPickStudent={handlePickStudent}
-            />
+            <MinigameStageContext.Provider value={{ paceMode, render3D, theme }}>
+              <GameComponent
+                students={availableStudents}
+                allStudents={store.students}
+                muted={muted}
+                theme={theme}
+                onPickStudent={handlePickStudent}
+              />
+            </MinigameStageContext.Provider>
           </Suspense>
         </MinigameErrorBoundary>
       </main>
