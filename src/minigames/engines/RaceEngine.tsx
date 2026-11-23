@@ -95,7 +95,7 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
           if (idx < 3) playTickSound(idx === 2);
           else playRaceStartHorn();
         }
-      }, idx * 300);
+      }, idx * 400);
     });
 
     window.setTimeout(() => {
@@ -182,7 +182,7 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
       };
 
       rafRef.current = requestAnimationFrame(step);
-    }, 1250);
+    }, 1650);
   };
 
   // Compute live ranks
