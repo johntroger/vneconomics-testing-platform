@@ -278,7 +278,7 @@ export const DogChaseGame: React.FC<MinigameProps> = ({
         ctx.fillStyle = '#fef08a';
         ctx.font = '900 15px system-ui, sans-serif';
         ctx.textAlign = 'center';
-        ctx.fillText('CỔNG TRƯỜNG ĐẠI HỌC', ox + 306, 140);
+        ctx.fillText('CỔNG TRƯỜNG HỌC', ox + 306, 140);
 
         // Iron gate bars
         ctx.strokeStyle = '#1e293b';
@@ -329,8 +329,8 @@ export const DogChaseGame: React.FC<MinigameProps> = ({
         const houses = [
           { x: 560, w: 140, h: 210, body: '#fbcfe8', roof: '#be185d', sign: 'TRÀ SỮA' },
           { x: 705, w: 150, h: 235, body: '#bbf7d0', roof: '#15803d', sign: 'BÁNH MÌ' },
-          { x: 860, w: 145, h: 195, body: '#fed7aa', roof: '#c2410c', sign: 'PHOTOCOPY' },
-          { x: 1010, w: 165, h: 225, body: '#c7d2fe', roof: '#4338ca', sign: 'CÀ PHÊ SV' },
+          { x: 860, w: 145, h: 195, body: '#fed7aa', roof: '#c2410c', sign: 'SÁCH VỞ' },
+          { x: 1010, w: 165, h: 225, body: '#c7d2fe', roof: '#4338ca', sign: 'BÁNH TRÁNG' },
         ];
         houses.forEach((hs) => {
           const top = 325 - hs.h;
@@ -411,8 +411,8 @@ export const DogChaseGame: React.FC<MinigameProps> = ({
         ctx.fill();
       }
 
-      // Legs
-      ctx.strokeStyle = '#1e293b';
+      // Legs (Navy blue school pants)
+      ctx.strokeStyle = '#1e3a8a';
       ctx.lineWidth = 6;
       ctx.lineCap = 'round';
       ctx.beginPath();
@@ -422,14 +422,44 @@ export const DogChaseGame: React.FC<MinigameProps> = ({
       ctx.lineTo(5 + swing * 12, 32);
       ctx.stroke();
 
-      // Torso / Uniform Shirt
+      // School backpack behind torso
       ctx.fillStyle = shirtColor;
+      ctx.strokeStyle = '#0f172a';
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.roundRect(-16, -8, 10, 20, 4);
+      ctx.fill();
+      ctx.stroke();
+
+      // Torso (White Vietnamese school uniform shirt)
+      ctx.fillStyle = '#ffffff';
       ctx.strokeStyle = '#0f172a';
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.roundRect(-12, -10, 24, 26, 7);
+      ctx.roundRect(-12, -10, 24, 24, 6);
       ctx.fill();
       ctx.stroke();
+
+      // Navy shorts/skirt band
+      ctx.fillStyle = '#1e3a8a';
+      ctx.fillRect(-11, 8, 22, 8);
+
+      // Red Scarf (Khăn quàng đỏ)
+      ctx.fillStyle = '#dc2626';
+      ctx.beginPath();
+      ctx.moveTo(-9, -10);
+      ctx.lineTo(9, -10);
+      ctx.lineTo(0, 2);
+      ctx.closePath();
+      ctx.fill();
+      ctx.beginPath();
+      ctx.moveTo(-2, -1);
+      ctx.lineTo(-5, 8);
+      ctx.lineTo(0, 5);
+      ctx.lineTo(5, 8);
+      ctx.lineTo(2, -1);
+      ctx.closePath();
+      ctx.fill();
 
       // Arms
       ctx.strokeStyle = skinColor;
@@ -946,7 +976,7 @@ export const DogChaseGame: React.FC<MinigameProps> = ({
         {running
           ? '🐕 Đang rượt đuổi...'
           : students.length === 0
-            ? 'Danh sách sinh viên trống'
+            ? 'Danh sách học sinh trống'
             : '🐕 THẢ CHÓ KIỂM TRA BÀI!'}
       </button>
     </div>

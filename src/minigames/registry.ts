@@ -450,7 +450,7 @@ export const MINIGAME_REGISTRY: MinigamePlugin[] = [
     id: 'cho-ruot-kiem-tra-bai',
     name: 'Chó Rượt Kiểm Tra Bài',
     category: 'VIETNAM',
-    description: 'Cả lớp chạy tán loạn trước cổng trường Việt Nam, chú chó rượt và chốt 1 bạn nhảy Cha Cha Cha!',
+    description: 'Cả lớp học sinh chạy tán loạn trước cổng trường Việt Nam, chú chó rượt và chốt 1 bạn nhảy Cha Cha Cha!',
     badge: 'Game Việt',
     gradient: 'from-red-500 via-amber-500 to-yellow-500',
     icon: '🐕',
