@@ -156,9 +156,22 @@ export const AdminDashboardPage: React.FC = () => {
   const [selectedCourseId, setSelectedCourseId] = useState(courses[0]?.id ?? '');
   const [selectedExamId, setSelectedExamId] = useState(exams[0]?.id ?? '');
   const [selectedShiftId, setSelectedShiftId] = useState('');
-  const [activeTab, setActiveTab] = useState<AdminTab>(() =>
-    exams.length > 0 ? 'LIVE' : 'COURSES',
-  );
+  const [activeTab, setActiveTab] = useState<AdminTab>(() => {
+    const t = searchParams.get('tab');
+    if (
+      t === 'COURSES' ||
+      t === 'BANK' ||
+      t === 'EXAMS' ||
+      t === 'LIVE' ||
+      t === 'ANALYTICS_ESSAY' ||
+      t === 'EMAILS' ||
+      t === 'LIVE_GAME' ||
+      t === 'ATTENDANCE'
+    ) {
+      return t;
+    }
+    return exams.length > 0 ? 'LIVE' : 'COURSES';
+  });
   const [templateBoxOpen, setTemplateBoxOpen] = useState(false);
   const [bankMoreMenuOpen, setBankMoreMenuOpen] = useState(false);
   const bankMoreMenuRef = useRef<HTMLDivElement | null>(null);
@@ -204,7 +217,9 @@ export const AdminDashboardPage: React.FC = () => {
   } | null>(null);
   const [instructorGames, setInstructorGames] = useState<GameListItem[]>([]);
   const [loadingGames, setLoadingGames] = useState(false);
-  const [liveGameSubTab, setLiveGameSubTab] = useState<'KAHOOT' | 'MINIGAME'>('KAHOOT');
+  const [liveGameSubTab, setLiveGameSubTab] = useState<'KAHOOT' | 'MINIGAME'>(() =>
+    searchParams.get('sub') === 'MINIGAME' ? 'MINIGAME' : 'KAHOOT',
+  );
 
   const loadInstructorGames = async () => {
     setLoadingGames(true);

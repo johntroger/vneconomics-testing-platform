@@ -183,11 +183,12 @@ export const MinigameStageLayout: React.FC = () => {
       <header className="px-4 sm:px-6 py-3 border-b border-white/10 backdrop-blur-md bg-black/15 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <Link
-            to="/admin"
-            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition shrink-0"
-            title="Quay về Tab 7"
+            to="/admin?tab=LIVE_GAME&sub=MINIGAME"
+            className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition shrink-0 flex items-center gap-1.5 text-xs font-bold"
+            title="Quay về Danh sách Minigame"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="w-4 h-4" />
+            <span className="hidden sm:inline">Danh sách Game</span>
           </Link>
           <div className="min-w-0">
             <div className="text-[11px] font-bold uppercase tracking-wider opacity-75 truncate">
