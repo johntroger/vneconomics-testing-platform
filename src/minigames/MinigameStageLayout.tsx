@@ -9,7 +9,6 @@ import {
   Minimize2,
   Palette,
   RotateCcw,
-  Star,
   UserX,
   Volume2,
   VolumeX,
@@ -169,19 +168,6 @@ export const MinigameStageLayout: React.FC = () => {
     ].slice(0, 500);
 
     updateStore({ ...store, students: nextStudents, history: nextHistory });
-  };
-
-  const handleAwardWinner = (pts: number) => {
-    if (!winner) return;
-    const nextStudents = store.students.map((s) =>
-      s.id === winner.id ? { ...s, bonusPoints: s.bonusPoints + pts } : s,
-    );
-    const nextHistory = [...store.history];
-    if (nextHistory[0] && nextHistory[0].studentId === winner.id) {
-      nextHistory[0] = { ...nextHistory[0], bonusAwarded: nextHistory[0].bonusAwarded + pts };
-    }
-    updateStore({ ...store, students: nextStudents, history: nextHistory });
-    setWinner(null);
   };
 
   const handleMarkWinnerAbsent = () => {
@@ -526,34 +512,19 @@ export const MinigameStageLayout: React.FC = () => {
             <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
               <button
                 type="button"
-                onClick={() => handleAwardWinner(1)}
-                className="px-4 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-black text-sm flex items-center gap-1.5"
-              >
-                <Star className="w-4 h-4 fill-current" /> +1 Điểm (Đạt)
-              </button>
-              <button
-                type="button"
-                onClick={() => handleAwardWinner(2)}
-                className="px-4 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-sm flex items-center gap-1.5"
-              >
-                <Star className="w-4 h-4 fill-current" /> +2 Điểm (Xuất sắc)
-              </button>
-              <button
-                type="button"
                 onClick={handleMarkWinnerAbsent}
                 className="px-4 py-2.5 rounded-xl bg-rose-500/25 border border-rose-400/40 hover:bg-rose-500/40 text-rose-100 font-bold text-sm flex items-center gap-1.5"
               >
                 <UserX className="w-4 h-4" /> Vắng (Quay lại)
               </button>
+              <button
+                type="button"
+                onClick={() => setWinner(null)}
+                className="px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-sm"
+              >
+                Đóng &amp; Tiếp tục
+              </button>
             </div>
-
-            <button
-              type="button"
-              onClick={() => setWinner(null)}
-              className="text-xs text-slate-300 hover:text-white underline pt-1"
-            >
-              Đóng &amp; Tiếp tục
-            </button>
           </div>
         </div>
       )}
