@@ -214,10 +214,10 @@ Giao diện trong tab **Điểm danh QR** gồm 3 khu vực trực quan:
    - **Bảng danh sách sinh viên đầy đủ:**
      | STT | MSSV | Họ và tên | Thời gian quét | Thiết bị & Vị trí GPS | Trạng thái điểm danh (Chọn nhanh 1 chạm) | Ghi chú / Lý do phép |
      | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
-     | 1 | `2311556492` | Đặng Quốc An | `07:34:12` | `Safari / iPhone` • 📍 Cách tâm 18m | **[● Có mặt]** [Đi muộn] [Vắng CP] [Vắng KP] | *(Trống)* |
-     | 2 | `2311556493` | Nguyễn Thị Minh Châu | *(Chưa quét)* | — | [Có mặt] [Đi muộn] **[● Vắng có phép]** [Vắng KP] | `Nghỉ ốm (có giấy phép)` |
-     | 3 | `2311556499` | Lê Hoàng Nam | *(Chưa quét)* | — | [Có mặt] [Đi muộn] [Vắng CP] **[● Vắng không phép]** | *(Trống)* |
-     | 4 | `2311556504` | Trần Văn Bình | `07:48:05` | ⚠️ `Trùng máy 2311556492` • 📍 Cách 1.4km | [Có mặt] **[● Đi muộn]** [Vắng CP] [Vắng KP] | `Cần kiểm tra tại lớp` |
+     | 1 | `2026000001` | Nguyễn Văn An | `07:34:12` | `Safari / iPhone` • 📍 Cách tâm 18m | **[● Có mặt]** [Đi muộn] [Vắng CP] [Vắng KP] | *(Trống)* |
+     | 2 | `2026000002` | Trần Thị Bình | *(Chưa quét)* | — | [Có mặt] [Đi muộn] **[● Vắng có phép]** [Vắng KP] | `Nghỉ ốm (có giấy phép)` |
+     | 3 | `2026000003` | Lê Hoàng Cường | *(Chưa quét)* | — | [Có mặt] [Đi muộn] [Vắng CP] **[● Vắng không phép]** | *(Trống)* |
+     | 4 | `2026000004` | Phạm Minh Dung | `07:48:05` | ⚠️ `Trùng máy 2026000001` • 📍 Cách 1.4km | [Có mặt] **[● Đi muộn]** [Vắng CP] [Vắng KP] | `Cần kiểm tra tại lớp` |
    - **Thanh công cụ thao tác nhanh:**
      - Nút **"Đánh dấu tất cả SV chưa quét là Vắng không phép"**.
      - Nút **"Lưu thay đổi"** (ghi nhận toàn bộ trạng thái Có mặt / Đi muộn / Vắng có phép / Vắng không phép & ghi chú vào database).
@@ -230,9 +230,9 @@ Sử dụng thư viện `xlsx` sẵn có trong `package.json` để hỗ trợ *
 
 ### 6.1. Đọc thông minh File Danh sách Điểm danh Lớp học phần của Trường
 Parser tự động quét 20 dòng đầu để trích xuất metadata và nhận diện dòng tiêu đề `STT | MSSV | Họ đệm | Tên | Lớp học | Có phép | Không phép | Số tiết | Ghi chú`:
-* **Tự động điền thông tin lớp:** Trích xuất `Tên môn` (VD: `012307641802 - 23DLG1B-22DMK4A.GHEP - E-Marketing và Thương mại điện tử`), `Học kỳ` (`HK 1 NH 2026-2027`), `Số tín chỉ`, `Giảng viên`, `Ngày điểm danh`.
-* **Chuẩn hóa MSSV số thực từ Excel:** Xử lý sạch các ô MSSV bị Excel lưu dạng số (`2311556492.0` → `"2311556492"`), giữ nguyên số `0` ở đầu nếu có.
-* **Hỗ trợ lớp ghép:** Lưu đúng cột `Lớp học` từng sinh viên (VD: `23DLG1B`, `22DMK4A.GHEP`) để lọc/hiển thị trong Admin.
+* **Tự động điền thông tin lớp:** Trích xuất `Tên môn` (VD: `ECO101 - DEMO101 - Kinh tế Vi mô 1`), `Học kỳ` (`HK 1 NH 2026-2027`), `Số tín chỉ`, `Giảng viên`, `Ngày điểm danh`.
+* **Chuẩn hóa MSSV số thực từ Excel:** Xử lý sạch các ô MSSV bị Excel lưu dạng số (`2026000001.0` → `"2026000001"`), giữ nguyên số `0` ở đầu nếu có.
+* **Hỗ trợ lớp ghép:** Lưu đúng cột `Lớp học` từng sinh viên (VD: `DEMO101`, `DEMO102.GHEP`) để lọc/hiển thị trong Admin.
 * **Bỏ qua phần chân trang (Footer):** Tự động bỏ qua các dòng `Nhận xét:`, ngày ký và chữ ký giảng viên ở cuối file, không báo lỗi nhầm.
 
 ### 6.2. Xuất file Excel (`.xlsx`)

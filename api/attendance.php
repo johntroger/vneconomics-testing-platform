@@ -250,6 +250,13 @@ function attComputeSessionStats(PDO $pdo, string $sessionId): array
 function attEnsureDemoSeeded(PDO $pdo): void
 {
     try {
+        // Migrate/replace any prior un-anonymized demo seed cleanly
+        $old = (bool) $pdo->query("SELECT 1 FROM attendance_classes WHERE id = 'acls_demo_emkt' AND class_code = '23DLG1B' LIMIT 1")->fetchColumn();
+        if ($old) {
+            $pdo->exec("DELETE FROM attendance_records WHERE session_id = 'ases_demo_1'");
+            $pdo->exec("DELETE FROM attendance_sessions WHERE id = 'ases_demo_1'");
+            $pdo->exec("DELETE FROM attendance_classes WHERE id = 'acls_demo_emkt'");
+        }
         $exists = (bool) $pdo->query("SELECT 1 FROM attendance_classes WHERE id = 'acls_demo_emkt' LIMIT 1")->fetchColumn();
         if ($exists) {
             return;
@@ -257,20 +264,20 @@ function attEnsureDemoSeeded(PDO $pdo): void
         $now = nowIso();
         $today = date('Y-m-d');
         $roster = [
-            ['studentCode' => '2311556492', 'lastName' => 'Đặng Quốc', 'firstName' => 'An', 'className' => '23DLG1B'],
-            ['studentCode' => '2311560477', 'lastName' => 'Tạ Thiên', 'firstName' => 'Ân', 'className' => '23DLG1B'],
-            ['studentCode' => '2311555428', 'lastName' => 'Trần Ngọc Vân', 'firstName' => 'Anh', 'className' => '23DLG1B'],
-            ['studentCode' => '2311554544', 'lastName' => 'Huỳnh Thanh', 'firstName' => 'Bảo', 'className' => '23DLG1B'],
-            ['studentCode' => '2311556445', 'lastName' => 'Nguyễn Thiện', 'firstName' => 'Bảo', 'className' => '23DLG1B'],
-            ['studentCode' => '2311557370', 'lastName' => 'Lưu Thị Bé', 'firstName' => 'Bi', 'className' => '23DLG1B'],
-            ['studentCode' => '2311557985', 'lastName' => 'Huỳnh Xuân', 'firstName' => 'Bình', 'className' => '23DLG1B'],
-            ['studentCode' => '2311555900', 'lastName' => 'Trần Thị Kim', 'firstName' => 'Châu', 'className' => '23DLG1B'],
-            ['studentCode' => '2200011153', 'lastName' => 'Hồ Thị', 'firstName' => 'Hoài', 'className' => '22DMK4A.GHEP'],
-            ['studentCode' => '2200010516', 'lastName' => 'Nguyễn Minh', 'firstName' => 'Toàn', 'className' => '22DMK4A.GHEP'],
+            ['studentCode' => '2026000001', 'lastName' => 'Nguyễn Văn', 'firstName' => 'An', 'className' => 'DEMO101'],
+            ['studentCode' => '2026000002', 'lastName' => 'Trần Thị', 'firstName' => 'Bình', 'className' => 'DEMO101'],
+            ['studentCode' => '2026000003', 'lastName' => 'Lê Hoàng', 'firstName' => 'Cường', 'className' => 'DEMO101'],
+            ['studentCode' => '2026000004', 'lastName' => 'Phạm Minh', 'firstName' => 'Dung', 'className' => 'DEMO101'],
+            ['studentCode' => '2026000005', 'lastName' => 'Hoàng Quốc', 'firstName' => 'Dũng', 'className' => 'DEMO101'],
+            ['studentCode' => '2026000006', 'lastName' => 'Vũ Thị Hồng', 'firstName' => 'Hạnh', 'className' => 'DEMO101'],
+            ['studentCode' => '2026000007', 'lastName' => 'Đỗ Quang', 'firstName' => 'Huy', 'className' => 'DEMO101'],
+            ['studentCode' => '2026000008', 'lastName' => 'Bùi Ngọc', 'firstName' => 'Lan', 'className' => 'DEMO101'],
+            ['studentCode' => '2026000009', 'lastName' => 'Ngô Thanh', 'firstName' => 'Minh', 'className' => 'DEMO102.GHEP'],
+            ['studentCode' => '2026000010', 'lastName' => 'Dương Thảo', 'firstName' => 'Nhi', 'className' => 'DEMO102.GHEP'],
         ];
         $pdo->prepare(
             "INSERT INTO attendance_classes (id, owner_id, class_code, title, semester, credits, instructor_name, roster_entries_json, created_at)
-             VALUES ('acls_demo_emkt', 'SYSTEM_DEMO', '23DLG1B', '012307641802 - 23DLG1B-22DMK4A.GHEP - E-Marketing & TMĐT (Demo)', 'HK 1 NH 2026-2027', 3, 'Trần Thanh Tùng', :rej, :ca)"
+             VALUES ('acls_demo_emkt', 'SYSTEM_DEMO', 'DEMO101', 'ECO101 - DEMO101 - Kinh tế Vi mô 1 (Lớp Demo)', 'HK 1 NH 2026-2027', 3, 'Giảng viên Demo', :rej, :ca)"
         )->execute([':rej' => json_encode($roster, JSON_UNESCAPED_UNICODE), ':ca' => $now]);
 
         $pdo->prepare(
@@ -279,11 +286,11 @@ function attEnsureDemoSeeded(PDO $pdo): void
         )->execute([':sd' => $today, ':oa' => $now, ':ca' => $now]);
 
         $statuses = [
-            '2311556492' => ['PRESENT', 'QR_SCAN', 'Safari / iPhone', 12, ''],
-            '2311560477' => ['PRESENT', 'QR_SCAN', 'Chrome / Android', 18, ''],
-            '2311555428' => ['PRESENT', 'QR_SCAN', 'Safari / iPhone', 9, ''],
-            '2311554544' => ['LATE', 'QR_SCAN', 'Chrome / Android', 24, 'Kẹt xe 15 phút'],
-            '2311556445' => ['ABSENT_EXCUSED', 'MANUAL_ADMIN', null, null, 'Xin phép nghỉ ốm (có giấy xác nhận)'],
+            '2026000001' => ['PRESENT', 'QR_SCAN', 'Safari / iPhone', 12, ''],
+            '2026000002' => ['PRESENT', 'QR_SCAN', 'Chrome / Android', 18, ''],
+            '2026000003' => ['PRESENT', 'QR_SCAN', 'Safari / iPhone', 9, ''],
+            '2026000004' => ['LATE', 'QR_SCAN', 'Chrome / Android', 24, 'Kẹt xe 15 phút'],
+            '2026000005' => ['ABSENT_EXCUSED', 'MANUAL_ADMIN', null, null, 'Xin phép nghỉ ốm (có giấy xác nhận)'],
         ];
         $ins = $pdo->prepare(
             "INSERT INTO attendance_records (id, session_id, student_code, student_name, last_name, first_name, class_name, attendance_status, note, check_in_source, device_label, distance_meters, checked_in_at, updated_at)

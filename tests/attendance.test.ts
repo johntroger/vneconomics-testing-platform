@@ -12,9 +12,9 @@ import {
 import type { AttendanceRecord, AttendanceSession } from '../src/types/attendance.ts';
 
 test('normalizeStudentCodeCell chuẩn hóa MSSV dạng số thực từ Excel', () => {
-  assert.equal(normalizeStudentCodeCell(2311556492), '2311556492');
-  assert.equal(normalizeStudentCodeCell('2311556492.0'), '2311556492');
-  assert.equal(normalizeStudentCodeCell(' 2200002615 '), '2200002615');
+  assert.equal(normalizeStudentCodeCell(2026000001), '2026000001');
+  assert.equal(normalizeStudentCodeCell('2026000001.0'), '2026000001');
+  assert.equal(normalizeStudentCodeCell(' 2026000002 '), '2026000002');
   assert.equal(normalizeStudentCodeCell(''), '');
 });
 
@@ -22,30 +22,30 @@ test('parseAttendanceRosterRows đọc chuẩn mẫu Excel điểm danh của Tr
   const rows: unknown[][] = [
     ['DANH SÁCH ĐIỂM DANH LỚP HỌC PHẦN'],
     ['', '', '', '', 'Học kỳ:    HK 1 NH 2026-2027'],
-    ['', '', 'Tên môn:    012307641802 - 23DLG1B-22DMK4A.GHEP - E-Marketing và Thương mại điện tử', '', '', 'Số tín chỉ:    3'],
-    ['', '', 'Giảng viên: Trần Thanh Tùng      -  01011092', '', '', 'Ngày điểm danh:    25/11/2026'],
+    ['', '', 'Tên môn:    ECO101 - DEMO101-DEMO102.GHEP - Kinh tế Vi mô 1', '', '', 'Số tín chỉ:    3'],
+    ['', '', 'Giảng viên: Giảng viên Demo      -  00000001', '', '', 'Ngày điểm danh:    25/11/2026'],
     ['STT', 'MSSV', 'Họ đệm', 'Tên', 'Lớp học', 'Có phép', 'Không phép', 'Số tiết', 'Ghi chú'],
-    [1.0, 2311556492.0, 'Đặng Quốc', 'An', '23DLG1B', '', '', '', ''],
-    [2.0, '2200011153.0', 'Hồ Thị', 'Hoài', '22DMK4A.GHEP', '', '', '', ''],
+    [1.0, 2026000001.0, 'Nguyễn Văn', 'An', 'DEMO101', '', '', '', ''],
+    [2.0, '2026000009.0', 'Ngô Thanh', 'Minh', 'DEMO102.GHEP', '', '', '', ''],
     ['', 'Nhận xét:', '', '', '', '', '', '', ''],
     ['', '', '', '', '', 'Thứ Hai ,ngày 23 tháng 11 năm 2026'],
-    ['', '', '', '', '', 'Trần Thanh Tùng'],
+    ['', '', '', '', '', 'Giảng viên Demo'],
   ];
 
   const parsed = parseAttendanceRosterRows(rows);
   assert.equal(parsed.errors.length, 0);
   assert.equal(parsed.entries.length, 2);
-  assert.equal(parsed.entries[0].studentCode, '2311556492');
-  assert.equal(parsed.entries[0].lastName, 'Đặng Quốc');
+  assert.equal(parsed.entries[0].studentCode, '2026000001');
+  assert.equal(parsed.entries[0].lastName, 'Nguyễn Văn');
   assert.equal(parsed.entries[0].firstName, 'An');
-  assert.equal(parsed.entries[0].className, '23DLG1B');
-  assert.equal(parsed.entries[1].studentCode, '2200011153');
-  assert.equal(parsed.entries[1].className, '22DMK4A.GHEP');
+  assert.equal(parsed.entries[0].className, 'DEMO101');
+  assert.equal(parsed.entries[1].studentCode, '2026000009');
+  assert.equal(parsed.entries[1].className, 'DEMO102.GHEP');
 
   assert.equal(parsed.metadata.semester, 'HK 1 NH 2026-2027');
   assert.equal(parsed.metadata.credits, 3);
-  assert.equal(parsed.metadata.classCode, '012307641802');
-  assert.equal(parsed.metadata.instructorName, 'Trần Thanh Tùng');
+  assert.equal(parsed.metadata.classCode, 'ECO101');
+  assert.equal(parsed.metadata.instructorName, 'Giảng viên Demo');
   assert.equal(parsed.metadata.sessionDate, '2026-11-25');
 });
 
@@ -82,7 +82,7 @@ test('recalculateSessionDistances phát hiện sinh viên ở xa theo tâm Trung
     firstName: id,
     gender: '',
     dob: '',
-    className: '23DLG1B',
+    className: 'DEMO101',
     attendanceStatus: 'PRESENT',
     note: '',
     checkInSource: 'QR_SCAN',

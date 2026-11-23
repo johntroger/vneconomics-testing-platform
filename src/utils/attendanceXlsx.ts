@@ -226,12 +226,12 @@ export function downloadAttendanceTemplateXlsx(): void {
   const rows: (string | number)[][] = [
     ['DANH SÁCH ĐIỂM DANH LỚP HỌC PHẦN'],
     ['Học kỳ: HK 1 NH 2026-2027'],
-    ['Tên môn: 012307641802 - 23DLG1B - E-Marketing và Thương mại điện tử', '', '', '', 'Số tín chỉ: 3'],
-    ['Giảng viên: Trần Thanh Tùng', '', '', '', 'Ngày điểm danh: 25/11/2026'],
+    ['Tên môn: ECO101 - DEMO101 - Kinh tế Vi mô 1', '', '', '', 'Số tín chỉ: 3'],
+    ['Giảng viên: Giảng viên Demo', '', '', '', 'Ngày điểm danh: 25/11/2026'],
     [],
     ['STT', 'MSSV', 'Họ đệm', 'Tên', 'Lớp học', 'Có phép', 'Không phép', 'Số tiết', 'Ghi chú'],
-    [1, '2311556492', 'Đặng Quốc', 'An', '23DLG1B', '', '', '', ''],
-    [2, '2311560477', 'Tạ Thiên', 'Ân', '23DLG1B', '', '', '', ''],
+    [1, '2026000001', 'Nguyễn Văn', 'An', 'DEMO101', '', '', '', ''],
+    [2, '2026000002', 'Trần Thị', 'Bình', 'DEMO101', '', '', '', ''],
   ];
   const ws = XLSX.utils.aoa_to_sheet(rows);
   ws['!cols'] = [

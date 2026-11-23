@@ -36,25 +36,25 @@ function buildDefaultDemoStore(): LocalAttendanceStore {
   const now = new Date().toISOString();
   const today = now.slice(0, 10);
   const roster = [
-    { studentCode: '2311556492', lastName: 'Đặng Quốc', firstName: 'An', className: '23DLG1B' },
-    { studentCode: '2311560477', lastName: 'Tạ Thiên', firstName: 'Ân', className: '23DLG1B' },
-    { studentCode: '2311555428', lastName: 'Trần Ngọc Vân', firstName: 'Anh', className: '23DLG1B' },
-    { studentCode: '2311554544', lastName: 'Huỳnh Thanh', firstName: 'Bảo', className: '23DLG1B' },
-    { studentCode: '2311556445', lastName: 'Nguyễn Thiện', firstName: 'Bảo', className: '23DLG1B' },
-    { studentCode: '2311557370', lastName: 'Lưu Thị Bé', firstName: 'Bi', className: '23DLG1B' },
-    { studentCode: '2311557985', lastName: 'Huỳnh Xuân', firstName: 'Bình', className: '23DLG1B' },
-    { studentCode: '2311555900', lastName: 'Trần Thị Kim', firstName: 'Châu', className: '23DLG1B' },
-    { studentCode: '2200011153', lastName: 'Hồ Thị', firstName: 'Hoài', className: '22DMK4A.GHEP' },
-    { studentCode: '2200010516', lastName: 'Nguyễn Minh', firstName: 'Toàn', className: '22DMK4A.GHEP' },
+    { studentCode: '2026000001', lastName: 'Nguyễn Văn', firstName: 'An', className: 'DEMO101' },
+    { studentCode: '2026000002', lastName: 'Trần Thị', firstName: 'Bình', className: 'DEMO101' },
+    { studentCode: '2026000003', lastName: 'Lê Hoàng', firstName: 'Cường', className: 'DEMO101' },
+    { studentCode: '2026000004', lastName: 'Phạm Minh', firstName: 'Dung', className: 'DEMO101' },
+    { studentCode: '2026000005', lastName: 'Hoàng Quốc', firstName: 'Dũng', className: 'DEMO101' },
+    { studentCode: '2026000006', lastName: 'Vũ Thị Hồng', firstName: 'Hạnh', className: 'DEMO101' },
+    { studentCode: '2026000007', lastName: 'Đỗ Quang', firstName: 'Huy', className: 'DEMO101' },
+    { studentCode: '2026000008', lastName: 'Bùi Ngọc', firstName: 'Lan', className: 'DEMO101' },
+    { studentCode: '2026000009', lastName: 'Ngô Thanh', firstName: 'Minh', className: 'DEMO102.GHEP' },
+    { studentCode: '2026000010', lastName: 'Dương Thảo', firstName: 'Nhi', className: 'DEMO102.GHEP' },
   ];
   const demoClass: AttendanceClass = {
     id: 'acls_demo_emkt',
     ownerId: 'SYSTEM_DEMO',
-    classCode: '23DLG1B',
-    title: '012307641802 - 23DLG1B-22DMK4A.GHEP - E-Marketing & TMĐT (Demo)',
+    classCode: 'DEMO101',
+    title: 'ECO101 - DEMO101 - Kinh tế Vi mô 1 (Lớp Demo)',
     semester: 'HK 1 NH 2026-2027',
     credits: 3,
-    instructorName: 'Trần Thanh Tùng',
+    instructorName: 'Giảng viên Demo',
     rosterEntries: roster,
     sessionCount: 1,
     createdAt: now,
@@ -82,11 +82,11 @@ function buildDefaultDemoStore(): LocalAttendanceStore {
     createdAt: now,
   };
   const preset: Record<string, { status: AttendanceStatus; src: 'QR_SCAN' | 'MANUAL_ADMIN'; dl: string | null; dm: number | null; note: string }> = {
-    '2311556492': { status: 'PRESENT', src: 'QR_SCAN', dl: 'Safari / iPhone', dm: 12, note: '' },
-    '2311560477': { status: 'PRESENT', src: 'QR_SCAN', dl: 'Chrome / Android', dm: 18, note: '' },
-    '2311555428': { status: 'PRESENT', src: 'QR_SCAN', dl: 'Safari / iPhone', dm: 9, note: '' },
-    '2311554544': { status: 'LATE', src: 'QR_SCAN', dl: 'Chrome / Android', dm: 24, note: 'Kẹt xe 15 phút' },
-    '2311556445': { status: 'ABSENT_EXCUSED', src: 'MANUAL_ADMIN', dl: null, dm: null, note: 'Xin phép nghỉ ốm (có giấy xác nhận)' },
+    '2026000001': { status: 'PRESENT', src: 'QR_SCAN', dl: 'Safari / iPhone', dm: 12, note: '' },
+    '2026000002': { status: 'PRESENT', src: 'QR_SCAN', dl: 'Chrome / Android', dm: 18, note: '' },
+    '2026000003': { status: 'PRESENT', src: 'QR_SCAN', dl: 'Safari / iPhone', dm: 9, note: '' },
+    '2026000004': { status: 'LATE', src: 'QR_SCAN', dl: 'Chrome / Android', dm: 24, note: 'Kẹt xe 15 phút' },
+    '2026000005': { status: 'ABSENT_EXCUSED', src: 'MANUAL_ADMIN', dl: null, dm: null, note: 'Xin phép nghỉ ốm (có giấy xác nhận)' },
   };
   const demoRecords: AttendanceRecord[] = roster.map((stu, idx) => {
     const p = preset[stu.studentCode];

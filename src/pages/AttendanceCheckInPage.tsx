@@ -436,12 +436,12 @@ export const AttendanceCheckInPage: React.FC = () => {
                     <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 flex flex-wrap items-center justify-between gap-2">
                       <div>
                         <span className="font-extrabold">Chế độ Demo:</span>{' '}
-                        <span>MSSV mẫu <code className="font-mono font-bold">2311557370</code> • Pass <code className="font-mono font-bold">2026</code></span>
+                        <span>MSSV mẫu <code className="font-mono font-bold">2026000006</code> • Pass <code className="font-mono font-bold">2026</code></span>
                       </div>
                       <button
                         type="button"
                         onClick={() => {
-                          setStudentCode('2311557370');
+                          setStudentCode('2026000006');
                           setPasscode('2026');
                         }}
                         className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px]"
@@ -459,7 +459,7 @@ export const AttendanceCheckInPage: React.FC = () => {
                       required
                       value={studentCode}
                       onChange={(e) => setStudentCode(e.target.value.toUpperCase())}
-                      placeholder="VD: 2311556492"
+                      placeholder="VD: 2026000001"
                       className="w-full h-11 px-3.5 rounded-xl border border-slate-300 font-mono text-sm font-bold uppercase focus:outline-none focus:ring-2 focus:ring-brand-500"
                     />
                   </div>
@@ -479,7 +479,7 @@ export const AttendanceCheckInPage: React.FC = () => {
                             required
                             value={lastName}
                             onChange={(e) => setLastName(e.target.value)}
-                            placeholder="VD: Đặng Quốc"
+                            placeholder="VD: Nguyễn Văn"
                             className="w-full h-10 px-3 rounded-xl border border-slate-300 bg-white text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-brand-500"
                           />
                         </div>
@@ -506,7 +506,7 @@ export const AttendanceCheckInPage: React.FC = () => {
                           required
                           value={className}
                           onChange={(e) => setClassName(e.target.value.toUpperCase())}
-                          placeholder="VD: 23DLG1B"
+                          placeholder="VD: DEMO101"
                           className="w-full h-10 px-3 rounded-xl border border-slate-300 bg-white font-mono text-sm font-bold uppercase focus:outline-none focus:ring-2 focus:ring-brand-500"
                         />
                       </div>
