@@ -2,7 +2,9 @@ import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'reac
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
+  BookOpen,
   Download,
+  Eye,
   Maximize2,
   Minimize2,
   Palette,
@@ -14,10 +16,19 @@ import {
 } from 'lucide-react';
 import { ConfettiBurst } from '../components/game/ConfettiBurst';
 import { GameAvatarBadge } from '../components/game/GameAvatarBadge';
+import { useExamPlatform } from '../context/ExamContext';
+import { ADMIN_TOKEN_KEY } from '../services/apiClient';
+import type { Question } from '../types/exam';
+import {
+  evaluateFormula,
+  generateSeedVarsForQuestion,
+  interpolateText,
+} from '../utils/dynamicQuestionEngine';
 import { playWinnerFanfare, unlockGameAudio } from '../utils/gameAudio';
 import { MinigameErrorBoundary } from './MinigameErrorBoundary';
 import { MINIGAME_REGISTRY } from './registry';
 import {
+  cryptoRandomInt,
   exportMinigameHistoryXlsx,
   readMinigameStore,
   subscribeMinigameSync,
@@ -63,6 +74,11 @@ export const MinigameStageLayout: React.FC = () => {
     [gameId],
   );
 
+  const { courses, questions } = useExamPlatform();
+  const isInstructor = Boolean(
+    typeof window !== 'undefined' && sessionStorage.getItem(ADMIN_TOKEN_KEY),
+  );
+
   const [store, setStore] = useState<MinigameStateStore>(() => readMinigameStore());
   const [theme, setTheme] = useState<StageTheme>('NEON');
   const [muted, setMuted] = useState(false);
@@ -70,6 +86,13 @@ export const MinigameStageLayout: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [winner, setWinner] = useState<RosterStudent | null>(null);
   const [confetti, setConfetti] = useState(false);
+  const [pickedQuestion, setPickedQuestion] = useState<{
+    question: Question;
+    renderedContent: string;
+    renderedOptions: Array<{ id: string; text: string; isCorrect: boolean }>;
+    renderedExpected: string;
+  } | null>(null);
+  const [revealAnswer, setRevealAnswer] = useState(false);
 
   useEffect(() => {
     const unsub = subscribeMinigameSync(() => {
@@ -117,6 +140,8 @@ export const MinigameStageLayout: React.FC = () => {
   const handlePickStudent = (student: RosterStudent) => {
     void unlockGameAudio();
     setWinner(student);
+    setPickedQuestion(null);
+    setRevealAnswer(false);
     setConfetti(true);
     if (!muted) playWinnerFanfare();
     if (voiceEnabled && !muted) speakVietnameseName(student.name);
@@ -176,6 +201,35 @@ export const MinigameStageLayout: React.FC = () => {
       absent: false,
     }));
     updateStore({ ...store, students: nextStudents });
+  };
+
+  const handleOpenBankQuestion = () => {
+    if (!isInstructor || questions.length === 0) return;
+    const pool = store.courseId
+      ? questions.filter((q) => q.courseId === store.courseId)
+      : questions;
+    const activePool = pool.length > 0 ? pool : questions;
+    const q = activePool[cryptoRandomInt(activePool.length)];
+    const vars = generateSeedVarsForQuestion(q, 'MINIGAME_STAGE', String(Date.now()));
+    const renderedContent = interpolateText(q.content, vars);
+    const renderedOptions = (q.options ?? []).map((o) => ({
+      id: o.id,
+      text: interpolateText(o.text, vars),
+      isCorrect: (q.correctOptionIds ?? []).includes(o.id),
+    }));
+    let renderedExpected = '';
+    if (q.type === 'NUMERICAL' && q.numericalFormula) {
+      const val = Math.round(evaluateFormula(q.numericalFormula, vars) * 1000) / 1000;
+      renderedExpected = `${val} ${q.numericalUnit ?? ''}`.trim();
+    } else if (q.type === 'TRUE_FALSE' && q.trueFalseItems) {
+      renderedExpected = q.trueFalseItems
+        .map((it, idx) => `${idx + 1}. ${interpolateText(it.statement, vars)} → ${it.answer ? 'ĐÚNG' : 'SAI'}`)
+        .join(' | ');
+    } else if (q.sampleAnswer) {
+      renderedExpected = interpolateText(q.sampleAnswer, vars);
+    }
+    setPickedQuestion({ question: q, renderedContent, renderedOptions, renderedExpected });
+    setRevealAnswer(false);
   };
 
   const GameComponent = plugin.component;
@@ -306,7 +360,7 @@ export const MinigameStageLayout: React.FC = () => {
       {/* Spotlight Winner Modal */}
       {winner && (
         <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-gradient-to-b from-slate-900 to-indigo-950 border-2 border-amber-400/60 text-white rounded-3xl max-w-lg w-full p-8 text-center shadow-2xl space-y-5 animate-bounce-once">
+          <div className="bg-gradient-to-b from-slate-900 to-indigo-950 border-2 border-amber-400/60 text-white rounded-3xl max-w-2xl w-full max-h-[90dvh] overflow-y-auto p-6 sm:p-8 text-center shadow-2xl space-y-5">
             <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">
               🎉 Xin chúc mừng sinh viên được chọn!
             </div>
@@ -328,6 +382,94 @@ export const MinigameStageLayout: React.FC = () => {
                 </div>
               )}
             </div>
+
+            {/* Optional Instructor Question Bank Drawer */}
+            {isInstructor && questions.length > 0 && (
+              <div className="pt-1 space-y-3 text-left">
+                {!pickedQuestion ? (
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    {courses.length > 1 && (
+                      <select
+                        value={store.courseId}
+                        onChange={(e) => updateStore({ ...store, courseId: e.target.value })}
+                        className="px-3 py-2 rounded-xl bg-white/10 border border-white/20 text-xs font-bold text-white"
+                      >
+                        <option value="" className="text-slate-900">
+                          Tất cả học phần
+                        </option>
+                        {courses.map((c) => (
+                          <option key={c.id} value={c.id} className="text-slate-900">
+                            {c.code} — {c.name}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleOpenBankQuestion}
+                      className="px-4 py-2 rounded-xl bg-indigo-500/30 hover:bg-indigo-500/50 border border-indigo-400/50 text-indigo-100 font-bold text-xs flex items-center gap-1.5"
+                    >
+                      <BookOpen className="w-4 h-4" /> Mở câu hỏi Ngân hàng đề
+                    </button>
+                  </div>
+                ) : (
+                  <div className="bg-white/10 border border-white/20 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-[11px] font-black uppercase tracking-wider text-amber-300">
+                        Câu hỏi phỏng vấn nhanh
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleOpenBankQuestion}
+                          className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-white/15 hover:bg-white/25"
+                        >
+                          Đổi câu khác
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setRevealAnswer((r) => !r)}
+                          className="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-amber-400 text-slate-950 flex items-center gap-1"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          {revealAnswer ? 'Ẩn đáp án' : 'Hiện đáp án'}
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="font-bold text-sm sm:text-base whitespace-pre-line">
+                      {pickedQuestion.renderedContent}
+                    </p>
+
+                    {pickedQuestion.renderedOptions.length > 0 && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {pickedQuestion.renderedOptions.map((o, idx) => (
+                          <div
+                            key={o.id}
+                            className={`px-3 py-2 rounded-xl text-xs font-semibold border ${
+                              revealAnswer && o.isCorrect
+                                ? 'bg-emerald-500/30 border-emerald-400 text-emerald-100'
+                                : 'bg-black/25 border-white/10 text-slate-200'
+                            }`}
+                          >
+                            <span className="font-black mr-1.5">
+                              {String.fromCharCode(65 + idx)}.
+                            </span>
+                            {o.text}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {revealAnswer && pickedQuestion.renderedExpected && (
+                      <div className="p-2.5 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-200 text-xs font-bold">
+                        Đáp án: {pickedQuestion.renderedExpected}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
               <button
