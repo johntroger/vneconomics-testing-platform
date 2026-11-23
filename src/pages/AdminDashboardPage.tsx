@@ -28,6 +28,7 @@ import {
   X,
 } from 'lucide-react';
 import { CoursesTabPanel } from '../components/admin/CoursesTabPanel';
+import { AttendanceTabPanel } from '../components/admin/AttendanceTabPanel';
 import { EmailLogsTabPanel } from '../components/admin/EmailLogsTabPanel';
 import { StudentQuestionMatrixCard } from '../components/admin/StudentQuestionMatrixCard';
 import { CreateGameModal } from '../components/admin/CreateGameModal';
@@ -76,7 +77,8 @@ type AdminTab =
   | 'LIVE'
   | 'ANALYTICS_ESSAY'
   | 'EMAILS'
-  | 'LIVE_GAME';
+  | 'LIVE_GAME'
+  | 'ATTENDANCE';
 
 const BANK_TEMPLATE_TYPE_OPTIONS: { type: QuestionType; label: string }[] = [
   { type: 'SINGLE_CHOICE', label: 'Trắc nghiệm 4 phương án (1 đáp án)' },
@@ -1023,8 +1025,8 @@ export const AdminDashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Navigation Tabs (synced from ADMIN_TAB_REGISTRY) */}
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 flex gap-1 overflow-x-auto no-scrollbar border-t border-slate-100">
+        {/* Navigation Tabs (synced from ADMIN_TAB_REGISTRY — 1 single row on desktop) */}
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 flex lg:grid lg:grid-cols-8 gap-1 overflow-x-auto lg:overflow-visible no-scrollbar border-t border-slate-100">
           {ADMIN_TAB_REGISTRY.map((spec) => {
             const iconMap: Record<AdminTabId, typeof BookOpen> = {
               COURSES: BookOpen,
@@ -1034,6 +1036,7 @@ export const AdminDashboardPage: React.FC = () => {
               ANALYTICS_ESSAY: BarChart3,
               EMAILS: Mail,
               LIVE_GAME: Gamepad2,
+              ATTENDANCE: QrCode,
             };
             const countMap: Partial<Record<AdminTabId, number>> = {
               COURSES: courses.length,
@@ -1050,17 +1053,17 @@ export const AdminDashboardPage: React.FC = () => {
                 key={spec.id}
                 type="button"
                 onClick={() => setActiveTab(spec.id)}
-                className={`px-3 sm:px-4 py-2.5 text-xs font-bold border-b-2 flex items-center gap-1.5 whitespace-nowrap shrink-0 transition ${
+                className={`px-2.5 lg:px-2 py-2 text-[11px] font-bold border-b-2 flex items-center justify-center gap-1.5 whitespace-nowrap lg:whitespace-normal shrink-0 lg:shrink text-center leading-tight transition ${
                   active
-                    ? 'border-brand-600 text-brand-700'
-                    : 'border-transparent text-ink-500 hover:text-ink-800'
+                    ? 'border-brand-600 text-brand-700 bg-brand-50/40'
+                    : 'border-transparent text-ink-500 hover:text-ink-800 hover:bg-slate-50/60'
                 }`}
               >
-                <Icon className="w-3.5 h-3.5" />
+                <Icon className="w-3.5 h-3.5 shrink-0" />
                 <span>{label}</span>
                 {spec.id === 'LIVE' && lockedAttemptsCount > 0 && (
-                  <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[10px] font-extrabold leading-none animate-pulse">
-                    {lockedAttemptsCount} cần duyệt
+                  <span className="ml-0.5 px-1.5 py-0.5 rounded-full bg-rose-600 text-white text-[9px] font-extrabold leading-none animate-pulse shrink-0">
+                    {lockedAttemptsCount}
                   </span>
                 )}
               </button>
@@ -3684,6 +3687,14 @@ export const AdminDashboardPage: React.FC = () => {
               )}
             </div>
           </div>
+        )}
+
+        {/* TAB 8: SMART QR ATTENDANCE */}
+        {activeTab === 'ATTENDANCE' && (
+          <AttendanceTabPanel
+            defaultInstructorName={instructorUser?.name ?? ''}
+            onToast={showToast}
+          />
         )}
       </main>
 

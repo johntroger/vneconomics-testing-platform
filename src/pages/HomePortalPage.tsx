@@ -11,6 +11,7 @@ import {
   Lock,
   Mail,
   MapPin,
+  QrCode,
   RefreshCw,
   ShieldCheck,
   Smartphone,
@@ -360,7 +361,7 @@ export const HomePortalPage: React.FC = () => {
               </p>
             </div>
           </div>
-          <nav className="grid grid-cols-3 sm:flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto shrink-0">
+          <nav className="grid grid-cols-4 sm:flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto shrink-0">
             <Link
               to="/huong-dan"
               className="text-[11px] sm:text-xs font-bold px-2 sm:px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-ink-700 flex items-center justify-center gap-1 sm:gap-1.5 transition whitespace-nowrap"
@@ -368,6 +369,14 @@ export const HomePortalPage: React.FC = () => {
               <BookOpen className="w-3.5 h-3.5 text-brand-600 shrink-0" />
               <span className="hidden sm:inline">Hướng dẫn GV</span>
               <span className="sm:hidden truncate">Hướng dẫn</span>
+            </Link>
+            <Link
+              to="/attend"
+              className="text-[11px] sm:text-xs font-bold px-2 sm:px-3 py-2 rounded-xl border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 flex items-center justify-center gap-1 sm:gap-1.5 transition whitespace-nowrap"
+            >
+              <QrCode className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span className="hidden sm:inline">Điểm danh QR</span>
+              <span className="sm:hidden truncate">Điểm danh</span>
             </Link>
             <Link
               to="/play"
@@ -832,7 +841,7 @@ export const HomePortalPage: React.FC = () => {
                       Tài khoản Giảng viên Demo
                     </p>
                     <p className="text-[11px] text-ink-600 mt-1 leading-relaxed">
-                      Vào ngay Cổng Quản trị (<span className="font-mono font-bold">vne2026</span>) để test Tạo đề Ma trận, Ngân hàng câu hỏi &amp; Giám sát Live.
+                      Vào ngay Cổng Quản trị (<span className="font-mono font-bold">vne2026</span>) để test Tạo đề Ma trận, Ngân hàng câu hỏi, Giám sát Live &amp; Điểm danh QR.
                     </p>
                   </div>
                   <Link
@@ -841,6 +850,26 @@ export const HomePortalPage: React.FC = () => {
                   >
                     <Lock className="w-3.5 h-3.5" />
                     Vào Quản trị Giảng viên Demo
+                  </Link>
+                </div>
+
+                {/* QR Attendance Demo Card */}
+                <div className="bg-white/95 rounded-xl border border-emerald-200/90 p-3.5 flex flex-col justify-between gap-2.5 shadow-2xs">
+                  <div>
+                    <p className="text-xs font-extrabold text-emerald-950 flex items-center gap-1.5">
+                      <QrCode className="w-4 h-4 text-emerald-600 shrink-0" />
+                      Demo Điểm danh QR Lớp học
+                    </p>
+                    <p className="text-[11px] text-ink-600 mt-1 leading-relaxed">
+                      Trải nghiệm quét QR điểm danh thử với danh sách lớp mẫu (PIN <span className="font-mono font-bold text-emerald-700">888999</span> • Pass <span className="font-mono font-bold text-emerald-700">2026</span>).
+                    </p>
+                  </div>
+                  <Link
+                    to="/attend/888999?demo=1"
+                    className="w-full py-2 px-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition"
+                  >
+                    <QrCode className="w-3.5 h-3.5" />
+                    Điểm danh thử (SV Demo • 888999)
                   </Link>
                 </div>
               </div>

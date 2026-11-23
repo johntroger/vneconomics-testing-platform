@@ -5,7 +5,8 @@ export type AdminTabId =
   | 'LIVE'
   | 'ANALYTICS_ESSAY'
   | 'EMAILS'
-  | 'LIVE_GAME';
+  | 'LIVE_GAME'
+  | 'ATTENDANCE';
 
 export interface AdminTabGuideSpec {
   id: AdminTabId;
@@ -94,7 +95,7 @@ export const ADMIN_TAB_REGISTRY: AdminTabGuideSpec[] = [
     id: 'EXAMS',
     stepNumber: 3,
     guideAnchor: 'buoc-3',
-    baseLabel: '3. Tạo & Cấu hình Đề thi',
+    baseLabel: '3. Tạo Đề thi',
     title: 'Chọn Ma trận Chương, Thời gian & Bảo mật',
     frequency: 'Làm 1 lần cho mỗi bài kiểm tra',
     summary:
@@ -119,7 +120,7 @@ export const ADMIN_TAB_REGISTRY: AdminTabGuideSpec[] = [
     id: 'LIVE',
     stepNumber: 4,
     guideAnchor: 'buoc-4',
-    baseLabel: '4. Giám sát Live & Duyệt',
+    baseLabel: '4. Giám sát Live',
     title: 'Mở Ca thi lấy Mã PIN cho từng lớp & Coi thi trực tiếp',
     frequency: 'Làm mỗi buổi thi',
     summary:
@@ -183,7 +184,7 @@ export const ADMIN_TAB_REGISTRY: AdminTabGuideSpec[] = [
     id: 'LIVE_GAME',
     stepNumber: 7,
     guideAnchor: 'buoc-7',
-    baseLabel: '7. Live Game (Kahoot)',
+    baseLabel: '7. Live Game',
     title: 'Tổ chức trò chơi ôn tập trực tiếp trên lớp',
     frequency: 'Dùng khi ôn tập / khuấy động lớp',
     summary:
@@ -198,6 +199,27 @@ export const ADMIN_TAB_REGISTRY: AdminTabGuideSpec[] = [
     exampleLines: [
       '• Thầy/cô vào Tab 2 → lọc Chương 2: Cung - Cầu → bấm "Mở Live Game".',
       '• Cả lớp mở điện thoại vào trang /play nhập mã PIN 6 số → thi đua trả lời nhanh 5 câu trắc nghiệm và xuất Excel cộng điểm cho Top 5.',
+    ],
+  },
+  {
+    id: 'ATTENDANCE',
+    stepNumber: 8,
+    guideAnchor: 'buoc-8',
+    baseLabel: '8. Điểm danh QR',
+    title: 'Điểm danh lớp học bằng QR Code, kiểm tra thiết bị & GPS',
+    frequency: 'Dùng đầu mỗi buổi học trên lớp',
+    summary:
+      'Nhập danh sách sinh viên từ file Excel của trường, tạo buổi điểm danh chiếu mã QR (hỗ trợ QR động + Mật khẩu), tự động kiểm tra thiết bị chống quét hộ và định vị GPS, sau đó hậu kiểm vắng có phép / không phép và xuất lại file Excel.',
+    actions: [
+      'Bấm vào thẻ "8. Điểm danh QR" → chọn "Tạo Lớp / Nhập Excel SV" và tải lên file danh sách lớp (.xlsx).',
+      'Bấm "+ Tạo Buổi Điểm Danh", đặt mật khẩu (Passcode) và bật QR động nếu cần → chiếu mã QR lên màn hình lớp.',
+      'Sinh viên quét QR vào trang /attend để nhập MSSV, Passcode và cấp quyền GPS.',
+      'Cuối buổi, tích chọn "Vắng có phép" / "Vắng không phép", ghi chú lý do, bấm "Lưu thay đổi" và "Xuất Excel".',
+    ],
+    exampleTitle: 'Ví dụ minh họa — Điểm danh lớp E-Marketing (72 sinh viên)',
+    exampleLines: [
+      '• Upload file Excel danh sách lớp từ cổng đào tạo → hệ thống tự điền tên môn, học kỳ và 72 sinh viên.',
+      '• Mở buổi điểm danh, đọc Passcode trên lớp → cuối giờ xuất lại đúng mẫu Excel điểm danh của trường hoặc bảng tổng hợp chuyên cần cả kỳ.',
     ],
   },
 ];

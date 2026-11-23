@@ -26,6 +26,9 @@ function ensureExamSchema(PDO $pdo, string $driver): void
         $pdo->query('SELECT id FROM demo_mailer_quota LIMIT 1');
         $pdo->query('SELECT nonce FROM used_captcha_nonces LIMIT 1');
         $pdo->query('SELECT version FROM schema_migrations LIMIT 1');
+        $pdo->query('SELECT id, credits, instructor_name FROM attendance_classes LIMIT 1');
+        $pdo->query('SELECT id, session_passcode, periods_count FROM attendance_sessions LIMIT 1');
+        $pdo->query('SELECT id, hardware_fingerprint, attendance_status FROM attendance_records LIMIT 1');
         if (!$pdo->query("SELECT 1 FROM questions WHERE id = 'q_micro_c1_4' LIMIT 1")->fetchColumn()) {
             throw new RuntimeException('Backfill demo FILL_IN_BLANK sample');
         }
@@ -478,6 +481,155 @@ function ensureExamSchema(PDO $pdo, string $driver): void
             $pdo->exec($sql);
         }
         unset($shiftTables);
+    } catch (Throwable) {
+        // Non-fatal
+    }
+
+    // Smart QR Attendance tables
+    try {
+        $attendanceTables = $driver === 'mysql'
+            ? [
+                "CREATE TABLE IF NOT EXISTS attendance_classes (
+                    id VARCHAR(64) PRIMARY KEY,
+                    owner_id VARCHAR(64) NOT NULL DEFAULT 'SYSTEM_DEMO',
+                    course_id VARCHAR(64) NULL,
+                    class_code VARCHAR(64) NOT NULL DEFAULT '',
+                    title VARCHAR(255) NOT NULL,
+                    semester VARCHAR(64) NOT NULL DEFAULT '',
+                    credits INT NOT NULL DEFAULT 3,
+                    instructor_name VARCHAR(160) NOT NULL DEFAULT '',
+                    roster_entries_json LONGTEXT NULL,
+                    created_at VARCHAR(40) NOT NULL,
+                    INDEX idx_att_cls_owner (owner_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+                "CREATE TABLE IF NOT EXISTS attendance_sessions (
+                    id VARCHAR(64) PRIMARY KEY,
+                    class_id VARCHAR(64) NOT NULL,
+                    owner_id VARCHAR(64) NOT NULL DEFAULT 'SYSTEM_DEMO',
+                    title VARCHAR(255) NOT NULL,
+                    session_date VARCHAR(20) NOT NULL DEFAULT '',
+                    periods_count INT NOT NULL DEFAULT 3,
+                    checkin_pin VARCHAR(16) NOT NULL,
+                    session_passcode VARCHAR(32) NULL,
+                    qr_secret VARCHAR(64) NOT NULL DEFAULT '',
+                    rotate_qr_seconds INT NOT NULL DEFAULT 0,
+                    status VARCHAR(32) NOT NULL DEFAULT 'OPEN',
+                    require_roster_match TINYINT(1) NOT NULL DEFAULT 1,
+                    require_gps TINYINT(1) NOT NULL DEFAULT 1,
+                    block_duplicate_device TINYINT(1) NOT NULL DEFAULT 1,
+                    instructor_lat DOUBLE NULL,
+                    instructor_lng DOUBLE NULL,
+                    max_distance_meters INT NOT NULL DEFAULT 200,
+                    late_after_minutes INT NOT NULL DEFAULT 15,
+                    opened_at VARCHAR(40) NOT NULL,
+                    closed_at VARCHAR(40) NULL,
+                    created_at VARCHAR(40) NOT NULL,
+                    INDEX idx_att_ses_cls (class_id),
+                    INDEX idx_att_ses_pin (checkin_pin)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+                "CREATE TABLE IF NOT EXISTS attendance_records (
+                    id VARCHAR(64) PRIMARY KEY,
+                    session_id VARCHAR(64) NOT NULL,
+                    student_code VARCHAR(64) NOT NULL,
+                    student_name VARCHAR(255) NOT NULL,
+                    last_name VARCHAR(160) NOT NULL DEFAULT '',
+                    first_name VARCHAR(80) NOT NULL DEFAULT '',
+                    gender VARCHAR(32) NOT NULL DEFAULT '',
+                    dob VARCHAR(32) NOT NULL DEFAULT '',
+                    class_name VARCHAR(128) NOT NULL DEFAULT '',
+                    attendance_status VARCHAR(32) NOT NULL DEFAULT 'ABSENT_UNEXCUSED',
+                    note TEXT NULL,
+                    check_in_source VARCHAR(32) NOT NULL DEFAULT 'MANUAL_ADMIN',
+                    device_token VARCHAR(128) NULL,
+                    browser_id VARCHAR(128) NULL,
+                    hardware_fingerprint VARCHAR(128) NULL,
+                    device_label VARCHAR(160) NULL,
+                    ip_address VARCHAR(64) NULL,
+                    location_lat DOUBLE NULL,
+                    location_lng DOUBLE NULL,
+                    location_accuracy DOUBLE NULL,
+                    distance_meters INT NULL,
+                    device_flag VARCHAR(64) NULL,
+                    location_flag VARCHAR(64) NULL,
+                    checked_in_at VARCHAR(40) NULL,
+                    updated_at VARCHAR(40) NOT NULL,
+                    UNIQUE KEY uq_att_ses_stu (session_id, student_code),
+                    INDEX idx_att_rec_ses (session_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
+            ]
+            : [
+                "CREATE TABLE IF NOT EXISTS attendance_classes (
+                    id TEXT PRIMARY KEY,
+                    owner_id TEXT NOT NULL DEFAULT 'SYSTEM_DEMO',
+                    course_id TEXT NULL,
+                    class_code TEXT NOT NULL DEFAULT '',
+                    title TEXT NOT NULL,
+                    semester TEXT NOT NULL DEFAULT '',
+                    credits INTEGER NOT NULL DEFAULT 3,
+                    instructor_name TEXT NOT NULL DEFAULT '',
+                    roster_entries_json TEXT NULL,
+                    created_at TEXT NOT NULL
+                )",
+                "CREATE INDEX IF NOT EXISTS idx_att_cls_owner ON attendance_classes(owner_id)",
+                "CREATE TABLE IF NOT EXISTS attendance_sessions (
+                    id TEXT PRIMARY KEY,
+                    class_id TEXT NOT NULL,
+                    owner_id TEXT NOT NULL DEFAULT 'SYSTEM_DEMO',
+                    title TEXT NOT NULL,
+                    session_date TEXT NOT NULL DEFAULT '',
+                    periods_count INTEGER NOT NULL DEFAULT 3,
+                    checkin_pin TEXT NOT NULL,
+                    session_passcode TEXT NULL,
+                    qr_secret TEXT NOT NULL DEFAULT '',
+                    rotate_qr_seconds INTEGER NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL DEFAULT 'OPEN',
+                    require_roster_match INTEGER NOT NULL DEFAULT 1,
+                    require_gps INTEGER NOT NULL DEFAULT 1,
+                    block_duplicate_device INTEGER NOT NULL DEFAULT 1,
+                    instructor_lat REAL NULL,
+                    instructor_lng REAL NULL,
+                    max_distance_meters INTEGER NOT NULL DEFAULT 200,
+                    late_after_minutes INTEGER NOT NULL DEFAULT 15,
+                    opened_at TEXT NOT NULL,
+                    closed_at TEXT NULL,
+                    created_at TEXT NOT NULL
+                )",
+                "CREATE INDEX IF NOT EXISTS idx_att_ses_cls ON attendance_sessions(class_id)",
+                "CREATE INDEX IF NOT EXISTS idx_att_ses_pin ON attendance_sessions(checkin_pin)",
+                "CREATE TABLE IF NOT EXISTS attendance_records (
+                    id TEXT PRIMARY KEY,
+                    session_id TEXT NOT NULL,
+                    student_code TEXT NOT NULL,
+                    student_name TEXT NOT NULL,
+                    last_name TEXT NOT NULL DEFAULT '',
+                    first_name TEXT NOT NULL DEFAULT '',
+                    gender TEXT NOT NULL DEFAULT '',
+                    dob TEXT NOT NULL DEFAULT '',
+                    class_name TEXT NOT NULL DEFAULT '',
+                    attendance_status TEXT NOT NULL DEFAULT 'ABSENT_UNEXCUSED',
+                    note TEXT NULL,
+                    check_in_source TEXT NOT NULL DEFAULT 'MANUAL_ADMIN',
+                    device_token TEXT NULL,
+                    browser_id TEXT NULL,
+                    hardware_fingerprint TEXT NULL,
+                    device_label TEXT NULL,
+                    ip_address TEXT NULL,
+                    location_lat REAL NULL,
+                    location_lng REAL NULL,
+                    location_accuracy REAL NULL,
+                    distance_meters INTEGER NULL,
+                    device_flag TEXT NULL,
+                    location_flag TEXT NULL,
+                    checked_in_at TEXT NULL,
+                    updated_at TEXT NOT NULL,
+                    UNIQUE(session_id, student_code)
+                )",
+                "CREATE INDEX IF NOT EXISTS idx_att_rec_ses ON attendance_records(session_id)"
+            ];
+        foreach ($attendanceTables as $sql) {
+            $pdo->exec($sql);
+        }
+        unset($attendanceTables);
     } catch (Throwable) {
         // Non-fatal
     }

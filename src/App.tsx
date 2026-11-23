@@ -28,6 +28,9 @@ const GamePlayPage = lazy(() =>
 const InstructorGuidePage = lazy(() =>
   import('./pages/InstructorGuidePage').then((m) => ({ default: m.InstructorGuidePage })),
 );
+const AttendanceCheckInPage = lazy(() =>
+  import('./pages/AttendanceCheckInPage').then((m) => ({ default: m.AttendanceCheckInPage })),
+);
 
 const RouteLoadingFallback: React.FC = () => (
   <div className="min-h-screen bg-surface-100 flex items-center justify-center p-6">
@@ -61,6 +64,8 @@ export const App: React.FC = () => {
             <Route path="/exam/:examId/result" element={<ExamResultPage />} />
             <Route path="/play" element={<GameJoinPage />} />
             <Route path="/play/:pin" element={<GameJoinPage />} />
+            <Route path="/attend" element={<AttendanceCheckInPage />} />
+            <Route path="/attend/:pin" element={<AttendanceCheckInPage />} />
             <Route path="/game/host/:sessionId" element={<GameHostPage />} />
             <Route path="/game/play/:sessionId" element={<GamePlayPage />} />
             <Route path="/admin" element={<AdminDashboardPage />} />
