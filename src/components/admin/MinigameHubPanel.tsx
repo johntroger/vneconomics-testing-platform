@@ -393,11 +393,6 @@ export const MinigameHubPanel: React.FC<MinigameHubPanelProps> = ({
                   {idx + 1}. {s.name} {s.studentCode ? `(${s.studentCode})` : ''}
                 </span>
                 <div className="flex items-center gap-1 shrink-0">
-                  {s.bonusPoints > 0 && (
-                    <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-black text-[10px]">
-                      +{s.bonusPoints}⭐
-                    </span>
-                  )}
                   <button
                     type="button"
                     onClick={() =>
