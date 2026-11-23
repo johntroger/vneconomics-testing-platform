@@ -3531,7 +3531,7 @@ export const AdminDashboardPage: React.FC = () => {
             </div>
 
             {liveGameSubTab === 'MINIGAME' ? (
-              <MinigameHubPanel exams={exams} />
+              <MinigameHubPanel exams={exams} returnSource="admin" />
             ) : (
               <>
             <div className="flex flex-wrap items-center justify-between gap-4">

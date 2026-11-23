@@ -1,5 +1,5 @@
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   Download,
@@ -53,6 +53,11 @@ function speakVietnameseName(name: string): void {
 
 export const MinigameStageLayout: React.FC = () => {
   const { gameId } = useParams<{ gameId: string }>();
+  const [searchParams] = useSearchParams();
+  const backUrl =
+    searchParams.get('from') === 'admin'
+      ? '/admin?tab=LIVE_GAME&sub=MINIGAME'
+      : '/minigame';
   const plugin = useMemo(
     () => MINIGAME_REGISTRY.find((g) => g.id === gameId) ?? MINIGAME_REGISTRY[0],
     [gameId],
@@ -183,7 +188,7 @@ export const MinigameStageLayout: React.FC = () => {
       <header className="px-4 sm:px-6 py-3 border-b border-white/10 backdrop-blur-md bg-black/15 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <Link
-            to="/admin?tab=LIVE_GAME&sub=MINIGAME"
+            to={backUrl}
             className="p-2 rounded-xl bg-white/10 hover:bg-white/20 transition shrink-0 flex items-center gap-1.5 text-xs font-bold"
             title="Quay về Danh sách Minigame"
           >

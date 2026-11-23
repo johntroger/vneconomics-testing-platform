@@ -31,6 +31,9 @@ const InstructorGuidePage = lazy(() =>
 const AttendanceCheckInPage = lazy(() =>
   import('./pages/AttendanceCheckInPage').then((m) => ({ default: m.AttendanceCheckInPage })),
 );
+const MinigameHubPage = lazy(() =>
+  import('./pages/MinigameHubPage').then((m) => ({ default: m.MinigameHubPage })),
+);
 const MinigameStageLayout = lazy(() =>
   import('./minigames/MinigameStageLayout').then((m) => ({ default: m.MinigameStageLayout })),
 );
@@ -71,6 +74,7 @@ export const App: React.FC = () => {
             <Route path="/attend/:pin" element={<AttendanceCheckInPage />} />
             <Route path="/game/host/:sessionId" element={<GameHostPage />} />
             <Route path="/game/play/:sessionId" element={<GamePlayPage />} />
+            <Route path="/minigame" element={<MinigameHubPage />} />
             <Route path="/minigame/:gameId" element={<MinigameStageLayout />} />
             <Route path="/admin" element={<AdminDashboardPage />} />
             <Route path="/huong-dan" element={<InstructorGuidePage />} />

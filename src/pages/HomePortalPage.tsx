@@ -380,11 +380,18 @@ export const HomePortalPage: React.FC = () => {
             </Link>
             <Link
               to="/play"
-              className="text-[11px] sm:text-xs font-bold px-2 sm:px-3.5 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white flex items-center justify-center gap-1 sm:gap-1.5 transition shadow-sm whitespace-nowrap"
+              className="text-[11px] sm:text-xs font-bold px-2 sm:px-3 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white flex items-center justify-center gap-1 sm:gap-1.5 transition shadow-sm whitespace-nowrap"
             >
               <Gamepad2 className="w-3.5 h-3.5 shrink-0" />
-              <span className="hidden sm:inline">Vào Game Live</span>
-              <span className="sm:hidden truncate">Game Live</span>
+              <span className="hidden sm:inline">Kahoot Live</span>
+              <span className="sm:hidden truncate">Kahoot</span>
+            </Link>
+            <Link
+              to="/minigame"
+              className="text-[11px] sm:text-xs font-bold px-2 sm:px-3 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white flex items-center justify-center gap-1 sm:gap-1.5 transition shadow-sm whitespace-nowrap"
+            >
+              <Sparkles className="w-3.5 h-3.5 shrink-0" />
+              <span>Minigame</span>
             </Link>
             <Link
               to="/admin"

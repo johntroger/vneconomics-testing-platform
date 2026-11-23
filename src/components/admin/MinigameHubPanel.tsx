@@ -33,9 +33,15 @@ import type { Exam } from '../../types/exam';
 
 interface MinigameHubPanelProps {
   exams: Exam[];
+  isPublicPage?: boolean;
+  returnSource?: 'admin' | 'public';
 }
 
-export const MinigameHubPanel: React.FC<MinigameHubPanelProps> = ({ exams }) => {
+export const MinigameHubPanel: React.FC<MinigameHubPanelProps> = ({
+  exams,
+  isPublicPage = false,
+  returnSource = 'public',
+}) => {
   const [store, setStore] = useState<MinigameStateStore>(() => readMinigameStore());
   const [inputMode, setInputMode] = useState<'PASTE' | 'EXAM' | 'EXCEL'>('PASTE');
   const [pasteText, setPasteText] = useState('');
@@ -223,29 +229,45 @@ export const MinigameHubPanel: React.FC<MinigameHubPanelProps> = ({ exams }) => 
 
           {inputMode === 'EXAM' && (
             <div className="space-y-2">
-              <select
-                value={selectedExamId}
-                onChange={(e) => setSelectedExamId(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold"
-              >
-                {exams.length === 0 ? (
-                  <option value="">Chưa có đề thi nào</option>
-                ) : (
-                  exams.map((ex) => (
-                    <option key={ex.id} value={ex.id}>
-                      {ex.title} (PIN {ex.roomPin})
-                    </option>
-                  ))
-                )}
-              </select>
-              <button
-                type="button"
-                disabled={!selectedExamId}
-                onClick={handleApplyExam}
-                className="w-full py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-40"
-              >
-                <FileSpreadsheet className="w-4 h-4" /> Nạp danh sách từ Đề thi này
-              </button>
+              {isPublicPage ? (
+                <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-900 space-y-2">
+                  <p className="font-semibold">
+                    Đăng nhập tài khoản Giảng viên để nạp danh sách trực tiếp từ các Đề thi / Lớp học của bạn.
+                  </p>
+                  <Link
+                    to="/admin"
+                    className="inline-block px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold"
+                  >
+                    Đăng nhập Giảng viên →
+                  </Link>
+                </div>
+              ) : (
+                <>
+                  <select
+                    value={selectedExamId}
+                    onChange={(e) => setSelectedExamId(e.target.value)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-200 bg-white text-xs font-semibold"
+                  >
+                    {exams.length === 0 ? (
+                      <option value="">Chưa có đề thi nào</option>
+                    ) : (
+                      exams.map((ex) => (
+                        <option key={ex.id} value={ex.id}>
+                          {ex.title} (PIN {ex.roomPin})
+                        </option>
+                      ))
+                    )}
+                  </select>
+                  <button
+                    type="button"
+                    disabled={!selectedExamId}
+                    onClick={handleApplyExam}
+                    className="w-full py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-40"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" /> Nạp danh sách từ Đề thi này
+                  </button>
+                </>
+              )}
             </div>
           )}
 
@@ -463,7 +485,11 @@ export const MinigameHubPanel: React.FC<MinigameHubPanelProps> = ({ exams }) => 
 
               {g.ready ? (
                 <Link
-                  to={`/minigame/${g.id}`}
+                  to={
+                    returnSource === 'admin'
+                      ? `/minigame/${g.id}?from=admin`
+                      : `/minigame/${g.id}`
+                  }
                   className="w-full py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm"
                 >
                   <Sparkles className="w-3.5 h-3.5" /> Mở Sân khấu Game
