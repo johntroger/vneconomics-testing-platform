@@ -199,19 +199,19 @@ export const WheelEngine: React.FC<WheelEngineProps> = ({
     const count = wheelStudents.length;
     const sliceAngle = (Math.PI * 2) / count;
     const startAngle = angleRef.current;
-    // Extra 6 to 9 full rotations + random offset
-    const extraSpins = (6 + cryptoRandomInt(4)) * Math.PI * 2;
+    // Extra 8 to 11 full rotations + random offset for 7.2s dramatic slow-down
+    const extraSpins = (8 + cryptoRandomInt(4)) * Math.PI * 2;
     const randomOffset = (cryptoRandomInt(3600) / 3600) * Math.PI * 2;
     const targetAngle = startAngle + extraSpins + randomOffset;
-    const duration = 4600;
+    const duration = 7200;
     const startTime = performance.now();
     let lastSliceIdx = -1;
 
     const animate = (now: number) => {
       const elapsed = now - startTime;
       const t = Math.min(1, elapsed / duration);
-      // Cubic ease-out for natural inertia
-      const ease = 1 - Math.pow(1 - t, 3.2);
+      // Quartic ease-out for long, suspenseful slow-motion crawl at the end
+      const ease = 1 - Math.pow(1 - t, 4.2);
       const current = startAngle + (targetAngle - startAngle) * ease;
       angleRef.current = current;
       drawFrame();

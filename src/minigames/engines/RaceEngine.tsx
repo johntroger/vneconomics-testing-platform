@@ -36,6 +36,7 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
 }) => {
   const [sampleSeed, setSampleSeed] = useState(0);
   const [pickMode, setPickMode] = useState<'FIRST' | 'LAST'>('FIRST');
+  const [speedMode, setSpeedMode] = useState<'DRAMA' | 'FAST'>('DRAMA');
   const [racing, setRacing] = useState(false);
   const [racers, setRacers] = useState<RacerState[]>([]);
   const racingRef = useRef(false);
@@ -75,10 +76,11 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
     racingRef.current = true;
     setRacing(true);
 
+    const mult = speedMode === 'DRAMA' ? 0.36 : 0.72;
     const state: RacerState[] = laneStudents.map((s) => ({
       student: s,
       progress: 0,
-      speed: 0.28 + Math.random() * 0.25,
+      speed: (0.24 + Math.random() * 0.22) * mult,
       boosting: false,
       finishedOrder: 0,
     }));
@@ -96,13 +98,13 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
         if (r.progress >= 100) continue;
         allFinished = false;
 
-        // Random burst / slowdown every ~18 frames
-        if (frameCount % 18 === 0) {
+        // Random burst / slowdown every ~24 frames for dramatic overtakes
+        if (frameCount % 24 === 0) {
           const roll = Math.random();
-          r.boosting = roll > 0.78;
+          r.boosting = roll > 0.75;
           r.speed = r.boosting
-            ? 0.55 + Math.random() * 0.35
-            : 0.16 + Math.random() * 0.32;
+            ? (0.52 + Math.random() * 0.32) * mult
+            : (0.12 + Math.random() * 0.28) * mult;
         }
 
         r.progress = Math.min(100, r.progress + r.speed);
@@ -156,6 +158,29 @@ export const RaceEngine: React.FC<RaceEngineProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <div className="flex rounded-xl bg-black/25 p-1 text-xs font-bold">
+            <button
+              type="button"
+              disabled={racing}
+              onClick={() => setSpeedMode('DRAMA')}
+              className={`px-2.5 py-1.5 rounded-lg transition ${
+                speedMode === 'DRAMA' ? 'bg-indigo-500 text-white' : 'opacity-80'
+              }`}
+            >
+              Hồi hộp (11s)
+            </button>
+            <button
+              type="button"
+              disabled={racing}
+              onClick={() => setSpeedMode('FAST')}
+              className={`px-2.5 py-1.5 rounded-lg transition ${
+                speedMode === 'FAST' ? 'bg-indigo-500 text-white' : 'opacity-80'
+              }`}
+            >
+              Nhanh (5s)
+            </button>
+          </div>
+
           <div className="flex rounded-xl bg-black/25 p-1 text-xs font-bold">
             <button
               type="button"

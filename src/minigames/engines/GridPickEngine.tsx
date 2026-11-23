@@ -29,6 +29,7 @@ export const GridPickEngine: React.FC<GridPickEngineProps> = ({
 }) => {
   const [shuffleKey, setShuffleKey] = useState(0);
   const [openedIds, setOpenedIds] = useState<Record<string, boolean>>({});
+  const [pendingId, setPendingId] = useState<string | null>(null);
   const [shaking, setShaking] = useState(false);
 
   const cards = useMemo(() => {
@@ -39,25 +40,25 @@ export const GridPickEngine: React.FC<GridPickEngineProps> = ({
 
   useEffect(() => {
     setOpenedIds({});
+    setPendingId(null);
   }, [shuffleKey]);
 
   const handleOpen = (stu: RosterStudent) => {
-    if (openedIds[stu.id]) return;
+    if (openedIds[stu.id] || pendingId) return;
     void unlockGameAudio();
+    setPendingId(stu.id);
+    if (!muted) playDrumroll(1350);
 
-    if (smashEffect) {
-      if (!muted) playBalloonPop();
-      setShaking(true);
-      window.setTimeout(() => setShaking(false), 220);
+    window.setTimeout(() => {
+      setPendingId(null);
       setOpenedIds((prev) => ({ ...prev, [stu.id]: true }));
+      if (smashEffect) {
+        if (!muted) playBalloonPop();
+        setShaking(true);
+        window.setTimeout(() => setShaking(false), 240);
+      }
       onPickStudent(stu);
-    } else {
-      if (!muted) playDrumroll(450);
-      setOpenedIds((prev) => ({ ...prev, [stu.id]: true }));
-      window.setTimeout(() => {
-        onPickStudent(stu);
-      }, 460);
-    }
+    }, 1400);
   };
 
   return (
@@ -93,18 +94,21 @@ export const GridPickEngine: React.FC<GridPickEngineProps> = ({
         <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-3.5 flex-1 content-center">
           {cards.map((stu, idx) => {
             const opened = Boolean(openedIds[stu.id]);
+            const isPending = pendingId === stu.id;
             return (
               <button
                 key={stu.id}
                 type="button"
-                disabled={opened}
+                disabled={opened || Boolean(pendingId)}
                 onClick={() => handleOpen(stu)}
                 className={`aspect-square rounded-3xl border border-white/20 flex flex-col items-center justify-center gap-1.5 p-2 shadow-xl transition-all duration-300 ${
                   opened
                     ? 'bg-slate-900/70 scale-95 opacity-80'
-                    : `bg-gradient-to-br ${cardGradient} hover:scale-105 active:scale-95 ${
-                        floating ? 'animate-bounce' : ''
-                      }`
+                    : isPending
+                      ? `bg-gradient-to-br ${cardGradient} ring-4 ring-amber-300 scale-110 animate-pulse`
+                      : `bg-gradient-to-br ${cardGradient} hover:scale-105 active:scale-95 ${
+                          floating ? 'animate-bounce' : ''
+                        }`
                 }`}
                 style={
                   floating && !opened

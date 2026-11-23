@@ -42,7 +42,7 @@ export const TeamDraftGame: React.FC<MinigameProps> = ({
     void unlockGameAudio();
     setDrafting(true);
     setConfetti(false);
-    if (!muted) playDrumroll(900);
+    if (!muted) playDrumroll(1700);
 
     window.setTimeout(() => {
       const k = Math.max(2, Math.min(groupCount, presentStudents.length));
@@ -83,7 +83,7 @@ export const TeamDraftGame: React.FC<MinigameProps> = ({
       setConfetti(true);
       if (!muted) playWinnerFanfare();
       window.setTimeout(() => setConfetti(false), 3500);
-    }, 950);
+    }, 1750);
   };
 
   const handleExport = () => {
