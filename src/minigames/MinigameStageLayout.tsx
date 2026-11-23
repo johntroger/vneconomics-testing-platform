@@ -283,20 +283,32 @@ export const MinigameStageLayout: React.FC = () => {
             <RotateCcw className="w-3.5 h-3.5" /> Reset
           </button>
 
-          <button
-            type="button"
-            onClick={() =>
-              setPaceMode((p) => (p === 'EPIC' ? 'NORMAL' : p === 'NORMAL' ? 'FAST' : 'EPIC'))
-            }
-            className={`px-3 py-1.5 rounded-xl text-xs font-black transition flex items-center gap-1 ${
-              paceMode === 'EPIC'
-                ? 'bg-gradient-to-r from-rose-500 to-amber-500 text-slate-950 shadow-lg shadow-amber-500/25'
-                : 'bg-white/10 hover:bg-white/20'
-            }`}
-            title={`Nhịp độ hiện tại: ${PACE_META[paceMode].label} (bấm để đổi)`}
+          <div
+            className="flex items-center rounded-xl bg-black/25 p-1 gap-1 border border-white/10"
+            role="group"
+            aria-label="Chọn tốc độ trò chơi"
           >
-            {PACE_META[paceMode].shortLabel}
-          </button>
+            {(['FAST', 'NORMAL', 'EPIC'] as const).map((mode) => {
+              const active = paceMode === mode;
+              return (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setPaceMode(mode)}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-black transition ${
+                    active
+                      ? mode === 'EPIC'
+                        ? 'bg-gradient-to-r from-rose-500 to-amber-500 text-slate-950 shadow'
+                        : 'bg-amber-400 text-slate-950 shadow'
+                      : 'text-white/75 hover:text-white hover:bg-white/10'
+                  }`}
+                  title={PACE_META[mode].label}
+                >
+                  {PACE_META[mode].shortLabel}
+                </button>
+              );
+            })}
+          </div>
 
           <button
             type="button"
