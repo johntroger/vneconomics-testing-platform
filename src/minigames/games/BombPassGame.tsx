@@ -2,9 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Flame } from 'lucide-react';
 import { playBalloonPop, playTickSound, unlockGameAudio } from '../../utils/gameAudio';
 import { cryptoRandomInt } from '../rosterStorage';
+import { scalePaceMs, useMinigameStageSettings } from '../stageContext';
 import type { MinigameProps } from '../types';
 
 export const BombPassGame: React.FC<MinigameProps> = ({ students, muted, onPickStudent }) => {
+  const { paceMode } = useMinigameStageSettings();
   const [holderId, setHolderId] = useState<string | null>(null);
   const [running, setRunning] = useState(false);
   const timerRef = useRef<number | null>(null);
@@ -24,7 +26,7 @@ export const BombPassGame: React.FC<MinigameProps> = ({ students, muted, onPickS
     }
 
     setRunning(true);
-    const totalMs = 6500 + cryptoRandomInt(3500);
+    const totalMs = scalePaceMs(12000 + cryptoRandomInt(4000), paceMode);
     const start = performance.now();
     let currentIdx = cryptoRandomInt(students.length);
 

@@ -2,9 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Anchor, RefreshCw } from 'lucide-react';
 import { playDrumroll, playWheelTick, unlockGameAudio } from '../../utils/gameAudio';
 import { cryptoShuffle } from '../rosterStorage';
+import { scalePaceMs, useMinigameStageSettings } from '../stageContext';
 import type { MinigameProps, RosterStudent } from '../types';
 
 export const GoldMinerGame: React.FC<MinigameProps> = ({ students, muted, onPickStudent }) => {
+  const { paceMode } = useMinigameStageSettings();
   const [angle, setAngle] = useState(0);
   const [extending, setExtending] = useState(false);
   const [grabLen, setGrabLen] = useState(40);
@@ -52,6 +54,8 @@ export const GoldMinerGame: React.FC<MinigameProps> = ({ students, muted, onPick
       }
     }
 
+    const extendMs = scalePaceMs(1800, paceMode);
+    const reelMs = scalePaceMs(1600, paceMode);
     setGrabLen(200);
     window.setTimeout(() => {
       if (!muted) playWheelTick();
@@ -61,8 +65,8 @@ export const GoldMinerGame: React.FC<MinigameProps> = ({ students, muted, onPick
         setExtending(false);
         const picked: RosterStudent = best.student;
         onPickStudent(picked);
-      }, 650);
-    }, 850);
+      }, reelMs);
+    }, extendMs);
   };
 
   return (

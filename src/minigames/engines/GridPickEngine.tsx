@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { playBalloonPop, playDrumroll, unlockGameAudio } from '../../utils/gameAudio';
 import { cryptoShuffle } from '../rosterStorage';
+import { useMinigameStageSettings } from '../stageContext';
 import type { RosterStudent } from '../types';
 
 export interface GridPickEngineProps {
@@ -27,6 +28,7 @@ export const GridPickEngine: React.FC<GridPickEngineProps> = ({
   floating = false,
   onPickStudent,
 }) => {
+  const { paceMode } = useMinigameStageSettings();
   const [shuffleKey, setShuffleKey] = useState(0);
   const [openedIds, setOpenedIds] = useState<Record<string, boolean>>({});
   const [pendingItem, setPendingItem] = useState<{ stu: RosterStudent; num: number } | null>(null);
@@ -46,8 +48,9 @@ export const GridPickEngine: React.FC<GridPickEngineProps> = ({
   const handleOpen = (stu: RosterStudent, num: number) => {
     if (openedIds[stu.id] || pendingItem) return;
     void unlockGameAudio();
+    const waitMs = paceMode === 'EPIC' ? 5200 : paceMode === 'NORMAL' ? 3200 : 1600;
     setPendingItem({ stu, num });
-    if (!muted) playDrumroll(2100);
+    if (!muted) playDrumroll(waitMs - 100);
 
     window.setTimeout(() => {
       setPendingItem(null);
@@ -58,7 +61,7 @@ export const GridPickEngine: React.FC<GridPickEngineProps> = ({
         window.setTimeout(() => setShaking(false), 260);
       }
       onPickStudent(stu);
-    }, 2200);
+    }, waitMs);
   };
 
   return (

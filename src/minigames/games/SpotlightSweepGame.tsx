@@ -2,9 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Flashlight } from 'lucide-react';
 import { playWheelTick, unlockGameAudio } from '../../utils/gameAudio';
 import { cryptoRandomInt } from '../rosterStorage';
+import { scalePaceMs, useMinigameStageSettings } from '../stageContext';
 import type { MinigameProps } from '../types';
 
 export const SpotlightSweepGame: React.FC<MinigameProps> = ({ students, muted, onPickStudent }) => {
+  const { paceMode } = useMinigameStageSettings();
   const [litId, setLitId] = useState<string | null>(null);
   const [sweeping, setSweeping] = useState(false);
   const timerRef = useRef<number | null>(null);
@@ -25,7 +27,7 @@ export const SpotlightSweepGame: React.FC<MinigameProps> = ({ students, muted, o
 
     setSweeping(true);
     const winner = students[cryptoRandomInt(students.length)];
-    const totalHops = 24;
+    const totalHops = paceMode === 'EPIC' ? 44 : paceMode === 'NORMAL' ? 34 : 22;
     let hop = 0;
 
     const next = () => {
@@ -38,7 +40,8 @@ export const SpotlightSweepGame: React.FC<MinigameProps> = ({ students, muted, o
       }
       setLitId(students[cryptoRandomInt(students.length)].id);
       if (!muted) playWheelTick();
-      const delay = 85 + Math.pow(hop / totalHops, 2.3) * 380;
+      const baseDelay = 110 + Math.pow(hop / totalHops, 2.3) * 540;
+      const delay = scalePaceMs(baseDelay, paceMode);
       timerRef.current = window.setTimeout(next, delay);
     };
 

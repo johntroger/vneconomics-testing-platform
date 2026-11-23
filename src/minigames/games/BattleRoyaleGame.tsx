@@ -2,9 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Zap } from 'lucide-react';
 import { playBalloonPop, playTickSound, unlockGameAudio } from '../../utils/gameAudio';
 import { cryptoRandomInt } from '../rosterStorage';
+import { scalePaceMs, useMinigameStageSettings } from '../stageContext';
 import type { MinigameProps } from '../types';
 
 export const BattleRoyaleGame: React.FC<MinigameProps> = ({ students, muted, onPickStudent }) => {
+  const { paceMode } = useMinigameStageSettings();
   const [eliminated, setEliminated] = useState<Record<string, boolean>>({});
   const [running, setRunning] = useState(false);
   const timerRef = useRef<number | null>(null);
@@ -48,10 +50,13 @@ export const BattleRoyaleGame: React.FC<MinigameProps> = ({ students, muted, onP
         if (survivors.length <= 3) playBalloonPop();
         else playTickSound(survivors.length <= 5);
       }
-      timerRef.current = window.setTimeout(round, survivors.length <= 4 ? 1300 : 850);
+      timerRef.current = window.setTimeout(
+        round,
+        scalePaceMs(survivors.length <= 4 ? 1500 : 1000, paceMode),
+      );
     };
 
-    timerRef.current = window.setTimeout(round, 800);
+    timerRef.current = window.setTimeout(round, scalePaceMs(900, paceMode));
   };
 
   return (

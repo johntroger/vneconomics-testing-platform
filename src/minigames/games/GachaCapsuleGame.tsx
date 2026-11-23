@@ -2,11 +2,13 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { playDrumroll, playWheelTick, unlockGameAudio } from '../../utils/gameAudio';
 import { cryptoRandomInt } from '../rosterStorage';
+import { scalePaceMs, useMinigameStageSettings } from '../stageContext';
 import type { MinigameProps } from '../types';
 
 const BALL_COLORS = ['#f43f5e', '#3b82f6', '#fbbf24', '#10b981', '#a855f7', '#ec4899'];
 
 export const GachaCapsuleGame: React.FC<MinigameProps> = ({ students, muted, onPickStudent }) => {
+  const { paceMode } = useMinigameStageSettings();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [spinning, setSpinning] = useState(false);
   const speedMultRef = useRef(1);
@@ -96,9 +98,10 @@ export const GachaCapsuleGame: React.FC<MinigameProps> = ({ students, muted, onP
       onPickStudent(students[0]);
       return;
     }
+    const spinMs = scalePaceMs(6000, paceMode);
     setSpinning(true);
     speedMultRef.current = 4.2;
-    if (!muted) playDrumroll(2000);
+    if (!muted) playDrumroll(spinMs - 200);
 
     const tickInterval = window.setInterval(() => {
       if (!muted) playWheelTick();
@@ -110,7 +113,7 @@ export const GachaCapsuleGame: React.FC<MinigameProps> = ({ students, muted, onP
       setSpinning(false);
       const winner = students[cryptoRandomInt(students.length)];
       if (winner) onPickStudent(winner);
-    }, 2300);
+    }, spinMs);
   };
 
   return (

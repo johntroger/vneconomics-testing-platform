@@ -2,9 +2,11 @@ import React, { useRef, useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { playRevealSound, playWheelTick, unlockGameAudio } from '../../utils/gameAudio';
 import { cryptoRandomInt } from '../rosterStorage';
+import { scalePaceMs, useMinigameStageSettings } from '../stageContext';
 import type { MinigameProps, RosterStudent } from '../types';
 
 export const SlotMachineGame: React.FC<MinigameProps> = ({ students, muted, onPickStudent }) => {
+  const { paceMode } = useMinigameStageSettings();
   const [reelCount, setReelCount] = useState<1 | 2 | 3>(1);
   const [spinning, setSpinning] = useState(false);
   const [reels, setReels] = useState<string[]>(['?', '?', '?']);
@@ -59,7 +61,7 @@ export const SlotMachineGame: React.FC<MinigameProps> = ({ students, muted, onPi
           setSpinning(false);
           onPickStudent(winners[0]);
         }
-      }, 1600 + r * 1100);
+      }, scalePaceMs(4200 + r * 2400, paceMode));
     }
   };
 

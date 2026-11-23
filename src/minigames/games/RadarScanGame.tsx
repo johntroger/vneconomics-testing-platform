@@ -2,9 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Radio } from 'lucide-react';
 import { playTickSound, unlockGameAudio } from '../../utils/gameAudio';
 import { cryptoRandomInt } from '../rosterStorage';
+import { scalePaceMs, useMinigameStageSettings } from '../stageContext';
 import type { MinigameProps } from '../types';
 
 export const RadarScanGame: React.FC<MinigameProps> = ({ students, muted, onPickStudent }) => {
+  const { paceMode } = useMinigameStageSettings();
   const [lockedId, setLockedId] = useState<string | null>(null);
   const [scanning, setScanning] = useState(false);
   const timerRef = useRef<number | null>(null);
@@ -25,7 +27,7 @@ export const RadarScanGame: React.FC<MinigameProps> = ({ students, muted, onPick
 
     setScanning(true);
     const winner = students[cryptoRandomInt(students.length)];
-    const totalSteps = 22;
+    const totalSteps = paceMode === 'EPIC' ? 44 : paceMode === 'NORMAL' ? 34 : 22;
     let step = 0;
 
     const tick = () => {
@@ -38,8 +40,9 @@ export const RadarScanGame: React.FC<MinigameProps> = ({ students, muted, onPick
       }
       const preview = students[cryptoRandomInt(students.length)];
       setLockedId(preview.id);
-      if (!muted) playTickSound(step > totalSteps - 5);
-      const delay = 100 + Math.pow(step / totalSteps, 2) * 340;
+      if (!muted) playTickSound(step > totalSteps - 6);
+      const baseDelay = 120 + Math.pow(step / totalSteps, 2.2) * 520;
+      const delay = scalePaceMs(baseDelay, paceMode);
       timerRef.current = window.setTimeout(tick, delay);
     };
 

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Crosshair, RefreshCw } from 'lucide-react';
 import { cryptoShuffle } from '../rosterStorage';
+import { useMinigameStageSettings } from '../stageContext';
 import type { RosterStudent } from '../types';
 import { playBalloonPop, playWheelTick, unlockGameAudio } from '../../utils/gameAudio';
 
@@ -25,6 +26,7 @@ export const AimTargetEngine: React.FC<AimTargetEngineProps> = ({
   palette = TARGET_PALETTE,
   onPickStudent,
 }) => {
+  const { paceMode } = useMinigameStageSettings();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const angleRef = useRef(0);
   const speedRef = useRef(0.032);
@@ -132,13 +134,13 @@ export const AimTargetEngine: React.FC<AimTargetEngineProps> = ({
     setFiring(true);
     setArrowFlying(true);
 
-    // Decelerate target smoothly after firing
+    // Decelerate target smoothly after firing based on paceMode
     const origSpeed = speedRef.current;
     const start = performance.now();
-    const slowMs = 1300;
+    const slowMs = paceMode === 'EPIC' ? 8500 : paceMode === 'NORMAL' ? 5200 : 2800;
     const decel = () => {
       const t = Math.min(1, (performance.now() - start) / slowMs);
-      speedRef.current = origSpeed * (1 - t);
+      speedRef.current = origSpeed * Math.pow(1 - t, 1.85);
       if (t < 1) {
         requestAnimationFrame(decel);
       } else {

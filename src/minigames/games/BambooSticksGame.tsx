@@ -2,9 +2,11 @@ import React, { useState } from 'react';
 import { Sparkles } from 'lucide-react';
 import { playDrumroll, playWheelTick, unlockGameAudio } from '../../utils/gameAudio';
 import { cryptoRandomInt } from '../rosterStorage';
+import { scalePaceMs, useMinigameStageSettings } from '../stageContext';
 import type { MinigameProps } from '../types';
 
 export const BambooSticksGame: React.FC<MinigameProps> = ({ students, muted, onPickStudent }) => {
+  const { paceMode } = useMinigameStageSettings();
   const [shaking, setShaking] = useState(false);
   const [risenName, setRisenName] = useState<string | null>(null);
 
@@ -16,9 +18,10 @@ export const BambooSticksGame: React.FC<MinigameProps> = ({ students, muted, onP
       return;
     }
 
+    const shakeMs = scalePaceMs(5200, paceMode);
     setShaking(true);
     setRisenName(null);
-    if (!muted) playDrumroll(1900);
+    if (!muted) playDrumroll(shakeMs - 200);
 
     const clack = window.setInterval(() => {
       if (!muted) playWheelTick();
@@ -30,7 +33,7 @@ export const BambooSticksGame: React.FC<MinigameProps> = ({ students, muted, onP
       const winner = students[cryptoRandomInt(students.length)];
       setRisenName(winner.name);
       window.setTimeout(() => onPickStudent(winner), 500);
-    }, 2100);
+    }, shakeMs);
   };
 
   return (
