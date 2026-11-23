@@ -32,6 +32,11 @@ const SlotMachineGame = lazy(() => import('./games/SlotMachineGame'));
 const BombPassGame = lazy(() => import('./games/BombPassGame'));
 const BambooSticksGame = lazy(() => import('./games/BambooSticksGame'));
 const GoldMinerGame = lazy(() => import('./games/GoldMinerGame'));
+const RadarScanGame = lazy(() => import('./games/RadarScanGame'));
+const SpotlightSweepGame = lazy(() => import('./games/SpotlightSweepGame'));
+const TurnOrderGame = lazy(() => import('./games/TurnOrderGame'));
+const PairMatchGame = lazy(() => import('./games/PairMatchGame'));
+const CaptainDraftGame = lazy(() => import('./games/CaptainDraftGame'));
 
 export const MINIGAME_REGISTRY: MinigamePlugin[] = [
   // Nhóm 1: Vòng quay & Nhắm bắn (8)
@@ -106,22 +111,22 @@ export const MINIGAME_REGISTRY: MinigamePlugin[] = [
     name: 'Radar Quét Mục tiêu',
     category: 'WHEEL_AIM',
     description: 'Quét tia xanh trên lưới toàn bộ lớp (tối ưu lớp 50–80 người).',
-    badge: 'Lô 5',
+    badge: 'Mới',
     gradient: 'from-emerald-600 to-teal-900',
     icon: '📡',
-    ready: false,
-    component: WheelGame,
+    ready: true,
+    component: RadarScanGame,
   },
   {
     id: 'spotlight-sweep',
     name: 'Đèn Sân khấu',
     category: 'WHEEL_AIM',
     description: 'Chùm đèn rọi nhảy qua lưới thẻ tên và khóa sáng vào 1 người.',
-    badge: 'Lô 5',
+    badge: 'Mới',
     gradient: 'from-sky-600 to-indigo-900',
     icon: '🔦',
-    ready: false,
-    component: WheelGame,
+    ready: true,
+    component: SpotlightSweepGame,
   },
 
   // Nhóm 2: Đường đua Tốc độ (8)
@@ -411,32 +416,32 @@ export const MINIGAME_REGISTRY: MinigamePlugin[] = [
     name: 'Thứ tự Thuyết trình',
     category: 'TEAM_ORDER',
     description: 'Xáo trộn thứ tự 1..N, lật từng lượt hoặc toàn bảng & xuất Excel.',
-    badge: 'Lô 5',
+    badge: 'Mới',
     gradient: 'from-blue-500 to-indigo-700',
     icon: '📋',
-    ready: false,
-    component: TeamDraftGame,
+    ready: true,
+    component: TurnOrderGame,
   },
   {
     id: 'pair-match',
     name: 'Ghép cặp Ngẫu nhiên',
     category: 'TEAM_ORDER',
     description: 'Ghép đôi 1–1 cho bài tập cặp hoặc chấm chéo Peer Review.',
-    badge: 'Lô 5',
+    badge: 'Mới',
     gradient: 'from-pink-500 to-violet-700',
     icon: '🤝',
-    ready: false,
-    component: TeamDraftGame,
+    ready: true,
+    component: PairMatchGame,
   },
   {
     id: 'captain-draft',
     name: 'Bầu Đội trưởng & Chia quân',
     category: 'TEAM_ORDER',
     description: 'Chọn N Đội trưởng trước, sau đó chia quân ngẫu nhiên vào từng đội.',
-    badge: 'Lô 5',
+    badge: 'Mới',
     gradient: 'from-amber-500 to-indigo-700',
     icon: '👑',
-    ready: false,
-    component: TeamDraftGame,
+    ready: true,
+    component: CaptainDraftGame,
   },
 ];
