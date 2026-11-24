@@ -4,8 +4,6 @@ import {
   playCatchSound,
   playWheelTick,
   playWinnerFanfare,
-  startLobbyMusic,
-  stopBackgroundMusic,
   unlockGameAudio,
 } from '../../utils/gameAudio';
 import { cryptoShuffle } from '../rosterStorage';
@@ -370,8 +368,37 @@ export const ParachuteDropGame: React.FC<MinigameProps> = ({
   const [showConfetti, setShowConfetti] = useState(false);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const bgmRef = useRef<HTMLAudioElement | null>(null);
   const mutedRef = useRef(muted);
   mutedRef.current = muted;
+
+  const stopThemeAudio = useCallback(() => {
+    const audio = bgmRef.current;
+    if (audio) {
+      audio.pause();
+      audio.currentTime = 0;
+    }
+  }, []);
+
+  const playThemeAudio = useCallback(() => {
+    if (!bgmRef.current) {
+      const audio = new Audio('/assets/minigames/nhay-du/theme.mp3');
+      audio.loop = true;
+      audio.volume = 0.72;
+      bgmRef.current = audio;
+    }
+    const audio = bgmRef.current;
+    audio.muted = mutedRef.current;
+    audio.currentTime = 0;
+    audio.play().catch(() => {});
+  }, []);
+
+  // Sync mute toggle in real time
+  useEffect(() => {
+    if (bgmRef.current) {
+      bgmRef.current.muted = muted;
+    }
+  }, [muted]);
   const paceRef = useRef(paceMode);
   paceRef.current = paceMode;
   const ruleRef = useRef(ruleMode);
@@ -449,14 +476,14 @@ export const ParachuteDropGame: React.FC<MinigameProps> = ({
 
   useEffect(() => {
     return () => {
-      stopBackgroundMusic();
+      stopThemeAudio();
     };
-  }, []);
+  }, [stopThemeAudio]);
 
   const startJump = useCallback(() => {
     if (students.length === 0) return;
     unlockGameAudio();
-    if (!mutedRef.current) startLobbyMusic();
+    playThemeAudio();
 
     const shuffled = cryptoShuffle([...students]);
     const chosenWinner = shuffled[0];
@@ -537,10 +564,10 @@ export const ParachuteDropGame: React.FC<MinigameProps> = ({
     setShowConfetti(false);
     setCountdownNum('3');
     setPhase('COUNTDOWN');
-  }, [students]);
+  }, [students, playThemeAudio]);
 
   const resetToCliff = useCallback(() => {
-    stopBackgroundMusic();
+    stopThemeAudio();
     simRef.current.phase = 'IDLE';
     simRef.current.jumpers = createInitialJumpers(students);
     simRef.current.winner = null;
@@ -552,7 +579,7 @@ export const ParachuteDropGame: React.FC<MinigameProps> = ({
     setShowConfetti(false);
     setCountdownNum('');
     setPhase('IDLE');
-  }, [students]);
+  }, [students, stopThemeAudio]);
 
   // Main 60fps Canvas Loop with Dynamic Camera Follow & Zoom
   useEffect(() => {
@@ -734,7 +761,7 @@ export const ParachuteDropGame: React.FC<MinigameProps> = ({
         if (allLanded && elapsedMs > sim.flightTotalMs * 0.78) {
           sim.phase = 'ZOOM_REVEAL';
           sim.phaseStartMs = now;
-          stopBackgroundMusic();
+          stopThemeAudio();
           setPhase('ZOOM_REVEAL');
           if (sim.winner) {
             setWinner(sim.winner);
@@ -992,7 +1019,7 @@ export const ParachuteDropGame: React.FC<MinigameProps> = ({
 
     rafId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(rafId);
-  }, [assets, onPickStudent]);
+  }, [assets, onPickStudent, stopThemeAudio]);
 
   const isRunning = phase === 'COUNTDOWN' || phase === 'FLYING';
 
