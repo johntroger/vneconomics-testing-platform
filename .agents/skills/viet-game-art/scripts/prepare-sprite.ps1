@@ -5,6 +5,7 @@ param(
   [int]$MaxWidth = 1600,
   [int]$Tolerance = 58,
   [int]$Despill = 1,
+  [ValidateSet('None', 'Left', 'Right')][string]$SplitHalf = 'None',
   [switch]$KeepBackground,
   [switch]$PixelArt
 )
@@ -48,16 +49,35 @@ public static class VietSpriteProcessor
         int tolerance,
         bool despill,
         bool keepBg,
-        bool pixelArt)
+        bool pixelArt,
+        string splitHalf)
     {
         using (Bitmap raw = new Bitmap(inputPath))
-        using (Bitmap src = new Bitmap(raw.Width, raw.Height, PixelFormat.Format32bppArgb))
         {
-            using (Graphics g = Graphics.FromImage(src))
+            int srcX = 0;
+            int srcW = raw.Width;
+            if (string.Equals(splitHalf, "Left", StringComparison.OrdinalIgnoreCase))
             {
-                g.Clear(Color.Transparent);
-                g.DrawImage(raw, 0, 0, raw.Width, raw.Height);
+                srcX = 0;
+                srcW = Math.Max(1, raw.Width / 2);
             }
+            else if (string.Equals(splitHalf, "Right", StringComparison.OrdinalIgnoreCase))
+            {
+                srcX = raw.Width / 2;
+                srcW = Math.Max(1, raw.Width - srcX);
+            }
+
+            using (Bitmap src = new Bitmap(srcW, raw.Height, PixelFormat.Format32bppArgb))
+            {
+                using (Graphics g = Graphics.FromImage(src))
+                {
+                    g.Clear(Color.Transparent);
+                    g.DrawImage(
+                        raw,
+                        new Rectangle(0, 0, srcW, raw.Height),
+                        new Rectangle(srcX, 0, srcW, raw.Height),
+                        GraphicsUnit.Pixel);
+                }
 
             int w = src.Width;
             int h = src.Height;
@@ -316,6 +336,7 @@ public static class VietSpriteProcessor
             }
 
             return string.Format("OK: {0}x{1} -> {2}x{3} saved to {4}", w, h, outW, outH, outputPath);
+            }
         }
     }
 }
@@ -333,7 +354,8 @@ $result = [VietSpriteProcessor]::Process(
   $Tolerance,
   ($Despill -gt 0),
   $KeepBackground.IsPresent,
-  $PixelArt.IsPresent
+  $PixelArt.IsPresent,
+  $SplitHalf
 )
 
 Write-Output $result

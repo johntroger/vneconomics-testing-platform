@@ -14,13 +14,9 @@ import {
   unlockGameAudio,
 } from '../../utils/gameAudio';
 import {
-  drawAnhBa,
   drawBambooPole,
   drawChibiMango,
   drawChiliSaltSheet,
-  drawStorybookBoy,
-  drawStorybookCourtyard,
-  drawStorybookGirl,
   type AnhBaPose,
   type BoyPose,
   type GirlPose,
@@ -30,7 +26,16 @@ import {
 const LOGICAL_W = 1280;
 const LOGICAL_H = 640;
 const MAX_CANOPY_MANGOES = 45;
-const WASH_SRC = '/assets/minigames/hai-xoai/bg-wash.jpg';
+
+const ASSET_BASE = '/assets/minigames/hai-xoai/';
+const MANGO_SPRITE_MANIFEST = {
+  bg: `${ASSET_BASE}bg-mango-yard.jpg`,
+  ti: `${ASSET_BASE}ti.png`,
+  na: `${ASSET_BASE}na.png`,
+  anhBa: `${ASSET_BASE}anh-ba.png`,
+} as const;
+type MangoSpriteKey = keyof typeof MANGO_SPRITE_MANIFEST;
+type MangoSprites = Record<MangoSpriteKey, HTMLImageElement>;
 
 const TOTAL_MS_BY_PACE: Record<PaceMode, number> = {
   TURBO: 3400,
@@ -136,8 +141,9 @@ export const MangoHarvestGame: React.FC<MinigameProps> = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const finishTimerRef = useRef<number | null>(null);
-  const washImgRef = useRef<HTMLImageElement | null>(null);
+  const spritesRef = useRef<MangoSprites | null>(null);
 
+  const [assetsReady, setAssetsReady] = useState(false);
   const [running, setRunning] = useState(false);
   const [statusText, setStatusText] = useState(
     '🥭 Tán xoài trĩu quả đã sẵn sàng — Bấm hái xoài chấm muối tôm!',
@@ -174,14 +180,35 @@ export const MangoHarvestGame: React.FC<MinigameProps> = ({
     shakeUntil: 0,
   });
 
-  // Load optional Canva watercolor atmosphere wash
+  // Preload CHIBI_CEL illustrated mango yard & character sprites
   useEffect(() => {
-    const img = new Image();
-    img.decoding = 'async';
-    img.onload = () => {
-      washImgRef.current = img;
+    let cancelled = false;
+    const entries = Object.entries(MANGO_SPRITE_MANIFEST) as Array<[MangoSpriteKey, string]>;
+    Promise.all(
+      entries.map(
+        ([key, src]) =>
+          new Promise<[MangoSpriteKey, HTMLImageElement]>((resolve, reject) => {
+            const img = new Image();
+            img.decoding = 'async';
+            img.onload = () => resolve([key, img]);
+            img.onerror = () => reject(new Error(`Failed to load ${src}`));
+            img.src = src;
+          }),
+      ),
+    )
+      .then((pairs) => {
+        if (cancelled) return;
+        spritesRef.current = Object.fromEntries(pairs) as MangoSprites;
+        setAssetsReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setStatusText('Không tải được bộ đồ họa vườn xoài — vui lòng tải lại trang.');
+        }
+      });
+    return () => {
+      cancelled = true;
     };
-    img.src = WASH_SRC;
   }, []);
 
   // Rebuild idle mango canopy whenever student list changes while idle
@@ -648,8 +675,21 @@ export const MangoHarvestGame: React.FC<MinigameProps> = ({
       ctx.save();
       ctx.translate(sx, sy);
 
-      // 1. Storybook Watercolor Rural Mango Garden Backdrop
-      drawStorybookCourtyard(ctx, LOGICAL_W, LOGICAL_H, tSec, washImgRef.current);
+      const sprites = spritesRef.current;
+      if (!sprites) {
+        ctx.fillStyle = '#14532d';
+        ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+        ctx.fillStyle = '#fef08a';
+        ctx.font = '800 20px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('🎨 Đang tải vườn xoài Chibi...', LOGICAL_W / 2, LOGICAL_H / 2);
+        ctx.restore();
+        rafRef.current = requestAnimationFrame(render);
+        return;
+      }
+
+      // 1. CHIBI_CEL Illustrated Rural Mango Courtyard Backdrop
+      ctx.drawImage(sprites.bg, 0, 0, LOGICAL_W, LOGICAL_H);
 
       // 2. White Paper Sheet & Tây Ninh Chili-Shrimp Salt Mound
       drawChiliSaltSheet(ctx, 578, 582, saltProgress);
@@ -701,12 +741,83 @@ export const MangoHarvestGame: React.FC<MinigameProps> = ({
         );
       });
 
-      // 4. Draw Rural Village Characters
-      const boyHand = drawStorybookBoy(ctx, boyX, boyY, boyPose, tSec);
-      drawStorybookGirl(ctx, girlX, girlY, girlPose, tSec);
-      let anhBaHand = { handX: anhBaX + 28, handY: anhBaY - 130 };
+      // 4. Draw CHIBI_CEL Rural Village Characters with Squash & Stretch
+      const drawChibiSprite = (
+        img: HTMLImageElement,
+        cx: number,
+        cy: number,
+        targetH: number,
+        bounce: number,
+        stretch: number,
+        tilt: number,
+        shadowW = 34,
+      ) => {
+        const w = targetH * (img.naturalWidth / img.naturalHeight);
+        const sScale = Math.max(0.55, 1 - bounce * 0.013);
+        ctx.save();
+        ctx.fillStyle = 'rgba(24, 15, 12, 0.28)';
+        ctx.beginPath();
+        ctx.ellipse(cx, cy - 3, shadowW * sScale, 8.5 * sScale, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        ctx.save();
+        ctx.translate(cx, cy - bounce);
+        ctx.rotate(tilt);
+        ctx.scale(1 - stretch * 0.7, 1 + stretch);
+        ctx.drawImage(img, -w / 2, -targetH, w, targetH);
+        ctx.restore();
+      };
+
+      const boyBounce =
+        boyPose === 'ANT_HOP'
+          ? Math.abs(Math.sin(tSec * 18)) * 28
+          : boyPose === 'CHEER'
+            ? Math.abs(Math.sin(tSec * 12)) * 18
+            : boyPose === 'TIPTOE_STRAIN'
+              ? 14 + Math.sin(tSec * 28) * 2
+              : boyPose === 'SQUAT_POUR'
+                ? -10
+                : Math.sin(tSec * 3.5) * 2;
+      const boyStretch =
+        boyPose === 'SQUAT_POUR'
+          ? -0.08
+          : boyPose === 'TIPTOE_STRAIN'
+            ? 0.1
+            : Math.sin(tSec * 6) * 0.025;
+      const boyTilt = boyPose === 'ANT_HOP' ? Math.sin(tSec * 22) * 0.12 : 0;
+      drawChibiSprite(sprites.ti, boyX, boyY, 154, boyBounce, boyStretch, boyTilt, 32);
+
+      if (boyPose === 'ANT_HOP') {
+        ctx.save();
+        ctx.fillStyle = 'rgba(239, 68, 68, 0.72)';
+        ctx.beginPath();
+        ctx.arc(boyX - 24, boyY - 46 - boyBounce, 12 + Math.sin(tSec * 28) * 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+      const boyHand = { handX: boyX + 36, handY: boyY - 96 - boyBounce };
+
+      const girlBounce =
+        girlPose === 'CHEER'
+          ? Math.abs(Math.sin(tSec * 12 + 0.8)) * 16
+          : girlPose === 'LAUGH'
+            ? Math.abs(Math.sin(tSec * 16)) * 6
+            : Math.sin(tSec * 3.2 + 1) * 2;
+      const girlTilt = girlPose === 'LAUGH' ? Math.sin(tSec * 16) * 0.08 : 0;
+      drawChibiSprite(sprites.na, girlX, girlY, 150, girlBounce, Math.sin(tSec * 5) * 0.02, girlTilt, 30);
+
+      let anhBaHand = { handX: anhBaX + 54, handY: anhBaY - 134 };
       if (showAnhBa) {
-        anhBaHand = drawAnhBa(ctx, anhBaX, anhBaY, anhBaPose, tSec);
+        const abBounce =
+          anhBaPose === 'CHEER'
+            ? Math.abs(Math.sin(tSec * 12 + 0.3)) * 18
+            : anhBaPose === 'STRIKE'
+              ? 14
+              : Math.sin(tSec * 4) * 2.5;
+        const abTilt = anhBaPose === 'STRIKE' ? 0.07 : 0;
+        drawChibiSprite(sprites.anhBa, anhBaX, anhBaY, 198, abBounce, 0.03, abTilt, 38);
+        anhBaHand = { handX: anhBaX + 54, handY: anhBaY - 134 - abBounce };
       }
 
       // 5. Draw Long Segmented Bamboo Pole on top of character hands
@@ -768,7 +879,7 @@ export const MangoHarvestGame: React.FC<MinigameProps> = ({
   }, [paceMode]);
 
   const handleStart = () => {
-    if (running || students.length === 0) return;
+    if (running || !assetsReady || students.length === 0) return;
     void unlockGameAudio().then((ok) => {
       if (ok && !mutedRef.current && simRef.current.active) {
         startMangoFolkMusic();
@@ -834,15 +945,17 @@ export const MangoHarvestGame: React.FC<MinigameProps> = ({
 
       <button
         type="button"
-        disabled={running || students.length === 0}
+        disabled={running || !assetsReady || students.length === 0}
         onClick={handleStart}
         className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-lime-400 via-amber-400 to-orange-500 hover:brightness-110 disabled:opacity-50 text-slate-950 font-black text-base sm:text-lg shadow-xl shadow-amber-500/30 transition active:scale-95"
       >
-        {running
-          ? '🥭 Đang chọc xoài trên cây...'
-          : students.length === 0
-            ? 'Danh sách học sinh trống'
-            : '🥭 BẮT ĐẦU CHỌC XOÀI CHẤM MUỐI!'}
+        {!assetsReady
+          ? '🎨 Đang tải vườn xoài Chibi...'
+          : running
+            ? '🥭 Đang chọc xoài trên cây...'
+            : students.length === 0
+              ? 'Danh sách học sinh trống'
+              : '🥭 BẮT ĐẦU CHỌC XOÀI CHẤM MUỐI!'}
       </button>
     </div>
   );

@@ -1,7 +1,7 @@
 let sharedAudioCtx: AudioContext | null = null;
 let noiseBuffer: AudioBuffer | null = null;
 let musicTimer: number | null = null;
-let currentTrack: 'NONE' | 'LOBBY' | 'COUNTDOWN' | 'CHASE' | 'FOLK' = 'NONE';
+let currentTrack: 'NONE' | 'LOBBY' | 'COUNTDOWN' | 'CHASE' | 'FOLK' | 'DRAGON' = 'NONE';
 let stepIndex = 0;
 
 function getAudioCtx(): AudioContext | null {
@@ -410,4 +410,50 @@ export function playMangoThudSound(): void {
   } catch {
     // Ignore
   }
+}
+
+// Lively Vietnamese Village Festival Drum & Flute ("Rồng Rắn Lên Mây")
+export function startDragonSnakeMusic(): void {
+  if (currentTrack === 'DRAGON') return;
+  stopBackgroundMusic();
+  currentTrack = 'DRAGON';
+  const bassNotes = [146.83, 0, 196.0, 220.0, 146.83, 0, 261.63, 220.0];
+  const fluteNotes = [
+    587.33, 783.99, 880.0, 783.99, 659.25, 587.33, 659.25, 783.99,
+    880.0, 1046.5, 880.0, 783.99, 659.25, 587.33, 440.0, 587.33,
+  ];
+
+  musicTimer = window.setInterval(() => {
+    try {
+      const ctx = getAudioCtx();
+      if (!ctx || ctx.state !== 'running') return;
+      const t = ctx.currentTime + 0.02;
+      const step = stepIndex % 16;
+      if (step % 2 === 0) playKick(ctx, t, step % 4 === 0 ? 0.18 : 0.1);
+      playHiHat(ctx, t, step % 2 === 1 ? 0.045 : 0.02);
+      const bass = bassNotes[step % 8];
+      if (bass > 0) playSynthNote(ctx, bass, t, 0.14, 'triangle', 0.08);
+      playSynthNote(ctx, fluteNotes[step], t, 0.15, 'sine', 0.055);
+      stepIndex++;
+    } catch {
+      // Ignore
+    }
+  }, 195);
+}
+
+export function playFolkDrumSound(): void {
+  try {
+    const ctx = getAudioCtx();
+    if (!ctx || ctx.state !== 'running') return;
+    playKick(ctx, ctx.currentTime, 0.34);
+    playTone(130, 0.2, 'triangle', 0.16, 0);
+  } catch {
+    // Ignore
+  }
+}
+
+export function playCatchSound(): void {
+  playTone(659.25, 0.07, 'triangle', 0.11, 0);
+  playTone(987.77, 0.09, 'triangle', 0.12, 0.06);
+  playTone(1318.5, 0.22, 'triangle', 0.13, 0.12);
 }

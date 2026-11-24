@@ -39,6 +39,7 @@ const PairMatchGame = lazy(() => import('./games/PairMatchGame'));
 const CaptainDraftGame = lazy(() => import('./games/CaptainDraftGame'));
 const DogChaseGame = lazy(() => import('./games/DogChaseGame'));
 const MangoHarvestGame = lazy(() => import('./games/MangoHarvestGame'));
+const DragonSnakeGame = lazy(() => import('./games/DragonSnakeGame'));
 
 export const MINIGAME_REGISTRY: MinigamePlugin[] = [
   // Nhóm 1: Vòng quay & Nhắm bắn (8)
@@ -468,5 +469,16 @@ export const MINIGAME_REGISTRY: MinigamePlugin[] = [
     icon: '🥭',
     ready: true,
     component: MangoHarvestGame,
+  },
+  {
+    id: 'rong-ran-len-may',
+    name: 'Rồng Rắn Lên Mây',
+    category: 'VIETNAM',
+    description: 'Đoàn rồng rắn nối đuôi uốn lượn trên sân đình, đối đáp Thầy Thuốc và chộp khúc đuôi kịch tính!',
+    badge: 'Game Việt',
+    gradient: 'from-rose-500 via-amber-500 to-emerald-500',
+    icon: '🐉',
+    ready: true,
+    component: DragonSnakeGame,
   },
 ];
