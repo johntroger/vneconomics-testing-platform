@@ -297,10 +297,11 @@ function clipFrontHull(ctx: CanvasRenderingContext2D, boatW: number, boatH: numb
   const botY = boatH / 2;
 
   ctx.beginPath();
-  // Follow the exact front wooden rim curve of boat.png (left rim -> gentle dip at center -> right bow rim)
-  ctx.moveTo(-halfW, topY + boatH * 0.30);
-  ctx.quadraticCurveTo(0, topY + boatH * 0.50, halfW * 0.94, topY + boatH * 0.28);
-  ctx.lineTo(halfW, topY + boatH * 0.24);
+  // Follow the lower exterior front rim of boat.png so ONLY students' laps/skirts tuck behind the wood,
+  // while their full faces, red neckerchiefs, and BOTH waving/sleeping arms stay 100% visible!
+  ctx.moveTo(-halfW, topY + boatH * 0.38);
+  ctx.quadraticCurveTo(0, topY + boatH * 0.56, halfW * 0.94, topY + boatH * 0.36);
+  ctx.lineTo(halfW, topY + boatH * 0.30);
   ctx.lineTo(halfW, botY + 8);
   ctx.lineTo(-halfW, botY + 8);
   ctx.closePath();
@@ -322,14 +323,14 @@ function layoutPassengers(students: RosterStudent[], winnerIds: Set<string>): Pa
   const passengers: Passenger[] = [];
   let globalIdx = 0;
 
-  // Vertical seating anchor (bottom of student torso) inside the hollowed boat cavity:
-  // Back row sits near upper bench (-0.06 * boatH), front row tucks deep behind front gunwale (+0.11 * boatH)
+  // Vertical seating anchor (hip/lap line of the full upper-body student sprite):
+  // Back row sits higher (-0.16 * boatH), front row sits nicely at (+0.05 * boatH) so laps tuck behind front rim
   rows.forEach((rowList, rowIdx) => {
     const n = rowList.length;
-    const rowFrac = numRows === 1 ? 0.5 : rowIdx / (numRows - 1);
-    const rowYOffset = boatH * (-0.07 + rowFrac * 0.17);
+    const rowFrac = numRows === 1 ? 0.65 : rowIdx / (numRows - 1);
+    const rowYOffset = boatH * (-0.16 + rowFrac * 0.21);
 
-    // Gentle stagger between rows so every face & name tag is clearly visible
+    // Gentle stagger between rows so every face, waving hand & name tag is clearly visible
     const stagger = (rowIdx % 2 === 1 ? 1 : -1) * Math.min(14, (seatRight - seatLeft) / Math.max(6, n * 2.4));
     const spanLeft = seatLeft + (rowIdx * 8);
     const spanRight = seatRight - (rowIdx * 6);
@@ -339,7 +340,7 @@ function layoutPassengers(students: RosterStudent[], winnerIds: Set<string>): Pa
       const t = n === 1 ? 0.5 : colIdx / (n - 1);
       const seatX = spanLeft + t * span + (n > 2 ? stagger * 0.35 : 0);
       // Match the natural upward curve of the boat benches toward stern and prow
-      const curveLift = Math.pow((t - 0.5) * 2, 2) * (boatH * 0.055);
+      const curveLift = Math.pow((t - 0.5) * 2, 2) * (boatH * 0.05);
       const seatY = rowYOffset - curveLift;
 
       passengers.push({
@@ -962,7 +963,7 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
             ? assets.girlAwake
             : assets.boyAwake;
 
-        const drawH = 92 * studentScale;
+        const drawH = 114 * studentScale;
         const drawW = (sprite.width / sprite.height) * drawH;
 
         // Golden spotlight beam from sky onto sleeping winners during REVEAL / late DISEMBARK
@@ -987,11 +988,11 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
           ctx.restore();
         }
 
-        // Anchor student bottom torso cleanly inside the hollowed cavity so front gunwale overlaps lower chest
+        // Anchor student lap/waist cleanly inside the boat so full upper body + BOTH arms stay above the rim!
         ctx.save();
         ctx.translate(p.seatX, p.seatY + stormBounce);
         ctx.rotate(sleepNod);
-        ctx.drawImage(sprite, -drawW / 2, -drawH * 0.86, drawW, drawH);
+        ctx.drawImage(sprite, -drawW / 2, -drawH * 0.90, drawW, drawH);
         ctx.restore();
 
         tagOverlays.push({
@@ -1004,11 +1005,61 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
         });
       }
 
-      // LAYER 3: Front Wooden Gunwale & Lower Hull Overlay (clips boat front over lower torsos & teacher's shoes!)
+      // LAYER 3: Front Wooden Gunwale & Lower Hull Overlay (tucks ONLY lower laps & teacher's shoes inside boat)
       ctx.save();
       clipFrontHull(ctx, boatW, boatH);
       drawBoat3Slice(ctx, assets.boat, boatW, boatH, bayRepeats);
       ctx.restore();
+
+      // LAYER 3B: Extended Wooden Oar Blade dipping right INTO the river water when teacher is at the stern!
+      if (sim.teacherWalkX <= teacherSternX + 18) {
+        const oarSwing = isRowing ? Math.sin(tSec * (sim.phase === 'STORM' ? 7.5 : 4.8)) : 0;
+        const oarPivotX = sim.teacherWalkX - tW * 0.28;
+        const oarPivotY = teacherFeetY - tH * 0.24;
+        const oarEndX = oarPivotX - 78 + oarSwing * 18;
+        const oarEndY = boatH * 0.44 + Math.abs(oarSwing) * 6; // Reaches right into the water line!
+
+        ctx.save();
+        // Wooden shaft continuing seamlessly from teacher's oar handle
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#4a2c15';
+        ctx.lineWidth = 9;
+        ctx.beginPath();
+        ctx.moveTo(oarPivotX, oarPivotY);
+        ctx.lineTo(oarEndX, oarEndY);
+        ctx.stroke();
+
+        ctx.strokeStyle = '#9a6332';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.moveTo(oarPivotX, oarPivotY);
+        ctx.lineTo(oarEndX, oarEndY);
+        ctx.stroke();
+
+        // Watercolor wooden paddle blade dipping into the river
+        const angle = Math.atan2(oarEndY - oarPivotY, oarEndX - oarPivotX);
+        ctx.translate(oarEndX, oarEndY);
+        ctx.rotate(angle);
+        ctx.beginPath();
+        ctx.ellipse(-6, 0, 24, 9, 0, 0, Math.PI * 2);
+        ctx.fillStyle = '#a46b38';
+        ctx.fill();
+        ctx.lineWidth = 2.2;
+        ctx.strokeStyle = '#4a2c15';
+        ctx.stroke();
+        ctx.restore();
+
+        // Animated water splash rings right where the oar blade enters the water
+        ctx.save();
+        const rippleR = 14 + ((tSec * (isRowing ? 32 : 10)) % 22);
+        const rippleAlpha = Math.max(0, 1 - (rippleR - 14) / 22) * (isRowing ? 0.8 : 0.42);
+        ctx.strokeStyle = `rgba(255, 255, 255, ${rippleAlpha})`;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.ellipse(oarEndX - 4, boatH * 0.44, rippleR, rippleR * 0.34, 0, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+      }
 
       // LAYER 4: Floating Name Tag Pills & "Zzz" bubbles rendered crisply above the boat & characters
       const tagFontSize = sim.passengers.length > 36 ? 10 : sim.passengers.length > 22 ? 11 : 13;
