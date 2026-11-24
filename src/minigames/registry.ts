@@ -44,6 +44,7 @@ const LuckyStarGame = lazy(() => import('./games/LuckyStarGame'));
 const WhoIsThatGame = lazy(() => import('./games/WhoIsThatGame'));
 const RiverFerryGame = lazy(() => import('./games/RiverFerryGame'));
 const ParachuteDropGame = lazy(() => import('./games/ParachuteDropGame'));
+const MusicalChairsGame = lazy(() => import('./games/MusicalChairsGame'));
 const LuckyLensGame = lazy(() => import('./games/LuckyLensGame'));
 
 export const MINIGAME_REGISTRY: MinigamePlugin[] = [
@@ -529,6 +530,17 @@ export const MINIGAME_REGISTRY: MinigamePlugin[] = [
     icon: '🪂',
     ready: true,
     component: ParachuteDropGame,
+  },
+  {
+    id: 'gianh-ghe-am-nhac',
+    name: 'Giành Ghế Âm Nhạc',
+    category: 'VIETNAM',
+    description: 'Cả lớp nhảy vòng quanh dãy ghế nhựa đỏ ngoài sân trường — nhạc tắt đột ngột, bạn nào chậm chân không có ghế sẽ lên bảng!',
+    badge: 'Game Việt',
+    gradient: 'from-rose-500 via-red-500 to-amber-500',
+    icon: '🪑',
+    ready: true,
+    component: MusicalChairsGame,
   },
   // Nhóm 7: Camera AI
   {
