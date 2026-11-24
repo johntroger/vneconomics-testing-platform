@@ -7,6 +7,7 @@ import {
   RefreshCw,
   ScanFace,
   Sparkles,
+  SwitchCamera,
   Users,
   VideoOff,
 } from 'lucide-react';
@@ -62,7 +63,9 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
   // Mode & Config
   const [mode, setMode] = useState<LensMode>('SINGLE');
   const [scanSeconds, setScanSeconds] = useState<number>(DEFAULT_SEC_BY_PACE[paceMode]);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
   const [mirrored, setMirrored] = useState<boolean>(true);
+  const [videoAspect, setVideoAspect] = useState<number>(16 / 9);
   const [cameraActive, setCameraActive] = useState<boolean>(false);
   const [cameraLoading, setCameraLoading] = useState<boolean>(false);
   const [aiReady, setAiReady] = useState<boolean>(false);
@@ -638,36 +641,54 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
   }, [finalizeSelection]);
 
   const startCamera = useCallback(
-    async (deviceIdOverride?: string) => {
+    async (opts?: { deviceId?: string; facing?: 'user' | 'environment' }) => {
       setErrorMsg('');
       setWarningTip('');
       setCameraLoading(true);
       stopCameraTracks();
+
+      const targetDeviceId = opts?.deviceId;
+      const targetFacing = opts?.facing ?? facingMode;
 
       try {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
           throw new Error('Trình duyệt không hỗ trợ Camera hoặc trang chưa chạy trên HTTPS.');
         }
 
-        const constraints: MediaStreamConstraints = {
-          video: deviceIdOverride
+        const primaryConstraints: MediaStreamConstraints = {
+          video: targetDeviceId
             ? {
-                deviceId: { exact: deviceIdOverride },
+                deviceId: { exact: targetDeviceId },
                 width: { ideal: 1280 },
                 height: { ideal: 720 },
               }
             : {
-                facingMode: 'user',
+                facingMode: { ideal: targetFacing },
                 width: { ideal: 1280 },
                 height: { ideal: 720 },
               },
           audio: false,
         };
 
-        const [stream] = await Promise.all([
-          navigator.mediaDevices.getUserMedia(constraints),
-          initFaceDetector(),
-        ]);
+        const openStreamWithFallback = async (): Promise<MediaStream> => {
+          try {
+            return await navigator.mediaDevices.getUserMedia(primaryConstraints);
+          } catch (firstErr) {
+            // Fallback for older USB webcams or strict mobile constraints
+            if (
+              firstErr instanceof Error &&
+              (firstErr.name === 'OverconstrainedError' || firstErr.name === 'ConstraintNotSatisfiedError')
+            ) {
+              return navigator.mediaDevices.getUserMedia({
+                video: targetDeviceId ? { deviceId: targetDeviceId } : { facingMode: targetFacing },
+                audio: false,
+              });
+            }
+            throw firstErr;
+          }
+        };
+
+        const [stream] = await Promise.all([openStreamWithFallback(), initFaceDetector()]);
 
         streamRef.current = stream;
 
@@ -676,8 +697,16 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
         const videoDevs = allDevs.filter((d) => d.kind === 'videoinput');
         setDevices(videoDevs);
         const activeTrack = stream.getVideoTracks()[0];
-        const activeDevId = activeTrack?.getSettings().deviceId ?? deviceIdOverride ?? '';
+        const settings = activeTrack?.getSettings();
+        const activeDevId = settings?.deviceId ?? targetDeviceId ?? '';
         if (activeDevId) setSelectedDeviceId(activeDevId);
+        if (settings?.facingMode === 'environment') {
+          setFacingMode('environment');
+          setMirrored(false);
+        } else if (settings?.facingMode === 'user') {
+          setFacingMode('user');
+          setMirrored(true);
+        }
 
         setCameraActive(true);
         setCameraLoading(false);
@@ -687,6 +716,11 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
           const vid = videoRef.current;
           if (vid && streamRef.current) {
             vid.srcObject = streamRef.current;
+            vid.onloadedmetadata = () => {
+              if (vid.videoWidth > 0 && vid.videoHeight > 0) {
+                setVideoAspect(vid.videoWidth / vid.videoHeight);
+              }
+            };
             void vid.play().catch(() => {});
             startDetectionLoop();
           }
@@ -705,8 +739,15 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
         setErrorMsg(msg);
       }
     },
-    [initFaceDetector, startDetectionLoop, stopCameraTracks],
+    [facingMode, initFaceDetector, startDetectionLoop, stopCameraTracks],
   );
+
+  const handleToggleFacing = () => {
+    const nextFacing = facingMode === 'user' ? 'environment' : 'user';
+    setFacingMode(nextFacing);
+    setMirrored(nextFacing === 'user');
+    void startCamera({ facing: nextFacing });
+  };
 
   const handleBeginScan = () => {
     void unlockGameAudio();
@@ -871,17 +912,20 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
         </div>
       ) : (
         /* Live Camera Stage */
-        <div className="w-full max-w-6xl flex flex-col gap-3">
-          <div className="relative w-full rounded-3xl overflow-hidden border-2 border-cyan-400/40 bg-slate-950 shadow-[0_20px_60px_rgba(0,0,0,0.55)] aspect-[16/9]">
+        <div className="w-full max-w-6xl flex flex-col items-center gap-3">
+          <div
+            className="relative max-w-full max-h-[72dvh] rounded-3xl overflow-hidden border-2 border-cyan-400/40 bg-slate-950 shadow-[0_20px_60px_rgba(0,0,0,0.55)]"
+            style={{ aspectRatio: String(videoAspect), width: videoAspect < 1 ? 'auto' : '100%' }}
+          >
             <video
               ref={videoRef}
               playsInline
               muted
-              className={`w-full h-full object-cover ${mirrored ? '-scale-x-100' : ''}`}
+              className={`w-full h-full object-contain ${mirrored ? '-scale-x-100' : ''}`}
             />
             <canvas
               ref={overlayCanvasRef}
-              className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+              className="absolute inset-0 w-full h-full object-contain pointer-events-none"
             />
 
             {/* Top HUD Pills */}
@@ -919,7 +963,7 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
           </div>
 
           {/* Live Control Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-2.5 bg-slate-900/75 border border-white/15 backdrop-blur-md rounded-2xl p-3 text-white">
+          <div className="w-full flex flex-wrap items-center justify-between gap-2.5 bg-slate-900/75 border border-white/15 backdrop-blur-md rounded-2xl p-3 text-white">
             <div className="flex flex-wrap items-center gap-2">
               <div className="flex rounded-xl bg-black/35 p-1 border border-white/10">
                 <button
@@ -963,13 +1007,24 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
                 />
               </div>
 
+              <button
+                type="button"
+                disabled={scanning}
+                onClick={handleToggleFacing}
+                className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/20 border border-white/15 text-xs font-bold flex items-center gap-1"
+                title="Đổi nhanh giữa Camera trước và Camera sau (điện thoại)"
+              >
+                <SwitchCamera className="w-3.5 h-3.5" />
+                {facingMode === 'user' ? 'Cam sau' : 'Cam trước'}
+              </button>
+
               {devices.length > 1 && (
                 <select
                   value={selectedDeviceId}
                   disabled={scanning}
-                  onChange={(e) => void startCamera(e.target.value)}
+                  onChange={(e) => void startCamera({ deviceId: e.target.value })}
                   className="px-2.5 py-1.5 rounded-xl bg-white/10 border border-white/15 text-xs font-bold text-white max-w-[170px]"
-                  title="Đổi thiết bị Camera"
+                  title="Đổi thiết bị Camera (Webcam USB / Camera ngoài)"
                 >
                   {devices.map((d, idx) => (
                     <option key={d.deviceId} value={d.deviceId} className="text-slate-900">
