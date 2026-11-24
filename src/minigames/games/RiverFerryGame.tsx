@@ -936,26 +936,7 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
       // LAYER 1: Full 3-slice wooden boat (interior floor, benches, back rim, prow & stern)
       drawBoat3Slice(ctx, assets.boat, boatW, boatH, bayRepeats);
 
-      // LAYER 2A: Teacher standing FIRMLY on the stern wooden deck (feet planted at y = -boatH * 0.08)
-      const isRowing = sim.phase === 'DEPART' || sim.phase === 'STORM' || sim.phase === 'ARRIVING';
-      const rowAngle = isRowing ? Math.sin(tSec * (sim.phase === 'STORM' ? 7.5 : 4.8)) * 0.11 : 0;
-      const walkBob =
-        sim.phase === 'DISEMBARK' && sim.teacherWalkX > teacherSternX + 5
-          ? Math.abs(Math.sin(tSec * 9)) * -5
-          : 0;
-
-      const tH = Math.min(205, boatH * 0.98);
-      const tW = (assets.teacher.width / assets.teacher.height) * tH;
-      // Plant feet right onto the flat wooden deck inside the stern
-      const teacherFeetY = -boatH * 0.07 + walkBob;
-
-      ctx.save();
-      ctx.translate(sim.teacherWalkX, teacherFeetY);
-      ctx.rotate(rowAngle);
-      ctx.drawImage(assets.teacher, -tW / 2, -tH, tW, tH);
-      ctx.restore();
-
-      // LAYER 2B: Seated Students tucked INSIDE the wooden bench compartments (sorted back-to-front)
+      // LAYER 2: Seated Students tucked INSIDE the wooden bench compartments (sorted back-to-front)
       interface TagOverlay {
         x: number;
         y: number;
@@ -1029,59 +1010,47 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
         });
       }
 
-      // LAYER 3: Front Wooden Gunwale & Lower Hull Overlay (tucks ONLY lower laps & teacher's shoes inside boat)
+      // LAYER 3: Front Wooden Gunwale & Lower Hull Overlay (tucks ONLY students' lower laps inside boat)
       ctx.save();
       clipFrontHull(ctx, boatW, boatH);
       drawBoat3Slice(ctx, assets.boat, boatW, boatH, bayRepeats);
       ctx.restore();
 
-      // LAYER 3B: Extended Wooden Oar Blade aligned seamlessly with teacher-row.png's oar shaft & dipping INTO water!
-      if (sim.teacherWalkX <= teacherSternX + 18) {
-        const oarSwing = isRowing ? Math.sin(tSec * (sim.phase === 'STORM' ? 7.5 : 4.8)) : 0;
-        // Exact continuation from the bottom-left paddle end of teacher-row.png
-        const oarPivotX = sim.teacherWalkX - tW * 0.42;
-        const oarPivotY = teacherFeetY - tH * 0.10;
-        const oarEndX = oarPivotX - 72 + oarSwing * 18;
-        const oarEndY = boatH * 0.48 + Math.abs(oarSwing) * 5;
+      // LAYER 3B: Leaning-forward Rowing Teacher standing on the stern deck with her full watercolor wooden oar
+      // Rendered above the front hull so her continuous long wooden oar naturally passes OVER the stern rail into the river!
+      const isRowing = sim.phase === 'DEPART' || sim.phase === 'STORM' || sim.phase === 'ARRIVING';
+      const rowPhase = isRowing ? Math.sin(tSec * (sim.phase === 'STORM' ? 7.5 : 4.8)) : 0;
+      const walkBob =
+        sim.phase === 'DISEMBARK' && sim.teacherWalkX > teacherSternX + 5
+          ? Math.abs(Math.sin(tSec * 9)) * -5
+          : 0;
 
+      const tH = Math.min(265, boatH * 1.32);
+      const tW = (assets.teacher.width / assets.teacher.height) * tH;
+      // Plant shoes firmly on the stern wooden deck while letting the long oar dip cleanly into the water
+      const teacherFeetY = boatH * 0.04 + walkBob;
+      const isAtStern = sim.teacherWalkX <= teacherSternX + 18;
+      // Subtle rhythmic forward/back rowing sway keeping her natural leaning-forward stance intact
+      const teacherLean = isAtStern ? -0.05 + rowPhase * 0.09 : 0;
+
+      ctx.save();
+      ctx.translate(sim.teacherWalkX, teacherFeetY);
+      ctx.rotate(teacherLean);
+      // Offset so her shoes sit directly at (0, 0) while the long oar extends downward-left into the river
+      ctx.drawImage(assets.teacher, -tW * 0.58, -tH * 0.90, tW, tH);
+      ctx.restore();
+
+      // Animated water splash rings right where the watercolor oar blade dips into the river
+      if (isAtStern) {
+        const oarTipX = sim.teacherWalkX - tW * 0.54 + rowPhase * 12;
+        const oarTipY = teacherFeetY + tH * 0.14;
         ctx.save();
-        // Wooden shaft continuing seamlessly from teacher's oar handle
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = '#4a2c15';
-        ctx.lineWidth = 8.5;
-        ctx.beginPath();
-        ctx.moveTo(oarPivotX, oarPivotY);
-        ctx.lineTo(oarEndX, oarEndY);
-        ctx.stroke();
-
-        ctx.strokeStyle = '#9a6332';
-        ctx.lineWidth = 4.5;
-        ctx.beginPath();
-        ctx.moveTo(oarPivotX, oarPivotY);
-        ctx.lineTo(oarEndX, oarEndY);
-        ctx.stroke();
-
-        // Watercolor wooden paddle blade dipping into the river
-        const angle = Math.atan2(oarEndY - oarPivotY, oarEndX - oarPivotX);
-        ctx.translate(oarEndX, oarEndY);
-        ctx.rotate(angle);
-        ctx.beginPath();
-        ctx.ellipse(-6, 0, 26, 9, 0, 0, Math.PI * 2);
-        ctx.fillStyle = '#a46b38';
-        ctx.fill();
-        ctx.lineWidth = 2.2;
-        ctx.strokeStyle = '#4a2c15';
-        ctx.stroke();
-        ctx.restore();
-
-        // Animated water splash rings right where the oar blade enters the water
-        ctx.save();
-        const rippleR = 14 + ((tSec * (isRowing ? 32 : 10)) % 22);
-        const rippleAlpha = Math.max(0, 1 - (rippleR - 14) / 22) * (isRowing ? 0.8 : 0.42);
+        const rippleR = 14 + ((tSec * (isRowing ? 34 : 10)) % 24);
+        const rippleAlpha = Math.max(0, 1 - (rippleR - 14) / 24) * (isRowing ? 0.85 : 0.42);
         ctx.strokeStyle = `rgba(255, 255, 255, ${rippleAlpha})`;
         ctx.lineWidth = 2.5;
         ctx.beginPath();
-        ctx.ellipse(oarEndX - 4, boatH * 0.48, rippleR, rippleR * 0.34, 0, 0, Math.PI * 2);
+        ctx.ellipse(oarTipX, oarTipY, rippleR, rippleR * 0.34, 0, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       }
