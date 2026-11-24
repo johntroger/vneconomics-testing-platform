@@ -321,9 +321,10 @@ function clipFrontHull(ctx: CanvasRenderingContext2D, boatW: number, boatH: numb
   const botY = boatH / 2;
 
   ctx.beginPath();
-  // Follow the lower exterior front rim of boat.png so ONLY students' hips/laps tuck behind the wood,
-  // while their full faces, white shirts, red neckerchiefs, and BOTH waving/sleeping arms stay 100% visible!
-  ctx.moveTo(-halfW, topY + boatH * 0.44);
+  // Left stern rim sits slightly higher (0.34) so BOTH of the teacher's shoes & lower trousers stay hidden inside the stern hull,
+  // while the middle rim dips to 0.58 so students' full upper bodies & waving arms remain 100% visible!
+  ctx.moveTo(-halfW, topY + boatH * 0.32);
+  ctx.lineTo(-halfW * 0.64, topY + boatH * 0.42);
   ctx.quadraticCurveTo(0, topY + boatH * 0.58, halfW * 0.94, topY + boatH * 0.42);
   ctx.lineTo(halfW, topY + boatH * 0.34);
   ctx.lineTo(halfW, botY + 8);
@@ -936,7 +937,30 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
       // LAYER 1: Full 3-slice wooden boat (interior floor, benches, back rim, prow & stern)
       drawBoat3Slice(ctx, assets.boat, boatW, boatH, bayRepeats);
 
-      // LAYER 2: Seated Students tucked INSIDE the wooden bench compartments (sorted back-to-front)
+      // LAYER 2A: Leaning-forward Rowing Teacher standing INSIDE the stern wooden deck (behind front gunwale & lifebuoy!)
+      const isRowing = sim.phase === 'DEPART' || sim.phase === 'STORM' || sim.phase === 'ARRIVING';
+      const rowPhase = isRowing ? Math.sin(tSec * (sim.phase === 'STORM' ? 7.5 : 4.8)) : 0;
+      const walkBob =
+        sim.phase === 'DISEMBARK' && sim.teacherWalkX > teacherSternX + 5
+          ? Math.abs(Math.sin(tSec * 9)) * -5
+          : 0;
+
+      const tH = Math.min(255, boatH * 1.28);
+      const tW = (assets.teacher.width / assets.teacher.height) * tH;
+      // Plant BOTH shoes deeply INSIDE the stern wooden deck behind the gunwale & lifebuoy
+      const teacherDrawX = sim.teacherWalkX + 36;
+      const teacherFeetY = boatH * 0.02 + walkBob;
+      const isAtStern = sim.teacherWalkX <= teacherSternX + 18;
+      // Slight downward rowing tilt when at stern so the wooden oar dips right into the river water
+      const teacherLean = isAtStern ? -0.11 + rowPhase * 0.09 : 0;
+
+      ctx.save();
+      ctx.translate(teacherDrawX, teacherFeetY);
+      ctx.rotate(teacherLean);
+      ctx.drawImage(assets.teacher, -tW * 0.58, -tH * 0.90, tW, tH);
+      ctx.restore();
+
+      // LAYER 2B: Seated Students tucked INSIDE the wooden bench compartments (sorted back-to-front)
       interface TagOverlay {
         x: number;
         y: number;
@@ -1010,40 +1034,34 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
         });
       }
 
-      // LAYER 3: Front Wooden Gunwale & Lower Hull Overlay (tucks ONLY students' lower laps inside boat)
+      // LAYER 3: Front Wooden Gunwale, Golden Lotus & Lifebuoy Overlay
+      // Drawn ABOVE teacher's shoes & students' laps so BOTH teacher and students stand/sit firmly INSIDE the boat!
       ctx.save();
       clipFrontHull(ctx, boatW, boatH);
       drawBoat3Slice(ctx, assets.boat, boatW, boatH, bayRepeats);
       ctx.restore();
 
-      // LAYER 3B: Leaning-forward Rowing Teacher standing on the stern deck with her full watercolor wooden oar
-      // Rendered above the front hull so her continuous long wooden oar naturally passes OVER the stern rail into the river!
-      const isRowing = sim.phase === 'DEPART' || sim.phase === 'STORM' || sim.phase === 'ARRIVING';
-      const rowPhase = isRowing ? Math.sin(tSec * (sim.phase === 'STORM' ? 7.5 : 4.8)) : 0;
-      const walkBob =
-        sim.phase === 'DISEMBARK' && sim.teacherWalkX > teacherSternX + 5
-          ? Math.abs(Math.sin(tSec * 9)) * -5
-          : 0;
-
-      const tH = Math.min(265, boatH * 1.32);
-      const tW = (assets.teacher.width / assets.teacher.height) * tH;
-      // Plant shoes firmly on the stern wooden deck while letting the long oar dip cleanly into the water
-      const teacherFeetY = boatH * 0.04 + walkBob;
-      const isAtStern = sim.teacherWalkX <= teacherSternX + 18;
-      // Subtle rhythmic forward/back rowing sway keeping her natural leaning-forward stance intact
-      const teacherLean = isAtStern ? -0.05 + rowPhase * 0.09 : 0;
-
-      ctx.save();
-      ctx.translate(sim.teacherWalkX, teacherFeetY);
-      ctx.rotate(teacherLean);
-      // Offset so her shoes sit directly at (0, 0) while the long oar extends downward-left into the river
-      ctx.drawImage(assets.teacher, -tW * 0.58, -tH * 0.90, tW, tH);
-      ctx.restore();
-
-      // Animated water splash rings right where the watercolor oar blade dips into the river
+      // LAYER 3B: Re-draw ONLY the lower-left wooden oar blade/shaft slice of teacher-row.png OVER the stern rail
+      // so the oar passes naturally outside the left hull into the river while her feet remain hidden inside the boat!
       if (isAtStern) {
-        const oarTipX = sim.teacherWalkX - tW * 0.54 + rowPhase * 12;
-        const oarTipY = teacherFeetY + tH * 0.14;
+        ctx.save();
+        ctx.translate(teacherDrawX, teacherFeetY);
+        ctx.rotate(teacherLean);
+        // Tight diagonal polygon around ONLY the lower-left wooden paddle & shaft (from x=-0.58*tW..-0.18*tW)
+        ctx.beginPath();
+        ctx.moveTo(-tW * 0.62, -tH * 0.20);
+        ctx.lineTo(-tW * 0.14, -tH * 0.42);
+        ctx.lineTo(-tW * 0.14, -tH * 0.25);
+        ctx.lineTo(-tW * 0.50, tH * 0.16);
+        ctx.lineTo(-tW * 0.65, tH * 0.16);
+        ctx.closePath();
+        ctx.clip();
+        ctx.drawImage(assets.teacher, -tW * 0.58, -tH * 0.90, tW, tH);
+        ctx.restore();
+
+        // Animated water splash rings right where the watercolor oar blade dips into the river
+        const oarTipX = teacherDrawX - tW * 0.54 + rowPhase * 12;
+        const oarTipY = teacherFeetY + tH * 0.16;
         ctx.save();
         const rippleR = 14 + ((tSec * (isRowing ? 34 : 10)) % 24);
         const rippleAlpha = Math.max(0, 1 - (rippleR - 14) / 24) * (isRowing ? 0.85 : 0.42);
