@@ -96,12 +96,15 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
   // Refs for real-time video + AI loop
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const overlayCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const tileCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const detectorRef = useRef<FaceDetector | null>(null);
   const rafRef = useRef<number | null>(null);
   const confettiTimerRef = useRef<number | null>(null);
   const lastDetectMsRef = useRef<number>(0);
+  const lastMediaPipeTsRef = useRef<number>(0);
   const lastVideoTimeRef = useRef<number>(-1);
+  const lastAspectRef = useRef<number>(16 / 9);
   const lastFaceCountRef = useRef<number>(0);
   const lastCountdownRef = useRef<number>(-1);
   const nextFaceIdRef = useRef<number>(1);
@@ -189,8 +192,8 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
           delegate: 'GPU',
         },
         runningMode: 'VIDEO',
-        minDetectionConfidence: 0.28,
-        minSuppressionThreshold: 0.25,
+        minDetectionConfidence: 0.3,
+        minSuppressionThreshold: 0.3,
       });
       detectorRef.current = gpuDetector;
       setAiReady(true);
@@ -202,8 +205,8 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
           delegate: 'CPU',
         },
         runningMode: 'VIDEO',
-        minDetectionConfidence: 0.28,
-        minSuppressionThreshold: 0.25,
+        minDetectionConfidence: 0.3,
+        minSuppressionThreshold: 0.3,
       });
       detectorRef.current = cpuDetector;
       setAiReady(true);
@@ -371,33 +374,148 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
           canvas.width = vw;
           canvas.height = vh;
         }
+        const realAspect = vw / vh;
+        if (Math.abs(realAspect - lastAspectRef.current) > 0.02) {
+          lastAspectRef.current = realAspect;
+          setVideoAspect(realAspect);
+        }
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          // 1. Run MediaPipe FaceDetector at ~24fps only on fresh video frames
+          // 1. Multi-Scale Tiled MediaPipe FaceDetector (~16fps): Full frame + 3 zoomed 2x classroom tiles
+          //    This overcomes BlazeFace short-range 128x128 downscaling so back-row/distant faces are caught!
           if (
             detector &&
-            now - lastDetectMsRef.current >= 40 &&
+            now - lastDetectMsRef.current >= 60 &&
             video.currentTime !== lastVideoTimeRef.current
           ) {
             lastDetectMsRef.current = now;
             lastVideoTimeRef.current = video.currentTime;
             try {
-              const res = detector.detectForVideo(video, now);
-              const rawBoxes = (res.detections ?? [])
-                .map((d) => d.boundingBox)
-                .filter((b): b is NonNullable<typeof b> => Boolean(b && b.width > 10 && b.height > 10))
-                .map((b) => {
-                  const nx = b.originX / vw;
-                  const ny = b.originY / vh;
-                  const nw = b.width / vw;
-                  const nh = b.height / vh;
-                  return {
-                    x: mirroredRef.current ? Math.max(0, 1 - (nx + nw)) : nx,
-                    y: ny,
+              type RawDet = { x: number; y: number; w: number; h: number; score: number };
+              const collected: RawDet[] = [];
+
+              const collectFromDetections = (
+                detections: ReturnType<FaceDetector['detectForVideo']>['detections'],
+                srcW: number,
+                srcH: number,
+                roiX: number,
+                roiY: number,
+                roiW: number,
+                roiH: number,
+                minScore: number,
+                maxRawW = 0.65,
+              ) => {
+                for (const d of detections ?? []) {
+                  const score = d.categories?.[0]?.score ?? 1;
+                  const b = d.boundingBox;
+                  if (!b || score < minScore) continue;
+                  const ratio = b.width / Math.max(1, b.height);
+                  if (ratio < 0.58 || ratio > 1.75) continue;
+
+                  // Map back to full-frame normalized coordinates
+                  const rawNx = roiX + (b.originX / srcW) * roiW;
+                  const rawNy = roiY + (b.originY / srcH) * roiH;
+                  const rawNw = (b.width / srcW) * roiW;
+                  const rawNh = (b.height / srcH) * roiH;
+                  if (rawNw < 0.025 || rawNh < 0.035 || rawNw > maxRawW) continue;
+
+                  // Expand tight BlazeFace eyes-to-chin box to frame full head (forehead + chin)
+                  const padX = rawNw * 0.08;
+                  const padTop = rawNh * 0.22;
+                  const padBot = rawNh * 0.08;
+
+                  const x1 = Math.max(0, rawNx - padX);
+                  const y1 = Math.max(0, rawNy - padTop);
+                  const x2 = Math.min(1, rawNx + rawNw + padX);
+                  const y2 = Math.min(1, rawNy + rawNh + padBot);
+                  const nw = Math.max(0.02, x2 - x1);
+                  const nh = Math.max(0.02, y2 - y1);
+
+                  collected.push({
+                    x: mirroredRef.current ? Math.max(0, 1 - (x1 + nw)) : x1,
+                    y: y1,
                     w: nw,
                     h: nh,
-                  };
-                });
+                    score,
+                  });
+                }
+              };
+
+              // Pass A: Full frame (catches close & mid-range faces)
+              const tsFull = Math.max(Math.floor(now), lastMediaPipeTsRef.current + 1);
+              lastMediaPipeTsRef.current = tsFull;
+              const fullRes = detector.detectForVideo(video, tsFull);
+              collectFromDetections(fullRes.detections, vw, vh, 0, 0, 1, 1, 0.45, 0.65);
+
+              // Pass B: 3 overlapping ~2.5x zoomed tiles across classroom depth band (ONLY keeps small/distant faces!)
+              if (!tileCanvasRef.current) {
+                tileCanvasRef.current = document.createElement('canvas');
+                tileCanvasRef.current.width = 320;
+                tileCanvasRef.current.height = 240;
+              }
+              const tCanvas = tileCanvasRef.current;
+              const tCtx = tCanvas.getContext('2d');
+              if (tCtx) {
+                const tiles = [
+                  { rx: 0.02, ry: 0.16, rw: 0.4, rh: 0.6 },
+                  { rx: 0.3, ry: 0.16, rw: 0.4, rh: 0.6 },
+                  { rx: 0.58, ry: 0.16, rw: 0.4, rh: 0.6 },
+                ];
+                for (const tile of tiles) {
+                  tCtx.drawImage(
+                    video,
+                    tile.rx * vw,
+                    tile.ry * vh,
+                    tile.rw * vw,
+                    tile.rh * vh,
+                    0,
+                    0,
+                    tCanvas.width,
+                    tCanvas.height,
+                  );
+                  const tsTile = lastMediaPipeTsRef.current + 1;
+                  lastMediaPipeTsRef.current = tsTile;
+                  const tileRes = detector.detectForVideo(tCanvas, tsTile);
+                  collectFromDetections(
+                    tileRes.detections,
+                    tCanvas.width,
+                    tCanvas.height,
+                    tile.rx,
+                    tile.ry,
+                    tile.rw,
+                    tile.rh,
+                    0.38,
+                    0.15,
+                  );
+                }
+              }
+
+              // IoU Non-Maximum Suppression to merge overlapping full-frame + tile hits cleanly
+              collected.sort((a, b) => b.score - a.score);
+              const rawBoxes: Array<{ x: number; y: number; w: number; h: number }> = [];
+              for (const cand of collected) {
+                let duplicate = false;
+                for (const kept of rawBoxes) {
+                  const ix1 = Math.max(cand.x, kept.x);
+                  const iy1 = Math.max(cand.y, kept.y);
+                  const ix2 = Math.min(cand.x + cand.w, kept.x + kept.w);
+                  const iy2 = Math.min(cand.y + cand.h, kept.y + kept.h);
+                  const inter = Math.max(0, ix2 - ix1) * Math.max(0, iy2 - iy1);
+                  const union = cand.w * cand.h + kept.w * kept.h - inter;
+                  const iou = union > 0 ? inter / union : 0;
+                  const dist = Math.hypot(
+                    cand.x + cand.w / 2 - (kept.x + kept.w / 2),
+                    cand.y + cand.h / 2 - (kept.y + kept.h / 2),
+                  );
+                  if (iou > 0.32 || dist < Math.min(cand.w, kept.w) * 0.55) {
+                    duplicate = true;
+                    break;
+                  }
+                }
+                if (!duplicate) {
+                  rawBoxes.push({ x: cand.x, y: cand.y, w: cand.w, h: cand.h });
+                }
+              }
 
               // Responsive proximity smoothing so boxes stay glued when panning camera
               const prev = trackedFacesRef.current;
@@ -514,16 +632,17 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
           }
 
           // Base subtle cyan frames on all detected faces
-          faces.forEach((f) => {
+          faces.forEach((f, idx) => {
             drawCornerBox(
               ctx,
               f.x * vw,
               f.y * vh,
               f.w * vw,
               f.h * vh,
-              'rgba(56, 189, 248, 0.72)',
+              'rgba(56, 189, 248, 0.78)',
               2.5,
               false,
+              !scan.active ? `#${idx + 1}` : undefined,
             );
           });
 
