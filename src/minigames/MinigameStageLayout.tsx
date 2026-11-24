@@ -400,7 +400,7 @@ export const MinigameStageLayout: React.FC = () => {
           />
           <div className="relative z-10 bg-gradient-to-b from-slate-900 to-indigo-950 border-2 border-amber-400/70 text-white rounded-3xl max-w-2xl w-full max-h-[90dvh] overflow-y-auto p-6 sm:p-8 text-center shadow-[0_0_60px_rgba(251,191,36,0.3)] space-y-5">
             <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">
-              🎉 Xin chúc mừng sinh viên được chọn!
+              🎉 Xin chúc mừng bạn được chọn!
             </div>
 
             <div className="flex justify-center">
