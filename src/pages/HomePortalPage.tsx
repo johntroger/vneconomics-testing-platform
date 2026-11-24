@@ -345,9 +345,9 @@ export const HomePortalPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-surface-100 to-slate-100 flex flex-col">
-      {/* Top Header aligned to content container */}
-      <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-3 sm:px-6 pt-[max(0.875rem,env(safe-area-inset-top))] sm:pt-[max(1.25rem,env(safe-area-inset-top))] pb-3 sm:pb-4">
-        <div className="max-w-5xl mx-auto w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3">
+      {/* Top Header spanning full viewport width */}
+      <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-3 sm:px-6 lg:px-8 pt-[max(0.875rem,env(safe-area-inset-top))] sm:pt-[max(1rem,env(safe-area-inset-top))] pb-3 sm:pb-3.5">
+        <div className="w-full flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3">
           <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center p-1 shadow-sm shrink-0 overflow-hidden">
               <img src="/logo.png" alt="VNEconomics Logo" className="w-full h-full object-contain" />
@@ -404,9 +404,9 @@ export const HomePortalPage: React.FC = () => {
         </div>
       </header>
 
-      <main className="flex-1 flex flex-col justify-center px-3 sm:px-6 pt-5 sm:pt-8 pb-[max(2rem,env(safe-area-inset-bottom))]">
-        <div className="max-w-5xl mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-          <div className="lg:col-span-7 order-1 space-y-4">
+      <main className="flex-1 flex flex-col justify-start lg:justify-center px-3 sm:px-6 lg:px-8 pt-4 sm:pt-6 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        <div className="w-full grid grid-cols-1 lg:grid-cols-12 gap-5 lg:gap-6 items-start">
+          <div className="lg:col-span-6 order-1 space-y-4">
 
           {/* Zalo/Messenger In-App Browser Guard */}
           {isInAppWebView && !bypassWebViewNotice && (
@@ -778,8 +778,8 @@ export const HomePortalPage: React.FC = () => {
           </div>
           </div>
 
-          {/* Right Column: Collapsible Demo Sandbox + VNResearch Dictionary Promo */}
-          <div className="lg:col-span-5 order-2 space-y-4">
+          {/* Right Column: Collapsible Demo Sandbox + Ecosystem Promo Cards */}
+          <div className="lg:col-span-6 order-2 space-y-4">
           <div className="bg-gradient-to-br from-brand-50 via-white to-support-50 rounded-2xl border border-brand-200/90 shadow-sm p-4 sm:p-5 space-y-3">
             <button
               type="button"
@@ -808,7 +808,7 @@ export const HomePortalPage: React.FC = () => {
             </button>
 
             {showDemoSandbox && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3 pt-1">
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3 pt-1">
                 {/* Student Demo Card */}
                 <div className="bg-white/95 rounded-xl border border-brand-200/80 p-3.5 flex flex-col justify-between gap-2.5 shadow-2xs">
                   <div>
@@ -883,9 +883,10 @@ export const HomePortalPage: React.FC = () => {
             )}
           </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* VNResearch Dictionary Promo Card for Lecturers */}
-          <div className="bg-gradient-to-br from-indigo-50/90 via-white to-violet-50/80 rounded-2xl border border-indigo-200/90 shadow-sm p-4 sm:p-5 space-y-3">
-            <div className="flex items-start justify-between gap-2">
+          <div className="bg-gradient-to-br from-indigo-50/90 via-white to-violet-50/80 rounded-2xl border border-indigo-200/90 shadow-sm p-4 sm:p-5 flex flex-col justify-between gap-3">
+            <div className="space-y-2.5">
               <div>
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-indigo-700 bg-indigo-100/80 px-2.5 py-0.5 rounded-full">
                   <BookOpen className="w-3 h-3" /> Hệ sinh thái Giảng viên &amp; Nghiên cứu
@@ -894,10 +895,10 @@ export const HomePortalPage: React.FC = () => {
                   Từ điển Thuật ngữ Phương pháp Nghiên cứu Khoa học
                 </h2>
               </div>
+              <p className="text-xs text-ink-600 leading-relaxed">
+                Tra cứu thuật ngữ nghiên cứu Anh – Việt chuẩn Q1, công thức toán học, ngưỡng kiểm định thực nghiệm, cảnh báo bẫy phương pháp và xuất trích dẫn APA 7th / BibTeX.
+              </p>
             </div>
-            <p className="text-xs text-ink-600 leading-relaxed">
-              Tra cứu thuật ngữ nghiên cứu Anh – Việt chuẩn Q1, công thức toán học, ngưỡng kiểm định thực nghiệm, cảnh báo bẫy phương pháp và xuất trích dẫn APA 7th / BibTeX.
-            </p>
             <a
               href="https://vnresearch-dictionary.vercel.app/home"
               target="_blank"
@@ -910,8 +911,8 @@ export const HomePortalPage: React.FC = () => {
           </div>
 
           {/* IELTS Practice Vietnamese Promo Card */}
-          <div className="bg-gradient-to-br from-emerald-50/90 via-white to-teal-50/80 rounded-2xl border border-emerald-200/90 shadow-sm p-4 sm:p-5 space-y-3">
-            <div className="flex items-start justify-between gap-2">
+          <div className="bg-gradient-to-br from-emerald-50/90 via-white to-teal-50/80 rounded-2xl border border-emerald-200/90 shadow-sm p-4 sm:p-5 flex flex-col justify-between gap-3">
+            <div className="space-y-2.5">
               <div>
                 <span className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-emerald-700 bg-emerald-100/80 px-2.5 py-0.5 rounded-full">
                   <Sparkles className="w-3 h-3" /> Luyện thi IELTS &amp; AI Engine
@@ -920,10 +921,10 @@ export const HomePortalPage: React.FC = () => {
                   IELTS Practice Vietnamese — Luyện thi IELTS &amp; Multi-Model AI
                 </h2>
               </div>
+              <p className="text-xs text-ink-600 leading-relaxed">
+                Nền tảng luyện tập IELTS chuyên sâu cho người Việt với không gian thực hành trực tiếp và công cụ hỗ trợ đa mô hình AI.
+              </p>
             </div>
-            <p className="text-xs text-ink-600 leading-relaxed">
-              Nền tảng luyện tập IELTS chuyên sâu cho người Việt với không gian thực hành trực tiếp và công cụ hỗ trợ đa mô hình AI.
-            </p>
             <a
               href="https://ielts-practice-vietnamese.vercel.app/about"
               target="_blank"
@@ -933,6 +934,7 @@ export const HomePortalPage: React.FC = () => {
               <span>Truy cập IELTS Practice Vietnamese</span>
               <ExternalLink className="w-3.5 h-3.5 shrink-0" />
             </a>
+          </div>
           </div>
           </div>
         </div>
