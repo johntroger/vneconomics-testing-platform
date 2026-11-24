@@ -41,6 +41,7 @@ const DogChaseGame = lazy(() => import('./games/DogChaseGame'));
 const MangoHarvestGame = lazy(() => import('./games/MangoHarvestGame'));
 const DragonSnakeGame = lazy(() => import('./games/DragonSnakeGame'));
 const LuckyStarGame = lazy(() => import('./games/LuckyStarGame'));
+const WhoIsThatGame = lazy(() => import('./games/WhoIsThatGame'));
 const LuckyLensGame = lazy(() => import('./games/LuckyLensGame'));
 
 export const MINIGAME_REGISTRY: MinigamePlugin[] = [
@@ -493,6 +494,17 @@ export const MINIGAME_REGISTRY: MinigamePlugin[] = [
     icon: '⭐',
     ready: true,
     component: LuckyStarGame,
+  },
+  {
+    id: 'nguoi-ay-la-ai',
+    name: 'Người Ấy Là Ai?',
+    category: 'VIETNAM',
+    description: 'Sân khấu rèm đỏ nhạc cao trào bật tung ảnh học sinh bí ẩn — ảnh chỉ lưu tạm trên RAM, tải lại trang tự xóa.',
+    badge: 'Game Việt',
+    gradient: 'from-red-600 via-amber-500 to-yellow-400',
+    icon: '🎭',
+    ready: true,
+    component: WhoIsThatGame,
   },
   // Nhóm 7: Camera AI
   {
