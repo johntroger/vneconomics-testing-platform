@@ -43,6 +43,7 @@ const DragonSnakeGame = lazy(() => import('./games/DragonSnakeGame'));
 const LuckyStarGame = lazy(() => import('./games/LuckyStarGame'));
 const WhoIsThatGame = lazy(() => import('./games/WhoIsThatGame'));
 const RiverFerryGame = lazy(() => import('./games/RiverFerryGame'));
+const ParachuteDropGame = lazy(() => import('./games/ParachuteDropGame'));
 const LuckyLensGame = lazy(() => import('./games/LuckyLensGame'));
 
 export const MINIGAME_REGISTRY: MinigamePlugin[] = [
@@ -517,6 +518,17 @@ export const MINIGAME_REGISTRY: MinigamePlugin[] = [
     icon: '🚣',
     ready: true,
     component: RiverFerryGame,
+  },
+  {
+    id: 'nhay-du-tra-bai',
+    name: 'Nhảy Dù Trả Bài',
+    category: 'VIETNAM',
+    description: 'Cả lớp bung dù lượn nhảy khỏi vách đá, né sét đánh đen thui & vịt trời — ai bay gần nhất lên bảng trả bài!',
+    badge: 'Game Việt',
+    gradient: 'from-orange-500 via-sky-500 to-emerald-500',
+    icon: '🪂',
+    ready: true,
+    component: ParachuteDropGame,
   },
   // Nhóm 7: Camera AI
   {
