@@ -45,6 +45,7 @@ const WhoIsThatGame = lazy(() => import('./games/WhoIsThatGame'));
 const RiverFerryGame = lazy(() => import('./games/RiverFerryGame'));
 const ParachuteDropGame = lazy(() => import('./games/ParachuteDropGame'));
 const MusicalChairsGame = lazy(() => import('./games/MusicalChairsGame'));
+const LastChairGame = lazy(() => import('./games/LastChairGame'));
 const LuckyLensGame = lazy(() => import('./games/LuckyLensGame'));
 
 export const MINIGAME_REGISTRY: MinigamePlugin[] = [
@@ -541,6 +542,17 @@ export const MINIGAME_REGISTRY: MinigamePlugin[] = [
     icon: '🪑',
     ready: true,
     component: MusicalChairsGame,
+  },
+  {
+    id: 'chiec-ghe-cuoi-cung',
+    name: 'Chiếc Ghế Cuối Cùng',
+    category: 'VIETNAM',
+    description: 'Phiên bản hoạt hình kịch tính có Chú Tư dừng giả, cảnh cắt lao tranh chiếc ghế cuối cùng và Plot Twist Bác Bảo Vệ / Mèo Mun cứu!',
+    badge: 'Hot',
+    gradient: 'from-orange-500 via-rose-500 to-violet-600',
+    icon: '🪑',
+    ready: true,
+    component: LastChairGame,
   },
   // Nhóm 7: Camera AI
   {
