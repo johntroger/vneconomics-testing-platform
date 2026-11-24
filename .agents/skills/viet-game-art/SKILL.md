@@ -12,14 +12,14 @@ description: >-
 
 # Thiết kế Đồ họa Game Học đường & Dân gian Việt Nam (`viet-game-art`)
 
-Skill này cấm tuyệt đối việc vẽ nhân vật và bối cảnh bằng các hàm hình học thô sơ trong code (`ctx.arc`, `ctx.fillRect` kiểu que diêm/ghép khối). Mọi trò chơi trong nhóm **Game Việt** phải sử dụng **asset minh họa 2D thực thụ** được sinh qua `image-generator`, tách nền sạch viền bằng script chuyên dụng, và diễn hoạt mượt trên `<canvas>` 60fps.
+Skill này cấm tuyệt đối việc vẽ nhân vật và bối cảnh bằng các hàm hình học thô sơ trong code (`ctx.arc`, `ctx.fillRect` kiểu que diêm/ghép khối). Mọi trò chơi trong nhóm **Game Việt** phải sử dụng **asset minh họa 2D thực thụ** được sinh trực tiếp qua **Gemini API** (dùng script `generate-gemini-image.mjs` đọc `GEMINI_API_KEY` trả phí từ `.env`, **không dùng** subagent `image-generator`), tách nền sạch viền bằng script chuyên dụng, và diễn hoạt mượt trên `<canvas>` 60fps.
 
 ---
 
 ## Bước 1: Tư vấn & Chốt Phong cách Mỹ thuật (BẮT BUỘC HỎI TRƯỚC KHI VẼ)
 
 Hệ thống hỗ trợ **3 phong cách mỹ thuật** để chuỗi Game Việt luôn tươi mới, không nhàm chán.
-**Quy tắc bắt buộc:** Trừ khi người dùng đã chỉ định rõ phong cách trong câu lệnh, trước khi gọi `image-generator`, bạn **PHẢI gợi ý phong cách hợp nhất với cơ chế game đó và hỏi người dùng chọn 1 trong 3 phong cách**:
+**Quy tắc bắt buộc:** Trừ khi người dùng đã chỉ định rõ phong cách trong câu lệnh, trước khi gọi script sinh ảnh Gemini, bạn **PHẢI gợi ý phong cách hợp nhất với cơ chế game đó và hỏi người dùng chọn 1 trong 3 phong cách**:
 
 | Mã phong cách | Tên hiển thị | Đặc trưng thị giác | Hợp nhất với loại game |
 | :--- | :--- | :--- | :--- |
@@ -46,15 +46,32 @@ Mỗi game chỉ tạo bộ file `.png` gọn nhẹ đặt tại `public/assets/
    - Ví dụ: Chú chó (`dog-bark.png`, `dog-run.png`, `dog-dance.png`), Cô giáo/Sao đỏ, Dây thừng kéo co, Khăn bịt mắt...
 
 > **Quy tắc bảo toàn Áo trắng Học sinh khi sinh Sprite:**
-> Học sinh Việt Nam mặc **áo sơ mi trắng** và có **tròng mắt trắng**. Khi gọi `image-generator` tạo sprite nhân vật:
+> Học sinh Việt Nam mặc **áo sơ mi trắng** và có **tròng mắt trắng**. Khi gọi `generate-gemini-image.mjs` tạo sprite nhân vật:
 > - **TUYỆT ĐỐI KHÔNG** dùng nền trắng (`#FFFFFF`).
 > - **LUÔN LUÔN** yêu cầu nền đơn sắc phẳng màu **Xanh lá studio (`solid flat #00D964 chroma green background`)** không đổ bóng xuống nền (hoặc bóng tách rời), và nhân vật có **viền ngoài khép kín rõ nét (`clean closed dark outline around the entire character`)** để thuật toán tách nền không bao giờ ăn lẹm vào áo trắng.
 
 ---
 
-## Bước 3: Sinh Ảnh & Tách nền Sạch viền Tự động
+## Bước 3: Sinh Ảnh bằng Gemini API & Tách nền Sạch viền Tự động
 
-1. Gọi subagent `image-generator` theo từng asset trong Manifest (kèm trọn vẹn tiền tố + hậu tố từ [style-catalog.md](./references/style-catalog.md)).
+1. **Sinh ảnh trực tiếp bằng `GEMINI_API_KEY` trong `.env`** (không dùng subagent `image-generator` nữa, không giới hạn quota 5 giờ):
+
+```powershell
+node ".agents/skills/viet-game-art/scripts/generate-gemini-image.mjs" `
+  --prompt "<Style Lock Prompt + mô tả nhân vật/bối cảnh>" `
+  --out "$env:TEMP\raw-asset.png" `
+  --aspect "1:1" `
+  --size "1K" `
+  --model "gemini-nano-banana-2.1"
+```
+
+- **Chọn model phù hợp:**
+  - `gemini-nano-banana-2.1` *(mặc định)*: Tốc độ nhanh, nét vẽ 2D sắc sảo, hỗ trợ truyền `--ref <ảnh-tham-chiếu>` (tối đa 14 ảnh) để sinh nhiều tư thế cùng 1 nhân vật giữ nguyên khuôn mặt & trang phục.
+  - `gemini-3-pro-image`: Chất lượng studio cao nhất — ưu tiên dùng cho **bối cảnh chính (`bg-*.jpg`)** hoặc **nhân vật/đạo cụ trung tâm** cầu kỳ (ví dụ: thuyền rồng, cổng làng, sân trường chi tiết).
+  - `gemini-3.1-flash-lite-image`: Siêu nhanh cho đạo cụ/icon nhỏ.
+- **Tỉ lệ & độ phân giải:** Sprite nhân vật dùng `--aspect 1:1 --size 1K`; ảnh nền cuộn ngang dùng `--aspect 16:9` hoặc `21:9` (`--size 2K` nếu cần chi tiết nét trên màn chiếu lớn).
+- **Chạy song song:** Có thể gọi nhiều lệnh sinh ảnh song song hoặc tuần tự nhanh, luôn xuất ảnh thô vào `$env:TEMP` rồi xử lý sang `public/assets/minigames/<game-slug>/` và xóa ngay ảnh thô sau khi xong.
+
 2. Với **mọi sprite nhân vật/đạo cụ**, chạy script tách nền C#/.NET tích hợp sẵn (không cần cài Python hay thư viện ngoài):
 
 ```powershell
