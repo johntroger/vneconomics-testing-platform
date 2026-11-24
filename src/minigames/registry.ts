@@ -42,6 +42,7 @@ const MangoHarvestGame = lazy(() => import('./games/MangoHarvestGame'));
 const DragonSnakeGame = lazy(() => import('./games/DragonSnakeGame'));
 const LuckyStarGame = lazy(() => import('./games/LuckyStarGame'));
 const WhoIsThatGame = lazy(() => import('./games/WhoIsThatGame'));
+const RiverFerryGame = lazy(() => import('./games/RiverFerryGame'));
 const LuckyLensGame = lazy(() => import('./games/LuckyLensGame'));
 
 export const MINIGAME_REGISTRY: MinigamePlugin[] = [
@@ -505,6 +506,17 @@ export const MINIGAME_REGISTRY: MinigamePlugin[] = [
     icon: '🎭',
     ready: true,
     component: WhoIsThatGame,
+  },
+  {
+    id: 'chuyen-do-vuot-song',
+    name: 'Chuyến Đò Vượt Sóng',
+    category: 'VIETNAM',
+    description: 'Cả lớp ngồi đò gỗ vượt sóng gió sấm chớp về bến trường làng — cập bến lộ diện ngay 1–5 bạn ngủ gục lên bảng!',
+    badge: 'Game Việt',
+    gradient: 'from-sky-500 via-teal-500 to-amber-500',
+    icon: '🚣',
+    ready: true,
+    component: RiverFerryGame,
   },
   // Nhóm 7: Camera AI
   {
