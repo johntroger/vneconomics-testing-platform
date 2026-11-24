@@ -10,56 +10,124 @@ import {
   unlockGameAudio,
 } from '../../utils/gameAudio';
 
+const LOGICAL_W = 1280;
+const LOGICAL_H = 640;
 const MAX_VISIBLE_CROWD = 22;
 
-// Note: keep all drawing self-contained in Canvas 2D for crisp 60fps crowd + parallax street
+const TOTAL_MS_BY_PACE: Record<PaceMode, number> = {
+  TURBO: 3300,
+  FAST: 9000,
+  NORMAL: 16800,
+  EPIC: 25500,
+};
+
+const ASSET_BASE = '/assets/minigames/cho-ruot/';
+const SPRITE_MANIFEST = {
+  bg: `${ASSET_BASE}bg-street.jpg`,
+  dogBark: `${ASSET_BASE}dog-bark.png`,
+  dogRun: `${ASSET_BASE}dog-run.png`,
+  boyIdle: `${ASSET_BASE}hs-nam-idle.png`,
+  boyRun: `${ASSET_BASE}hs-nam-run.png`,
+  girlIdle: `${ASSET_BASE}hs-nu-idle.png`,
+} as const;
+
+type SpriteKey = keyof typeof SPRITE_MANIFEST;
+type LoadedSprites = Record<SpriteKey, HTMLImageElement>;
+
 interface RunnerActor {
   student: RosterStudent;
+  isGirl: boolean;
   x: number;
   y: number;
-  baseY: number;
-  vx: number;
+  laneY: number;
+  laneScale: number;
+  heightVar: number;
   phaseOffset: number;
-  shirtColor: string;
-  hairColor: string;
-  skinColor: string;
   isWinner: boolean;
-  escapeAt: number; // progress [0..1] when non-winner escapes off-screen right
-  treeClimber: boolean;
+  escapeAt: number;
   escaped: boolean;
 }
 
-interface Particle {
+interface FxParticle {
   x: number;
   y: number;
   vx: number;
   vy: number;
+  rot: number;
+  vRot: number;
   life: number;
   maxLife: number;
-  kind: 'TEAR' | 'DUST' | 'SPARK';
+  kind: 'TEAR' | 'DUST' | 'PETAL' | 'NOTE';
   size: number;
   color: string;
+  glyph?: string;
 }
 
-const SHIRT_COLORS = [
-  '#38bdf8',
-  '#f472b6',
-  '#a78bfa',
-  '#34d399',
-  '#fbbf24',
-  '#fb7185',
-  '#60a5fa',
-  '#f97316',
-];
-const HAIR_COLORS = ['#1e293b', '#3f2e21', '#0f172a', '#451a03', '#27272a'];
-const SKIN_COLORS = ['#fde68a', '#fed7aa', '#fcd34d', '#ffedd5'];
+const FEMALE_TOKENS = new Set([
+  'thị',
+  'ngọc',
+  'thảo',
+  'hân',
+  'nhi',
+  'linh',
+  'trang',
+  'phương',
+  'mai',
+  'lan',
+  'hương',
+  'thư',
+  'vy',
+  'quỳnh',
+  'trâm',
+  'yến',
+  'châu',
+  'hà',
+  'my',
+  'tuệ',
+  'ngân',
+  'uyên',
+  'diễm',
+  'thúy',
+  'thu',
+  'hạnh',
+  'diệu',
+  'nhung',
+  'trinh',
+  'vân',
+  'ánh',
+  'xuân',
+]);
 
-const TOTAL_MS_BY_PACE: Record<PaceMode, number> = {
-  TURBO: 3200,
-  FAST: 9000,
-  NORMAL: 16500,
-  EPIC: 25000,
-};
+const MALE_TOKENS = new Set([
+  'văn',
+  'đức',
+  'minh',
+  'hoàng',
+  'tuấn',
+  'hùng',
+  'dũng',
+  'phát',
+  'khang',
+  'khoa',
+  'nam',
+  'long',
+  'đạt',
+  'hải',
+  'quân',
+  'kiệt',
+  'thịnh',
+  'phúc',
+  'khôi',
+  'huy',
+  'tài',
+  'nghĩa',
+  'trung',
+  'thành',
+  'tùng',
+  'sơn',
+  'cường',
+  'phong',
+]);
 
 function hashCode(str: string): number {
   let h = 0;
@@ -69,11 +137,32 @@ function hashCode(str: string): number {
   return Math.abs(h);
 }
 
+function inferIsFemale(student: RosterStudent, fallbackIdx: number): boolean {
+  const g = (student.gender ?? '').trim().toLowerCase();
+  if (g === 'f' || g === 'female' || g === 'nữ' || g === 'nu') return true;
+  if (g === 'm' || g === 'male' || g === 'nam') return false;
+
+  const tokens = student.name.trim().toLowerCase().split(/\s+/);
+  // Check given name (last token) first, then middle tokens
+  for (let i = tokens.length - 1; i >= 1; i--) {
+    if (FEMALE_TOKENS.has(tokens[i])) return true;
+    if (MALE_TOKENS.has(tokens[i])) return false;
+  }
+  return fallbackIdx % 2 === 1;
+}
+
 function shortDisplayName(fullName: string): string {
   const parts = fullName.trim().split(/\s+/);
   if (parts.length <= 2) return fullName.trim();
   return parts.slice(-2).join(' ');
 }
+
+const DEPTH_LANES = [
+  { y: 476, scale: 0.84 },
+  { y: 516, scale: 0.9 },
+  { y: 558, scale: 0.96 },
+  { y: 600, scale: 1.03 },
+] as const;
 
 export const DogChaseGame: React.FC<MinigameProps> = ({
   students,
@@ -84,66 +173,97 @@ export const DogChaseGame: React.FC<MinigameProps> = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const finishTimerRef = useRef<number | null>(null);
+  const spritesRef = useRef<LoadedSprites | null>(null);
 
+  const [assetsReady, setAssetsReady] = useState(false);
   const [running, setRunning] = useState(false);
-  const [statusText, setStatusText] = useState('Sẵn sàng trước cổng trường — Bấm để bắt đầu!');
+  const [statusText, setStatusText] = useState('Cả lớp đang tụ tập trước cổng trường — Sẵn sàng!');
 
-  // Store latest callbacks/props in refs for animation loop
   const mutedRef = useRef(muted);
   mutedRef.current = muted;
   const onPickRef = useRef(onPickStudent);
   onPickRef.current = onPickStudent;
 
   const actorsRef = useRef<RunnerActor[]>([]);
-  const particlesRef = useRef<Particle[]>([]);
+  const particlesRef = useRef<FxParticle[]>([]);
   const simRef = useRef<{
     active: boolean;
     startTime: number;
     durationMs: number;
     scrollX: number;
     barked: boolean;
-    fakeoutShown: number;
+    barkTime: number;
+    danceStarted: boolean;
     winner: RosterStudent | null;
     finished: boolean;
   }>({
     active: false,
     startTime: 0,
-    durationMs: 16500,
+    durationMs: 16800,
     scrollX: 0,
     barked: false,
-    fakeoutShown: 0,
+    barkTime: 0,
+    danceStarted: false,
     winner: null,
     finished: false,
   });
 
-  // Build idle preview crowd whenever students change and not running
+  // Preload 2D Chibi sprites & illustrated street backdrop once
+  useEffect(() => {
+    let cancelled = false;
+    const entries = Object.entries(SPRITE_MANIFEST) as Array<[SpriteKey, string]>;
+    Promise.all(
+      entries.map(
+        ([key, src]) =>
+          new Promise<[SpriteKey, HTMLImageElement]>((resolve, reject) => {
+            const img = new Image();
+            img.decoding = 'async';
+            img.onload = () => resolve([key, img]);
+            img.onerror = () => reject(new Error(`Failed to load ${src}`));
+            img.src = src;
+          }),
+      ),
+    )
+      .then((pairs) => {
+        if (cancelled) return;
+        spritesRef.current = Object.fromEntries(pairs) as LoadedSprites;
+        setAssetsReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) setStatusText('Không tải được bộ đồ họa game — vui lòng tải lại trang.');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Build idle schoolyard crowd whenever student list updates while idle
   useEffect(() => {
     if (simRef.current.active) return;
     const pool = students.slice(0, MAX_VISIBLE_CROWD);
-    const cols = Math.max(1, Math.min(8, Math.ceil(pool.length / 3)));
+    const cols = Math.max(1, Math.ceil(pool.length / DEPTH_LANES.length));
     actorsRef.current = pool.map((st, idx) => {
       const h = hashCode(st.id + st.name);
-      const col = idx % cols;
-      const row = Math.floor(idx / cols);
-      const x = 430 + col * 82 + (row % 2) * 28;
-      const baseY = 345 + row * 48;
+      const laneIdx = idx % DEPTH_LANES.length;
+      const col = Math.floor(idx / DEPTH_LANES.length);
+      const lane = DEPTH_LANES[laneIdx];
+      const spreadX = Math.min(76, 560 / Math.max(1, cols));
+      const x = 445 + col * spreadX + (laneIdx % 2) * 32 + ((h % 18) - 9);
       return {
         student: st,
+        isGirl: inferIsFemale(st, idx),
         x,
-        y: baseY,
-        baseY,
-        vx: 0,
-        phaseOffset: (h % 100) / 15,
-        shirtColor: SHIRT_COLORS[h % SHIRT_COLORS.length],
-        hairColor: HAIR_COLORS[h % HAIR_COLORS.length],
-        skinColor: SKIN_COLORS[h % SKIN_COLORS.length],
+        y: lane.y,
+        laneY: lane.y,
+        laneScale: lane.scale,
+        heightVar: 0.96 + (h % 9) * 0.01,
+        phaseOffset: (h % 100) / 14,
         isWinner: false,
         escapeAt: 1,
-        treeClimber: false,
         escaped: false,
       };
     });
-    particlesRef.current = [];
   }, [students]);
 
   // Cleanup on unmount
@@ -155,659 +275,567 @@ export const DogChaseGame: React.FC<MinigameProps> = ({
     };
   }, []);
 
-  // Sync chase music with running & muted state
+  // Sync background music with running & muted state
   useEffect(() => {
-    if (running && !muted) {
+    if (running && !muted && !simRef.current.danceStarted) {
       startChaseMusic();
-    } else {
+    } else if (muted || !running) {
       stopBackgroundMusic();
     }
   }, [running, muted]);
 
-  // Main 60fps Canvas Render Loop
+  // High-DPI 60fps Canvas Loop
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const W = 1200;
-    const H = 560;
+    const dpr = Math.min(typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1, 2);
+    canvas.width = LOGICAL_W * dpr;
+    canvas.height = LOGICAL_H * dpr;
 
-    const drawSpeechBubble = (
+    // Seed gentle floating flamboyant petals
+    if (particlesRef.current.length === 0) {
+      for (let i = 0; i < 14; i++) {
+        particlesRef.current.push({
+          x: Math.random() * LOGICAL_W,
+          y: Math.random() * 380,
+          vx: -0.6 - Math.random() * 0.8,
+          vy: 0.6 + Math.random() * 0.6,
+          rot: Math.random() * Math.PI * 2,
+          vRot: (Math.random() - 0.5) * 0.06,
+          life: Math.floor(Math.random() * 200),
+          maxLife: 320,
+          kind: 'PETAL',
+          size: 5 + Math.random() * 3,
+          color: i % 2 === 0 ? '#ef4444' : '#f97316',
+        });
+      }
+    }
+
+    let prevTime = performance.now();
+
+    const drawComicBubble = (
       x: number,
       y: number,
       text: string,
-      bg = '#ffffff',
-      fg = '#0f172a',
-      scale = 1,
+      opts: { bg?: string; fg?: string; border?: string; scale?: number; burst?: boolean } = {},
     ) => {
+      const {
+        bg = '#ffffff',
+        fg = '#1e1b4b',
+        border = '#271713',
+        scale = 1,
+        burst = false,
+      } = opts;
+
+      const clampedX = Math.max(150, Math.min(LOGICAL_W - 150, x));
+      const clampedY = Math.max(66, y);
+
       ctx.save();
-      ctx.translate(x, y);
+      ctx.translate(clampedX, clampedY);
       ctx.scale(scale, scale);
-      ctx.font = '800 17px system-ui, -apple-system, sans-serif';
-      const padX = 16;
-      const metrics = ctx.measureText(text);
-      const bw = Math.max(96, metrics.width + padX * 2);
-      const bh = 38;
-      const rx = -bw / 2;
-      const ry = -bh;
 
-      // Shadow
-      ctx.fillStyle = 'rgba(15, 23, 42, 0.22)';
-      ctx.beginPath();
-      ctx.roundRect(rx + 3, ry + 4, bw, bh, 14);
-      ctx.fill();
+      ctx.font = burst
+        ? '900 26px system-ui, -apple-system, sans-serif'
+        : '800 17px system-ui, -apple-system, sans-serif';
+      const padX = burst ? 26 : 18;
+      const bw = Math.max(108, ctx.measureText(text).width + padX * 2);
+      const bh = burst ? 52 : 40;
 
-      // Bubble body
-      ctx.fillStyle = bg;
-      ctx.strokeStyle = '#0f172a';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.roundRect(rx, ry, bw, bh, 14);
-      ctx.fill();
-      ctx.stroke();
-
-      // Pointer tail
-      ctx.beginPath();
-      ctx.moveTo(-8, 0);
-      ctx.lineTo(0, 12);
-      ctx.lineTo(8, 0);
-      ctx.closePath();
-      ctx.fillStyle = bg;
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = fg;
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(text, 0, ry + bh / 2 + 1);
-      ctx.restore();
-    };
-
-    const drawVietnameseStreet = (scrollX: number) => {
-      // Sky gradient
-      const sky = ctx.createLinearGradient(0, 0, 0, 340);
-      sky.addColorStop(0, '#38bdf8');
-      sky.addColorStop(1, '#bae6fd');
-      ctx.fillStyle = sky;
-      ctx.fillRect(0, 0, W, 340);
-
-      // Sun & clouds
-      ctx.fillStyle = 'rgba(254, 240, 138, 0.85)';
-      ctx.beginPath();
-      ctx.arc(1060, 75, 42, 0, Math.PI * 2);
-      ctx.fill();
-
-      for (let i = 0; i < 4; i++) {
-        const cx = ((i * 340 - scrollX * 0.12) % (W + 240) + W + 240) % (W + 240) - 120;
-        const cy = 60 + (i % 2) * 34;
-        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      if (burst) {
+        // Spiky comic shout burst for "GÂU!!"
+        const spikes = 16;
+        const rx = bw * 0.62;
+        const ry = bh * 0.72;
         ctx.beginPath();
-        ctx.arc(cx, cy, 24, 0, Math.PI * 2);
-        ctx.arc(cx + 22, cy - 8, 28, 0, Math.PI * 2);
-        ctx.arc(cx + 48, cy, 22, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // Repeating Townhouses & School Gate background
-      const tileW = 1200;
-      const offset = ((scrollX % tileW) + tileW) % tileW;
-      for (let rep = -1; rep <= 1; rep++) {
-        const ox = rep * tileW - offset;
-        if (ox > W || ox + tileW < 0) continue;
-
-        // School wall & gate on left half of tile
-        ctx.fillStyle = '#fef08a';
-        ctx.fillRect(ox + 20, 190, 520, 135);
-        ctx.fillStyle = '#dc2626';
-        ctx.fillRect(ox + 20, 182, 520, 12);
-
-        // School Gate pillars
-        ctx.fillStyle = '#fde047';
-        ctx.strokeStyle = '#92400e';
-        ctx.lineWidth = 2;
-        ctx.fillRect(ox + 185, 130, 32, 195);
-        ctx.strokeRect(ox + 185, 130, 32, 195);
-        ctx.fillRect(ox + 395, 130, 32, 195);
-        ctx.strokeRect(ox + 395, 130, 32, 195);
-
-        // Gate arch banner
-        ctx.fillStyle = '#b91c1c';
-        ctx.fillRect(ox + 180, 118, 252, 34);
-        ctx.fillStyle = '#fef08a';
-        ctx.font = '900 15px system-ui, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText('CỔNG TRƯỜNG HỌC', ox + 306, 140);
-
-        // Iron gate bars
-        ctx.strokeStyle = '#1e293b';
-        ctx.lineWidth = 3;
-        for (let b = 228; b < 390; b += 18) {
-          ctx.beginPath();
-          ctx.moveTo(ox + b, 170);
-          ctx.lineTo(ox + b, 325);
-          ctx.stroke();
+        for (let i = 0; i < spikes * 2; i++) {
+          const ang = (i * Math.PI) / spikes;
+          const radX = i % 2 === 0 ? rx : rx * 0.76;
+          const radY = i % 2 === 0 ? ry : ry * 0.74;
+          const px = Math.cos(ang) * radX;
+          const py = -bh / 2 + Math.sin(ang) * radY;
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
         }
-
-        // Flamboyant Tree (Cây phượng đỏ)
-        ctx.fillStyle = '#78350f';
-        ctx.beginPath();
-        ctx.moveTo(ox + 95, 325);
-        ctx.lineTo(ox + 112, 200);
-        ctx.lineTo(ox + 132, 200);
-        ctx.lineTo(ox + 142, 325);
         ctx.closePath();
+        ctx.fillStyle = '#fde047';
         ctx.fill();
-        // Branches
-        ctx.strokeStyle = '#78350f';
-        ctx.lineWidth = 8;
-        ctx.beginPath();
-        ctx.moveTo(ox + 120, 215);
-        ctx.lineTo(ox + 60, 165);
-        ctx.moveTo(ox + 125, 215);
-        ctx.lineTo(ox + 185, 160);
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = border;
         ctx.stroke();
-        // Leaves + red flowers
-        const foliage = [
-          [85, 155, 58, '#16a34a'],
-          [145, 145, 64, '#15803d'],
-          [115, 120, 56, '#22c55e'],
-          [65, 135, 32, '#ef4444'],
-          [110, 108, 36, '#dc2626'],
-          [158, 132, 34, '#ef4444'],
-          [130, 156, 26, '#f87171'],
-        ] as const;
-        foliage.forEach(([fx, fy, fr, fc]) => {
-          ctx.fillStyle = fc;
-          ctx.beginPath();
-          ctx.arc(ox + fx, fy, fr, 0, Math.PI * 2);
-          ctx.fill();
-        });
 
-        // Vietnamese Shophouses on right half (ox + 560..1180)
-        const houses = [
-          { x: 560, w: 140, h: 210, body: '#fbcfe8', roof: '#be185d', sign: 'TRÀ SỮA' },
-          { x: 705, w: 150, h: 235, body: '#bbf7d0', roof: '#15803d', sign: 'BÁNH MÌ' },
-          { x: 860, w: 145, h: 195, body: '#fed7aa', roof: '#c2410c', sign: 'SÁCH VỞ' },
-          { x: 1010, w: 165, h: 225, body: '#c7d2fe', roof: '#4338ca', sign: 'BÁNH TRÁNG' },
-        ];
-        houses.forEach((hs) => {
-          const top = 325 - hs.h;
-          ctx.fillStyle = hs.body;
-          ctx.strokeStyle = '#334155';
-          ctx.lineWidth = 2;
-          ctx.fillRect(ox + hs.x, top, hs.w, hs.h);
-          ctx.strokeRect(ox + hs.x, top, hs.w, hs.h);
-
-          // Roof
-          ctx.fillStyle = hs.roof;
-          ctx.fillRect(ox + hs.x - 6, top - 14, hs.w + 12, 18);
-
-          // Windows
-          ctx.fillStyle = '#0ea5e9';
-          for (let wy = top + 24; wy < 250; wy += 52) {
-            ctx.fillRect(ox + hs.x + 18, wy, 36, 34);
-            ctx.fillRect(ox + hs.x + hs.w - 54, wy, 36, 34);
-          }
-
-          // Signboard
-          ctx.fillStyle = '#fef08a';
-          ctx.fillRect(ox + hs.x + 14, 258, hs.w - 28, 22);
-          ctx.strokeRect(ox + hs.x + 14, 258, hs.w - 28, 22);
-          ctx.fillStyle = '#991b1b';
-          ctx.font = '800 11px system-ui, sans-serif';
-          ctx.textAlign = 'center';
-          ctx.fillText(hs.sign, ox + hs.x + hs.w / 2, 273);
-        });
-      }
-
-      // Sidewalk
-      ctx.fillStyle = '#e2e8f0';
-      ctx.fillRect(0, 325, W, 36);
-      ctx.strokeStyle = '#94a3b8';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(0, 325);
-      ctx.lineTo(W, 325);
-      ctx.moveTo(0, 361);
-      ctx.lineTo(W, 361);
-      ctx.stroke();
-
-      // Asphalt Road
-      ctx.fillStyle = '#334155';
-      ctx.fillRect(0, 361, W, H - 361);
-
-      // Dashed Road Markings
-      ctx.fillStyle = '#f8fafc';
-      const dashOffset = ((scrollX * 1.0) % 110 + 110) % 110;
-      for (let dx = -dashOffset; dx < W; dx += 110) {
-        ctx.fillRect(dx, 455, 62, 8);
-      }
-    };
-
-    const drawStudent = (
-      actor: RunnerActor,
-      tSec: number,
-      mode: 'IDLE' | 'RUN' | 'TREE' | 'CAUGHT' | 'DANCE',
-    ) => {
-      const { x, y, shirtColor, hairColor, skinColor, phaseOffset } = actor;
-      const swing = mode === 'RUN' ? Math.sin(tSec * 22 + phaseOffset) : 0;
-      const bounce =
-        mode === 'RUN'
-          ? Math.abs(Math.cos(tSec * 22 + phaseOffset)) * 6
-          : mode === 'DANCE'
-            ? Math.abs(Math.sin(tSec * 10)) * 9
-            : Math.sin(tSec * 3 + phaseOffset) * 2;
-
-      ctx.save();
-      ctx.translate(x, y - bounce);
-
-      // Ground shadow
-      if (mode !== 'TREE') {
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.25)';
-        ctx.beginPath();
-        ctx.ellipse(0, 34 + bounce, 18, 6, 0, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      // Legs (Navy blue school pants)
-      ctx.strokeStyle = '#1e3a8a';
-      ctx.lineWidth = 6;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(-5, 14);
-      ctx.lineTo(-5 - swing * 12, 32);
-      ctx.moveTo(5, 14);
-      ctx.lineTo(5 + swing * 12, 32);
-      ctx.stroke();
-
-      // School backpack behind torso
-      ctx.fillStyle = shirtColor;
-      ctx.strokeStyle = '#0f172a';
-      ctx.lineWidth = 1.8;
-      ctx.beginPath();
-      ctx.roundRect(-16, -8, 10, 20, 4);
-      ctx.fill();
-      ctx.stroke();
-
-      // Torso (White Vietnamese school uniform shirt)
-      ctx.fillStyle = '#ffffff';
-      ctx.strokeStyle = '#0f172a';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.roundRect(-12, -10, 24, 24, 6);
-      ctx.fill();
-      ctx.stroke();
-
-      // Navy shorts/skirt band
-      ctx.fillStyle = '#1e3a8a';
-      ctx.fillRect(-11, 8, 22, 8);
-
-      // Red Scarf (Khăn quàng đỏ)
-      ctx.fillStyle = '#dc2626';
-      ctx.beginPath();
-      ctx.moveTo(-9, -10);
-      ctx.lineTo(9, -10);
-      ctx.lineTo(0, 2);
-      ctx.closePath();
-      ctx.fill();
-      ctx.beginPath();
-      ctx.moveTo(-2, -1);
-      ctx.lineTo(-5, 8);
-      ctx.lineTo(0, 5);
-      ctx.lineTo(5, 8);
-      ctx.lineTo(2, -1);
-      ctx.closePath();
-      ctx.fill();
-
-      // Arms
-      ctx.strokeStyle = skinColor;
-      ctx.lineWidth = 5;
-      ctx.beginPath();
-      if (mode === 'RUN') {
-        // Flailing arms up in panic
-        ctx.moveTo(-11, -4);
-        ctx.lineTo(-22, -14 + swing * 8);
-        ctx.moveTo(11, -4);
-        ctx.lineTo(22, -14 - swing * 8);
-      } else if (mode === 'DANCE') {
-        ctx.moveTo(-11, -4);
-        ctx.lineTo(-22, -16 + Math.sin(tSec * 12) * 8);
-        ctx.moveTo(11, -4);
-        ctx.lineTo(22, -16 - Math.sin(tSec * 12) * 8);
+        ctx.fillStyle = '#dc2626';
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 4;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.strokeText(text, 0, -bh / 2 + 1);
+        ctx.fillText(text, 0, -bh / 2 + 1);
       } else {
-        ctx.moveTo(-11, -4);
-        ctx.lineTo(-15, 10);
-        ctx.moveTo(11, -4);
-        ctx.lineTo(15, 10);
-      }
-      ctx.stroke();
+        const rx = -bw / 2;
+        const ry = -bh;
 
-      // Head
-      ctx.fillStyle = skinColor;
-      ctx.strokeStyle = '#0f172a';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.arc(0, -24, 15, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+        // Crisp cel drop-shadow
+        ctx.fillStyle = 'rgba(24, 15, 12, 0.28)';
+        ctx.beginPath();
+        ctx.roundRect(rx + 4, ry + 5, bw, bh, 16);
+        ctx.fill();
 
-      // Hair cap
-      ctx.fillStyle = hairColor;
-      ctx.beginPath();
-      ctx.arc(0, -28, 15, Math.PI, Math.PI * 2);
-      ctx.fill();
-
-      // Eyes & Mouth expression
-      ctx.fillStyle = '#0f172a';
-      if (mode === 'RUN' || mode === 'CAUGHT') {
-        // Wide panicked eyes + O mouth
-        ctx.fillStyle = '#ffffff';
+        // Tail
+        ctx.fillStyle = bg;
+        ctx.strokeStyle = border;
+        ctx.lineWidth = 3;
         ctx.beginPath();
-        ctx.arc(-5, -24, 3.8, 0, Math.PI * 2);
-        ctx.arc(5, -24, 3.8, 0, Math.PI * 2);
+        ctx.roundRect(rx, ry, bw, bh, 16);
         ctx.fill();
-        ctx.fillStyle = '#0f172a';
-        ctx.beginPath();
-        ctx.arc(-4.5, -24, 1.6, 0, Math.PI * 2);
-        ctx.arc(5.5, -24, 1.6, 0, Math.PI * 2);
-        ctx.fill();
-        // Open screaming mouth
-        ctx.fillStyle = '#ef4444';
-        ctx.beginPath();
-        ctx.ellipse(1, -15, 4.5, 5, 0, 0, Math.PI * 2);
-        ctx.fill();
-      } else {
-        ctx.beginPath();
-        ctx.arc(-5, -24, 2, 0, Math.PI * 2);
-        ctx.arc(5, -24, 2, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.beginPath();
-        ctx.arc(0, -18, 4, 0, Math.PI);
         ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(-9, -2);
+        ctx.lineTo(-2, 12);
+        ctx.lineTo(9, -2);
+        ctx.closePath();
+        ctx.fillStyle = bg;
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(-9, -1);
+        ctx.lineTo(-2, 12);
+        ctx.lineTo(9, -1);
+        ctx.stroke();
+
+        ctx.fillStyle = fg;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(text, 0, ry + bh / 2 + 1);
       }
-
-      // Name Tag Pill above head
-      const label = shortDisplayName(actor.student.name);
-      ctx.font = '800 12px system-ui, -apple-system, sans-serif';
-      const tw = ctx.measureText(label).width;
-      const pw = tw + 14;
-      const ph = 20;
-      ctx.fillStyle = actor.isWinner && (mode === 'CAUGHT' || mode === 'DANCE')
-        ? '#fef08a'
-        : 'rgba(255,255,255,0.94)';
-      ctx.strokeStyle = actor.isWinner && (mode === 'CAUGHT' || mode === 'DANCE') ? '#dc2626' : '#0f172a';
-      ctx.lineWidth = 1.6;
-      ctx.beginPath();
-      ctx.roundRect(-pw / 2, -64, pw, ph, 7);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.fillStyle = '#0f172a';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.fillText(label, 0, -54);
 
       ctx.restore();
     };
 
-    const drawDog = (
-      x: number,
-      y: number,
-      tSec: number,
-      state: 'CREEP' | 'BARK' | 'RUN' | 'DANCE',
-    ) => {
-      const gallop = state === 'RUN' ? Math.sin(tSec * 24) : 0;
-      const bounce =
-        state === 'RUN'
-          ? Math.abs(Math.cos(tSec * 24)) * 8
-          : state === 'DANCE'
-            ? Math.abs(Math.sin(tSec * 10)) * 12
-            : state === 'BARK'
-              ? 6
-              : Math.sin(tSec * 5) * 2;
+    const drawSeamlessBackdrop = (bgImg: HTMLImageElement, scrollX: number) => {
+      const tileH = LOGICAL_H;
+      const tileW = Math.round(tileH * (bgImg.naturalWidth / bgImg.naturalHeight));
+      const startIdx = Math.floor(scrollX / tileW) - 1;
 
+      for (let k = 0; k < 4; k++) {
+        const tileIndex = startIdx + k;
+        const exactX = tileIndex * tileW - scrollX;
+        if (exactX > LOGICAL_W || exactX + tileW < 0) continue;
+
+        const mirrored = Math.abs(tileIndex) % 2 === 1;
+        ctx.save();
+        if (mirrored) {
+          ctx.translate(exactX + tileW, 0);
+          ctx.scale(-1, 1);
+          ctx.drawImage(bgImg, 0, 0, tileW + 1, tileH);
+        } else {
+          ctx.drawImage(bgImg, exactX, 0, tileW + 1, tileH);
+        }
+        ctx.restore();
+
+        // Crisp Vietnamese gold lettering centered inside the school gate wooden signboard
+        const plaqueRatioX = mirrored ? 1 - 0.3075 : 0.3075;
+        const plaqueX = exactX + tileW * plaqueRatioX;
+        const plaqueY = tileH * 0.3515;
+        if (plaqueX > -120 && plaqueX < LOGICAL_W + 120) {
+          ctx.save();
+          ctx.font = '900 12.5px system-ui, -apple-system, sans-serif';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillStyle = '#fde047';
+          ctx.shadowColor = 'rgba(0,0,0,0.65)';
+          ctx.shadowBlur = 2;
+          ctx.fillText('MÁI TRƯỜNG THÂN YÊU', plaqueX, plaqueY);
+          ctx.restore();
+        }
+      }
+
+      // Crisp scrolling white road center dashes on asphalt for tactile speed feel
       ctx.save();
-      ctx.translate(x, y - bounce);
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.58)';
+      const dashPeriod = 132;
+      const dashOff = ((scrollX % dashPeriod) + dashPeriod) % dashPeriod;
+      for (let dx = -dashOff; dx < LOGICAL_W; dx += dashPeriod) {
+        ctx.beginPath();
+        ctx.roundRect(dx, 536, 68, 7, 3.5);
+        ctx.fill();
+      }
+      ctx.restore();
+    };
 
-      // Shadow
+    const drawSpriteActor = (
+      actor: RunnerActor,
+      sprites: LoadedSprites,
+      tSec: number,
+      mode: 'IDLE' | 'SHOCK' | 'RUN' | 'CAUGHT' | 'DANCE',
+    ) => {
+      const baseH = 148 * actor.laneScale * actor.heightVar;
+      let img: HTMLImageElement;
+      if (actor.isGirl) {
+        img = sprites.girlIdle;
+      } else if (mode === 'RUN' || mode === 'SHOCK') {
+        // Alternate rapid stride tuck for lively frame-flipping animation
+        const stride = Math.sin(tSec * 20 + actor.phaseOffset);
+        img = mode === 'SHOCK' || stride > -0.55 ? sprites.boyRun : sprites.boyIdle;
+      } else {
+        img = sprites.boyIdle;
+      }
+
+      const aspect = img.naturalWidth / img.naturalHeight;
+      const drawH = baseH;
+      const drawW = drawH * aspect;
+
+      let bounceY = 0;
+      let stretch = 0;
+      let tilt = 0;
+      let flipX = 1;
+
+      if (mode === 'IDLE') {
+        const phase = tSec * 4.2 + actor.phaseOffset;
+        bounceY = Math.abs(Math.sin(phase)) * 3;
+        stretch = Math.sin(phase) * 0.02;
+      } else if (mode === 'SHOCK') {
+        bounceY = 22 * Math.abs(Math.sin(tSec * 14 + actor.phaseOffset));
+        stretch = 0.08;
+        tilt = -0.06;
+      } else if (mode === 'RUN') {
+        const phase = tSec * 19 + actor.phaseOffset;
+        bounceY = Math.abs(Math.sin(phase)) * 13;
+        stretch = Math.sin(phase * 2) * 0.075;
+        tilt = actor.isGirl ? 0.13 + Math.sin(phase) * 0.05 : 0.06 + Math.sin(phase) * 0.05;
+      } else if (mode === 'CAUGHT') {
+        const shiver = Math.sin(tSec * 36) * 2.2;
+        bounceY = 0;
+        tilt = shiver * 0.015;
+      } else if (mode === 'DANCE') {
+        const beat = tSec * 11;
+        bounceY = Math.abs(Math.sin(beat)) * 16;
+        stretch = Math.sin(beat * 2) * 0.08;
+        tilt = Math.sin(beat * 0.5) * 0.13;
+        flipX = Math.sin(beat * 0.5) >= 0 ? 1 : -1;
+      }
+
+      // 1. Soft elliptical ground shadow anchored on street
+      const shadowScale = Math.max(0.55, 1 - bounceY * 0.014);
+      ctx.save();
       ctx.fillStyle = 'rgba(15, 23, 42, 0.28)';
       ctx.beginPath();
-      ctx.ellipse(0, 26 + bounce, 28, 8, 0, 0, Math.PI * 2);
+      ctx.ellipse(
+        actor.x,
+        actor.y - 3,
+        28 * actor.laneScale * shadowScale,
+        8.5 * actor.laneScale * shadowScale,
+        0,
+        0,
+        Math.PI * 2,
+      );
       ctx.fill();
+      ctx.restore();
 
-      // Wagging Tail
-      const tailWag = Math.sin(tSec * 18) * 10;
-      ctx.strokeStyle = '#1e293b';
-      ctx.lineWidth = 7;
-      ctx.lineCap = 'round';
-      ctx.beginPath();
-      ctx.moveTo(-24, -2);
-      ctx.quadraticCurveTo(-38, -14 + tailWag, -42, -24 + tailWag);
-      ctx.stroke();
-
-      // Back & Front Legs
-      ctx.strokeStyle = '#d97706';
-      ctx.lineWidth = 7;
-      ctx.beginPath();
-      ctx.moveTo(-16, 10);
-      ctx.lineTo(-18 - gallop * 14, 26);
-      ctx.moveTo(14, 10);
-      ctx.lineTo(18 + gallop * 14, 26);
-      ctx.stroke();
-
-      // Dog Body (Becgie black-tan style)
-      ctx.fillStyle = '#d97706';
-      ctx.strokeStyle = '#0f172a';
-      ctx.lineWidth = 2.5;
-      ctx.beginPath();
-      ctx.ellipse(0, 2, 26, 16, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      // Black saddle on back
-      ctx.fillStyle = '#1e293b';
-      ctx.beginPath();
-      ctx.ellipse(-4, -5, 16, 8, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Red collar
-      ctx.strokeStyle = '#ef4444';
-      ctx.lineWidth = 5;
-      ctx.beginPath();
-      ctx.moveTo(15, -10);
-      ctx.lineTo(22, 6);
-      ctx.stroke();
-
-      // Dog Head
+      // 2. Character Sprite with Squash & Stretch around bottom-center shoe anchor
       ctx.save();
-      ctx.translate(24, -14);
-      if (state === 'BARK') ctx.rotate(-0.15);
+      ctx.translate(actor.x, actor.y - bounceY);
+      ctx.rotate(tilt);
+      ctx.scale(flipX * (1 - stretch * 0.75), 1 + stretch);
+      ctx.drawImage(img, -drawW / 2, -drawH, drawW, drawH);
 
-      // Pointy Ears
-      ctx.fillStyle = '#1e293b';
-      ctx.strokeStyle = '#0f172a';
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(-8, -10);
-      ctx.lineTo(-12, -28);
-      ctx.lineTo(0, -14);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(2, -12);
-      ctx.lineTo(8, -29);
-      ctx.lineTo(12, -10);
-      ctx.closePath();
-      ctx.fill();
-      ctx.stroke();
-
-      // Head base
-      ctx.fillStyle = '#f59e0b';
-      ctx.beginPath();
-      ctx.arc(0, 0, 16, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      // Snout
-      ctx.fillStyle = '#fef3c7';
-      ctx.beginPath();
-      ctx.ellipse(12, 4, 9, 6, 0, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-
-      // Nose
-      ctx.fillStyle = '#0f172a';
-      ctx.beginPath();
-      ctx.arc(18, 2, 3.5, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Eyes
-      ctx.fillStyle = '#ffffff';
-      ctx.beginPath();
-      ctx.arc(4, -4, 4.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.fillStyle = '#0f172a';
-      ctx.beginPath();
-      ctx.arc(5, -4, 2.2, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Tongue / Barking Mouth
-      if (state === 'BARK' || state === 'RUN') {
-        ctx.fillStyle = '#fb7185';
+      // Comedic anime sweat/tear drop on girl running or caught student
+      if ((actor.isGirl && mode === 'RUN') || mode === 'CAUGHT') {
+        ctx.fillStyle = '#38bdf8';
+        ctx.strokeStyle = '#1e3a8a';
+        ctx.lineWidth = 1.6;
+        const sx = mode === 'CAUGHT' ? -18 : -14;
+        const sy = -drawH * 0.66 + Math.sin(tSec * 16) * 3;
         ctx.beginPath();
-        ctx.ellipse(10, 11, 4, 5.5, 0.2, 0, Math.PI * 2);
+        ctx.moveTo(sx, sy - 9);
+        ctx.quadraticCurveTo(sx + 7, sy + 2, sx, sy + 7);
+        ctx.quadraticCurveTo(sx - 7, sy + 2, sx, sy - 9);
+        ctx.closePath();
         ctx.fill();
+        ctx.stroke();
       }
       ctx.restore();
+
+      // 3. High-contrast Name Badge above head
+      const label = shortDisplayName(actor.student.name);
+      const highlightWinner = actor.isWinner && (mode === 'CAUGHT' || mode === 'DANCE');
+      ctx.save();
+      ctx.font = highlightWinner
+        ? '900 14px system-ui, -apple-system, sans-serif'
+        : '800 12.5px system-ui, -apple-system, sans-serif';
+      const tw = ctx.measureText(label).width;
+      const pw = tw + 16;
+      const ph = highlightWinner ? 24 : 21;
+      const badgeY = actor.y - drawH - bounceY - ph - 6;
+
+      ctx.fillStyle = highlightWinner ? '#fef08a' : 'rgba(255, 255, 255, 0.94)';
+      ctx.strokeStyle = highlightWinner ? '#dc2626' : '#271713';
+      ctx.lineWidth = highlightWinner ? 2.4 : 1.8;
+      ctx.beginPath();
+      ctx.roundRect(actor.x - pw / 2, badgeY, pw, ph, 8);
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.fillStyle = '#0f172a';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(label, actor.x, badgeY + ph / 2 + 0.5);
       ctx.restore();
     };
 
-    const renderFrame = (now: number) => {
+    const drawPuppy = (
+      x: number,
+      y: number,
+      sprites: LoadedSprites,
+      tSec: number,
+      state: 'CREEP' | 'BARK' | 'RUN' | 'FACE_STUDENT' | 'DANCE',
+    ) => {
+      const img = state === 'RUN' ? sprites.dogRun : sprites.dogBark;
+      const drawH = 142;
+      const drawW = drawH * (img.naturalWidth / img.naturalHeight);
+
+      let bounceY = 0;
+      let stretch = 0;
+      let tilt = 0;
+      let flipX = 1;
+
+      if (state === 'CREEP') {
+        bounceY = Math.abs(Math.sin(tSec * 8)) * 5;
+        stretch = Math.sin(tSec * 8) * 0.03;
+      } else if (state === 'BARK') {
+        bounceY = 12 * Math.abs(Math.sin(tSec * 16));
+        stretch = 0.07;
+        tilt = -0.07;
+      } else if (state === 'RUN') {
+        const phase = tSec * 17;
+        bounceY = Math.abs(Math.sin(phase)) * 16;
+        stretch = Math.sin(phase * 2) * 0.085;
+        tilt = Math.sin(phase) * 0.09;
+      } else if (state === 'FACE_STUDENT') {
+        flipX = -1; // Turn around to look right at the caught student!
+        bounceY = Math.abs(Math.sin(tSec * 6)) * 4;
+      } else if (state === 'DANCE') {
+        const beat = tSec * 11;
+        bounceY = Math.abs(Math.sin(beat + 0.6)) * 18;
+        stretch = Math.sin(beat * 2) * 0.09;
+        tilt = -Math.sin(beat * 0.5) * 0.14;
+        flipX = Math.sin(beat * 0.5) >= 0 ? -1 : 1;
+      }
+
+      const shadowScale = Math.max(0.5, 1 - bounceY * 0.013);
+      ctx.save();
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.3)';
+      ctx.beginPath();
+      ctx.ellipse(x, y - 3, 42 * shadowScale, 10 * shadowScale, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      ctx.save();
+      ctx.translate(x, y - bounceY);
+      ctx.rotate(tilt);
+      ctx.scale(flipX * (1 - stretch * 0.7), 1 + stretch);
+      ctx.drawImage(img, -drawW / 2, -drawH, drawW, drawH);
+      ctx.restore();
+    };
+
+    const render = (now: number) => {
+      const dt = Math.min(0.05, Math.max(0.001, (now - prevTime) / 1000));
+      prevTime = now;
       const tSec = now / 1000;
       const sim = simRef.current;
+      const sprites = spritesRef.current;
 
-      ctx.clearRect(0, 0, W, H);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.imageSmoothingEnabled = true;
+      ctx.imageSmoothingQuality = 'high';
+      ctx.clearRect(0, 0, LOGICAL_W, LOGICAL_H);
 
-      let dogX = 165;
-      let dogY = 445;
-      let dogState: 'CREEP' | 'BARK' | 'RUN' | 'DANCE' = 'CREEP';
-      let dogBubble: { text: string; bg?: string; fg?: string; scale?: number } | null = null;
+      if (!sprites) {
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+        ctx.fillStyle = '#f8fafc';
+        ctx.font = '800 20px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText('🎨 Đang tải bối cảnh cổng trường Chibi...', LOGICAL_W / 2, LOGICAL_H / 2);
+        rafRef.current = requestAnimationFrame(render);
+        return;
+      }
+
+      let dogX = 215;
+      let dogY = 556;
+      let dogState: 'CREEP' | 'BARK' | 'RUN' | 'FACE_STUDENT' | 'DANCE' = 'CREEP';
+      let dogBubble: {
+        text: string;
+        bg?: string;
+        fg?: string;
+        scale?: number;
+        burst?: boolean;
+      } | null = null;
       let winnerBubble: string | null = null;
+      let spotlightTargetX: number | null = null;
 
       if (sim.active) {
         const elapsed = now - sim.startTime;
         const p = Math.min(1, elapsed / sim.durationMs);
 
-        if (p < 0.08) {
-          // Phase 1a: Dog sneaks in
-          dogX = 110 + (p / 0.08) * 145;
-          dogY = 445;
+        if (p < 0.1) {
+          // Act 1: Puppy trots up to the school gate
+          const sub = p / 0.1;
+          dogX = 120 + sub * 155;
+          dogY = 556;
           dogState = 'CREEP';
-          dogBubble = { text: 'Grừ... Đứa nào chưa học bài?', bg: '#fef08a', fg: '#7c2d12' };
-        } else if (p < 0.16) {
-          // Phase 1b: BARK!
-          dogX = 255;
-          dogY = 440;
+          dogBubble = {
+            text: 'Grừ... Đứa nào chưa học bài?',
+            bg: '#fef08a',
+            fg: '#7c2d12',
+          };
+        } else if (p < 0.18) {
+          // Act 2: Explosive BARK!
+          dogX = 278;
+          dogY = 552;
           dogState = 'BARK';
-          dogBubble = { text: 'GÂU!!', bg: '#ef4444', fg: '#ffffff', scale: 1.35 };
+          dogBubble = { text: 'GÂU!!', burst: true, scale: 1.1 };
           if (!sim.barked) {
             sim.barked = true;
+            sim.barkTime = now;
             if (!mutedRef.current) playDogBarkSound();
-            setStatusText('Cả lớp chạy tán loạn! Chú chó đang truy tìm...');
+            setStatusText('Á á á! Cả lớp chạy tán loạn khắp con phố!!');
           }
-        } else if (p < 0.85) {
-          // Phase 2 & 3: Chase + Parallax + Fakeouts
-          const chaseP = (p - 0.16) / (0.85 - 0.16);
-          const speedPxPerSec = paceMode === 'TURBO' ? 560 : 390;
-          sim.scrollX += speedPxPerSec * (1 / 60);
+        } else if (p < 0.84) {
+          // Act 3: High-speed street chase & fake-outs
+          const chaseP = (p - 0.18) / (0.84 - 0.18);
+          const scrollSpeed = paceMode === 'TURBO' ? 760 : 540;
+          sim.scrollX += scrollSpeed * dt;
           dogState = 'RUN';
 
-          // Dog surges forward & weaves slightly
-          dogX = 240 + Math.sin(chaseP * Math.PI * 3) * 85 + chaseP * 260;
-          dogY = 442 + Math.sin(tSec * 4) * 18;
+          dogX = 250 + Math.sin(chaseP * Math.PI * 3) * 95 + chaseP * 235;
+          dogY = 548 + Math.sin(tSec * 4.2) * 32;
 
-          // Fake-out speech bubbles
-          if (paceMode !== 'TURBO' && chaseP > 0.32 && chaseP < 0.46) {
-            dogBubble = { text: 'Ơ... không phải đứa này!', bg: '#ffffff', fg: '#0f172a' };
-          } else if ((paceMode === 'NORMAL' || paceMode === 'EPIC') && chaseP > 0.65 && chaseP < 0.78) {
-            dogBubble = { text: 'Đứng lại mauuu!', bg: '#fed7aa', fg: '#9a3412' };
+          if (paceMode !== 'TURBO' && chaseP > 0.28 && chaseP < 0.44) {
+            dogBubble = {
+              text: 'Ơ... không phải đứa này!',
+              bg: '#ffffff',
+              fg: '#0f172a',
+            };
+          } else if (
+            (paceMode === 'NORMAL' || paceMode === 'EPIC') &&
+            chaseP > 0.62 &&
+            chaseP < 0.77
+          ) {
+            dogBubble = {
+              text: 'Đứng lại kiểm tra vở mauuu!',
+              bg: '#ffedd5',
+              fg: '#9a3412',
+            };
           }
 
-          // Update actors running + escaping
           actorsRef.current.forEach((actor) => {
             if (actor.escaped) return;
-            if (actor.treeClimber && chaseP < 0.4) {
-              // Brief comedic tree-climb moment near start
-              actor.x = 120 - (sim.scrollX % 1200) * 0.2;
-              actor.y = 190;
-              return;
-            }
             if (!actor.isWinner && chaseP >= actor.escapeAt) {
-              actor.x += 13;
-              if (actor.x > W + 90) actor.escaped = true;
+              actor.x += 780 * dt;
+              if (actor.x > LOGICAL_W + 110) actor.escaped = true;
             } else if (actor.isWinner) {
-              // Winner stays ahead of dog until ~85%
-              const targetX = 640 + Math.sin(tSec * 3.5) * 45;
-              actor.x += (targetX - actor.x) * 0.08;
-              actor.y = 438;
+              const targetX = 695 + Math.sin(tSec * 3.4) * 52;
+              actor.x += (targetX - actor.x) * Math.min(1, dt * 5.5);
+              actor.y += (554 - actor.y) * Math.min(1, dt * 4);
             } else {
-              // Panic run with bobbing
-              const targetX = 520 + ((hashCode(actor.student.id) % 5) * 85) + Math.sin(tSec * 5 + actor.phaseOffset) * 38;
-              actor.x += (targetX - actor.x) * 0.06;
-              actor.y = actor.baseY + Math.sin(tSec * 6 + actor.phaseOffset) * 8;
+              const rank = hashCode(actor.student.id) % 6;
+              const targetX =
+                545 + rank * 86 + Math.sin(tSec * 4.8 + actor.phaseOffset) * 38;
+              actor.x += (targetX - actor.x) * Math.min(1, dt * 4.5);
+              actor.y = actor.laneY + Math.sin(tSec * 6 + actor.phaseOffset) * 6;
             }
 
-            // Spawn tears & dust
-            if (Math.random() < 0.22) {
+            // Cartoon teardrops & puffy shoe dust
+            if (Math.random() < 0.26) {
               particlesRef.current.push({
                 x: actor.x - 10,
-                y: actor.y - 22,
-                vx: -2 - Math.random() * 2,
-                vy: -1 - Math.random() * 1.5,
+                y: actor.y - 105 * actor.laneScale,
+                vx: -140 - Math.random() * 90,
+                vy: -75 - Math.random() * 65,
+                rot: -0.4,
+                vRot: -0.05,
                 life: 0,
-                maxLife: 24,
+                maxLife: 28,
                 kind: 'TEAR',
-                size: 3 + Math.random() * 2,
+                size: 5.5 + Math.random() * 2.5,
                 color: '#38bdf8',
               });
             }
-            if (Math.random() < 0.18) {
+            if (Math.random() < 0.22) {
               particlesRef.current.push({
-                x: actor.x - 8,
-                y: actor.y + 32,
-                vx: -3 - Math.random() * 2,
-                vy: -0.5 - Math.random(),
+                x: actor.x - 14,
+                y: actor.y - 6,
+                vx: -190 - Math.random() * 100,
+                vy: -22 - Math.random() * 30,
+                rot: 0,
+                vRot: 0,
                 life: 0,
-                maxLife: 20,
+                maxLife: 22,
                 kind: 'DUST',
-                size: 5 + Math.random() * 4,
-                color: 'rgba(226, 232, 240, 0.7)',
+                size: 8 + Math.random() * 7,
+                color: 'rgba(255, 255, 255, 0.82)',
               });
             }
           });
         } else {
-          // Phase 4: Caught & Cha Cha Cha!
-          dogState = p < 0.92 ? 'BARK' : 'DANCE';
-          dogX = 635;
-          dogY = 445;
+          // Act 4: Caught & Joyful Cha-Cha-Cha Dance!
+          const isDancing = p >= 0.91;
+          dogState = isDancing ? 'DANCE' : 'FACE_STUDENT';
+          dogX = 720;
+          dogY = 562;
+          spotlightTargetX = 635;
 
           const winActor = actorsRef.current.find((a) => a.isWinner);
           if (winActor) {
-            winActor.x += (545 - winActor.x) * 0.16;
-            winActor.y = 440;
+            winActor.x += (555 - winActor.x) * Math.min(1, dt * 9);
+            winActor.y += (562 - winActor.y) * Math.min(1, dt * 9);
+            winActor.laneScale += (1.06 - winActor.laneScale) * Math.min(1, dt * 6);
           }
 
-          if (p < 0.92) {
-            winnerBubble = 'Em... em chưa chuẩn bị!';
+          // Clear stragglers off-screen cleanly
+          actorsRef.current.forEach((a) => {
+            if (!a.isWinner && !a.escaped) {
+              a.x += 920 * dt;
+              if (a.x > LOGICAL_W + 120) a.escaped = true;
+            }
+          });
+
+          if (!isDancing) {
+            winnerBubble = 'Em... em chưa chuẩn bị bài ạ!';
           } else {
-            dogBubble = { text: 'Cha cha cha nào! 💃', bg: '#fef08a', fg: '#7c2d12', scale: 1.1 };
-            if (sim.fakeoutShown !== 99) {
-              sim.fakeoutShown = 99;
+            dogBubble = {
+              text: 'Cha cha cha nào! 💃🎶',
+              bg: '#fef08a',
+              fg: '#7c2d12',
+              scale: 1.12,
+            };
+            if (!sim.danceStarted) {
+              sim.danceStarted = true;
               stopBackgroundMusic();
               if (!mutedRef.current) playRevealSound();
+              if (sim.winner) {
+                setStatusText(`🎉 Chốt đơn kiểm tra bài: ${sim.winner.name}!`);
+              }
+            }
+            if (Math.random() < 0.25) {
+              const notes = ['♪', '♫', '✨', '🎵'];
+              particlesRef.current.push({
+                x: 635 + (Math.random() - 0.5) * 190,
+                y: 445,
+                vx: (Math.random() - 0.5) * 40,
+                vy: -85 - Math.random() * 45,
+                rot: 0,
+                vRot: 0,
+                life: 0,
+                maxLife: 40,
+                kind: 'NOTE',
+                size: 20,
+                color: '#fde047',
+                glyph: notes[Math.floor(Math.random() * notes.length)],
+              });
             }
           }
 
@@ -817,7 +845,6 @@ export const DogChaseGame: React.FC<MinigameProps> = ({
             stopBackgroundMusic();
             setRunning(false);
             if (sim.winner) {
-              setStatusText(`Đã tóm gọn: ${sim.winner.name}!`);
               const picked = sim.winner;
               finishTimerRef.current = window.setTimeout(() => {
                 onPickRef.current(picked);
@@ -825,159 +852,254 @@ export const DogChaseGame: React.FC<MinigameProps> = ({
             }
           }
         }
+      } else if (sim.finished) {
+        dogX = 720;
+        dogY = 562;
+        dogState = 'DANCE';
+        spotlightTargetX = 635;
       }
 
-      // 1. Draw Background
-      drawVietnameseStreet(sim.scrollX);
-
-      // 2. Update & Draw Particles
-      particlesRef.current = particlesRef.current.filter((pt) => {
-        pt.life += 1;
-        pt.x += pt.vx;
-        pt.y += pt.vy;
-        if (pt.kind === 'TEAR') pt.vy += 0.16;
-        ctx.fillStyle = pt.color;
-        ctx.globalAlpha = Math.max(0, 1 - pt.life / pt.maxLife);
-        ctx.beginPath();
-        ctx.arc(pt.x, pt.y, pt.size, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.globalAlpha = 1;
-        return pt.life < pt.maxLife;
-      });
-
-      // 3. Draw Student Actors sorted by Y for depth
-      const visibleActors = actorsRef.current
-        .filter((a) => !a.escaped)
-        .sort((a, b) => a.y - b.y);
-
-      visibleActors.forEach((actor) => {
-        let mode: 'IDLE' | 'RUN' | 'TREE' | 'CAUGHT' | 'DANCE' = 'IDLE';
-        if (sim.active) {
-          const p = (now - sim.startTime) / sim.durationMs;
-          if (p < 0.16) mode = 'IDLE';
-          else if (p < 0.85) mode = actor.treeClimber && p < 0.42 ? 'TREE' : 'RUN';
-          else if (actor.isWinner) mode = p < 0.92 ? 'CAUGHT' : 'DANCE';
-          else mode = 'RUN';
-        } else if (sim.finished && actor.isWinner) {
-          mode = 'DANCE';
+      // Camera shake impulse right when the dog barks "GÂU!!"
+      let shakeX = 0;
+      let shakeY = 0;
+      if (sim.barkTime > 0) {
+        const sinceBark = now - sim.barkTime;
+        if (sinceBark >= 0 && sinceBark < 340) {
+          const mag = (1 - sinceBark / 340) * 9;
+          shakeX = (Math.random() - 0.5) * 2 * mag;
+          shakeY = (Math.random() - 0.5) * 2 * mag;
         }
-        drawStudent(actor, tSec, mode);
+      }
+
+      ctx.save();
+      ctx.translate(shakeX, shakeY);
+
+      // 1. Illustrated Vietnamese School Gate & Shophouses Backdrop
+      drawSeamlessBackdrop(sprites.bg, sim.scrollX);
+
+      // 2. Optional Finale Stage Spotlight Cone
+      if (spotlightTargetX !== null) {
+        ctx.save();
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.34)';
+        ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
+
+        const cone = ctx.createLinearGradient(spotlightTargetX, 0, spotlightTargetX, LOGICAL_H);
+        cone.addColorStop(0, 'rgba(254, 240, 138, 0.36)');
+        cone.addColorStop(1, 'rgba(254, 240, 138, 0.08)');
+        ctx.fillStyle = cone;
+        ctx.beginPath();
+        ctx.moveTo(spotlightTargetX - 70, 0);
+        ctx.lineTo(spotlightTargetX + 70, 0);
+        ctx.lineTo(spotlightTargetX + 215, LOGICAL_H);
+        ctx.lineTo(spotlightTargetX - 215, LOGICAL_H);
+        ctx.closePath();
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // 3. Draw Depth-Sorted Chibi Crowd + Puppy
+      const visibleActors = actorsRef.current.filter((a) => !a.escaped);
+      type RenderEntity =
+        | { kind: 'STUDENT'; y: number; actor: RunnerActor }
+        | { kind: 'DOG'; y: number };
+
+      const entities: RenderEntity[] = [
+        ...visibleActors.map((actor) => ({ kind: 'STUDENT' as const, y: actor.y, actor })),
+        { kind: 'DOG' as const, y: dogY },
+      ].sort((a, b) => a.y - b.y);
+
+      entities.forEach((ent) => {
+        if (ent.kind === 'DOG') {
+          drawPuppy(dogX, dogY, sprites, tSec, dogState);
+        } else {
+          let mode: 'IDLE' | 'SHOCK' | 'RUN' | 'CAUGHT' | 'DANCE' = 'IDLE';
+          if (sim.active) {
+            const p = (now - sim.startTime) / sim.durationMs;
+            if (p < 0.1) mode = 'IDLE';
+            else if (p < 0.18) mode = 'SHOCK';
+            else if (p < 0.84) mode = 'RUN';
+            else if (ent.actor.isWinner) mode = p < 0.91 ? 'CAUGHT' : 'DANCE';
+            else mode = 'RUN';
+          } else if (sim.finished && ent.actor.isWinner) {
+            mode = 'DANCE';
+          }
+          drawSpriteActor(ent.actor, sprites, tSec, mode);
+        }
       });
 
-      // 4. Draw Dog
-      drawDog(dogX, dogY, tSec, dogState);
+      // 4. Update & Render Stylized Cartoon Particles (Petals, Dust, Teardrops, Notes)
+      const nextParticles: FxParticle[] = [];
+      for (const pt of particlesRef.current) {
+        pt.life += 1;
+        if (pt.kind === 'PETAL') {
+          const extraScroll = sim.active ? 2.4 : 0;
+          pt.x += pt.vx - extraScroll + Math.sin(tSec * 2 + pt.y * 0.02) * 0.5;
+          pt.y += pt.vy;
+          pt.rot += pt.vRot;
+          if (pt.x < -20) pt.x = LOGICAL_W + 20;
+          if (pt.y > 460) {
+            pt.y = -15;
+            pt.x = Math.random() * LOGICAL_W;
+          }
+          ctx.save();
+          ctx.translate(pt.x, pt.y);
+          ctx.rotate(pt.rot);
+          ctx.fillStyle = pt.color;
+          ctx.beginPath();
+          ctx.ellipse(0, 0, pt.size, pt.size * 0.55, 0, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+          nextParticles.push(pt);
+          continue;
+        }
 
-      // 5. Speech Bubbles on top
+        pt.x += pt.vx * dt;
+        pt.y += pt.vy * dt;
+        if (pt.kind === 'TEAR') pt.vy += 360 * dt;
+
+        if (pt.life < pt.maxLife) {
+          const alpha = Math.max(0, 1 - pt.life / pt.maxLife);
+          ctx.save();
+          ctx.globalAlpha = alpha;
+          if (pt.kind === 'NOTE' && pt.glyph) {
+            ctx.font = `900 ${pt.size}px system-ui, sans-serif`;
+            ctx.fillStyle = pt.color;
+            ctx.fillText(pt.glyph, pt.x, pt.y);
+          } else if (pt.kind === 'TEAR') {
+            ctx.translate(pt.x, pt.y);
+            ctx.rotate(Math.atan2(pt.vy, pt.vx));
+            ctx.fillStyle = '#38bdf8';
+            ctx.strokeStyle = '#0284c7';
+            ctx.lineWidth = 1.4;
+            ctx.beginPath();
+            ctx.ellipse(0, 0, pt.size * 1.25, pt.size * 0.65, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+          } else {
+            // Fluffy cartoon dust puff
+            ctx.fillStyle = pt.color;
+            const r = pt.size * (0.7 + (pt.life / pt.maxLife) * 0.65);
+            ctx.beginPath();
+            ctx.arc(pt.x, pt.y, r, 0, Math.PI * 2);
+            ctx.arc(pt.x + r * 0.65, pt.y - r * 0.2, r * 0.75, 0, Math.PI * 2);
+            ctx.fill();
+          }
+          ctx.restore();
+          nextParticles.push(pt);
+        }
+      }
+      particlesRef.current = nextParticles;
+
+      // 5. Comic Speech Bubbles on top of everything
       if (dogBubble) {
-        drawSpeechBubble(
-          dogX + 20,
-          dogY - 58,
-          dogBubble.text,
-          dogBubble.bg,
-          dogBubble.fg,
-          dogBubble.scale ?? 1,
-        );
+        drawComicBubble(dogX + 10, dogY - 158, dogBubble.text, dogBubble);
       }
       if (winnerBubble) {
         const winActor = actorsRef.current.find((a) => a.isWinner);
         if (winActor) {
-          drawSpeechBubble(winActor.x, winActor.y - 82, winnerBubble, '#ffffff', '#dc2626', 1.05);
+          drawComicBubble(winActor.x - 10, winActor.y - 196, winnerBubble, {
+            bg: '#ffffff',
+            fg: '#dc2626',
+            scale: 1.05,
+          });
         }
       }
 
-      rafRef.current = requestAnimationFrame(renderFrame);
+      ctx.restore();
+      rafRef.current = requestAnimationFrame(render);
     };
 
-    rafRef.current = requestAnimationFrame(renderFrame);
+    rafRef.current = requestAnimationFrame(render);
     return () => {
       if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
     };
   }, [paceMode]);
 
   const handleStart = () => {
-    if (running || students.length === 0) return;
+    if (running || !assetsReady || students.length === 0) return;
     void unlockGameAudio().then((ok) => {
       if (ok && !mutedRef.current && simRef.current.active) {
         startChaseMusic();
       }
     });
-    const winner = students[cryptoRandomInt(students.length)];
 
-    // Ensure winner is in the visible crowd
+    const winner = students[cryptoRandomInt(students.length)];
     const others = students.filter((s) => s.id !== winner.id);
     const chosenOthers = others.slice(0, Math.max(0, MAX_VISIBLE_CROWD - 1));
     const crowd = [...chosenOthers, winner];
 
-    // Shuffle crowd order
     for (let i = crowd.length - 1; i > 0; i--) {
       const j = cryptoRandomInt(i + 1);
       [crowd[i], crowd[j]] = [crowd[j], crowd[i]];
     }
 
-    const cols = Math.max(1, Math.min(8, Math.ceil(crowd.length / 3)));
+    const cols = Math.max(1, Math.ceil(crowd.length / DEPTH_LANES.length));
     actorsRef.current = crowd.map((st, idx) => {
       const h = hashCode(st.id + st.name);
-      const col = idx % cols;
-      const row = Math.floor(idx / cols);
+      const laneIdx = idx % DEPTH_LANES.length;
+      const col = Math.floor(idx / DEPTH_LANES.length);
+      const lane = DEPTH_LANES[laneIdx];
+      const spreadX = Math.min(76, 560 / Math.max(1, cols));
       const isWinner = st.id === winner.id;
       return {
         student: st,
-        x: 430 + col * 82 + (row % 2) * 28,
-        y: 345 + row * 48,
-        baseY: 345 + row * 48,
-        vx: 0,
-        phaseOffset: (h % 100) / 15,
-        shirtColor: SHIRT_COLORS[h % SHIRT_COLORS.length],
-        hairColor: HAIR_COLORS[h % HAIR_COLORS.length],
-        skinColor: SKIN_COLORS[h % SKIN_COLORS.length],
+        isGirl: inferIsFemale(st, idx),
+        x: 445 + col * spreadX + (laneIdx % 2) * 32 + ((h % 18) - 9),
+        y: lane.y,
+        laneY: lane.y,
+        laneScale: lane.scale,
+        heightVar: 0.96 + (h % 9) * 0.01,
+        phaseOffset: (h % 100) / 14,
         isWinner,
-        escapeAt: isWinner ? 1.5 : 0.2 + (idx / Math.max(1, crowd.length)) * 0.72,
-        treeClimber: !isWinner && idx === 1 && crowd.length > 5,
+        escapeAt: isWinner ? 1.5 : 0.22 + (idx / Math.max(1, crowd.length)) * 0.72,
         escaped: false,
       };
     });
 
-    particlesRef.current = [];
+    // Keep petals, clear transient chase particles
+    particlesRef.current = particlesRef.current.filter((pt) => pt.kind === 'PETAL');
+
     simRef.current = {
       active: true,
       startTime: performance.now(),
       durationMs: TOTAL_MS_BY_PACE[paceMode],
       scrollX: 0,
       barked: false,
-      fakeoutShown: 0,
+      barkTime: 0,
+      danceStarted: false,
       winner,
       finished: false,
     };
 
     setRunning(true);
-    setStatusText('Chú chó đang tiến lại gần cổng trường...');
+    setStatusText('🐕 Chú chó đang lững thững tiến lại cổng trường...');
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center p-4 gap-4 select-none">
-      <div className="w-full max-w-6xl rounded-3xl overflow-hidden border-2 border-white/20 shadow-2xl bg-sky-200 relative">
+    <div className="flex-1 flex flex-col items-center justify-center p-3 sm:p-4 gap-3.5 select-none">
+      <div className="w-full max-w-6xl rounded-3xl overflow-hidden border-2 border-amber-300/40 shadow-[0_20px_60px_rgba(0,0,0,0.45)] bg-slate-900 relative">
         <canvas
           ref={canvasRef}
-          width={1200}
-          height={560}
-          className="w-full h-auto block aspect-[1200/560]"
+          className="w-full h-auto block aspect-[2/1]"
         />
-        <div className="absolute top-3 left-3 px-3 py-1.5 rounded-full bg-slate-950/75 text-white text-xs font-bold backdrop-blur-sm">
+        <div className="absolute top-3 left-3 px-3.5 py-1.5 rounded-full bg-slate-950/75 border border-white/15 text-white text-xs sm:text-sm font-bold backdrop-blur-md shadow-lg">
           {statusText}
         </div>
       </div>
 
       <button
         type="button"
-        disabled={running || students.length === 0}
+        disabled={running || !assetsReady || students.length === 0}
         onClick={handleStart}
         className="px-8 py-3.5 rounded-2xl bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 hover:brightness-110 disabled:opacity-50 text-slate-950 font-black text-base sm:text-lg shadow-xl shadow-orange-500/30 transition active:scale-95"
       >
-        {running
-          ? '🐕 Đang rượt đuổi...'
-          : students.length === 0
-            ? 'Danh sách học sinh trống'
-            : '🐕 THẢ CHÓ KIỂM TRA BÀI!'}
+        {!assetsReady
+          ? '🎨 Đang chuẩn bị bối cảnh...'
+          : running
+            ? '🐕 Đang rượt kiểm tra bài...'
+            : students.length === 0
+              ? 'Danh sách học sinh trống'
+              : '🐕 THẢ CHÓ KIỂM TRA BÀI!'}
       </button>
     </div>
   );
