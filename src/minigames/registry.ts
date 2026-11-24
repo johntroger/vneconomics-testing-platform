@@ -40,6 +40,7 @@ const CaptainDraftGame = lazy(() => import('./games/CaptainDraftGame'));
 const DogChaseGame = lazy(() => import('./games/DogChaseGame'));
 const MangoHarvestGame = lazy(() => import('./games/MangoHarvestGame'));
 const DragonSnakeGame = lazy(() => import('./games/DragonSnakeGame'));
+const LuckyLensGame = lazy(() => import('./games/LuckyLensGame'));
 
 export const MINIGAME_REGISTRY: MinigamePlugin[] = [
   // Nhóm 1: Vòng quay & Nhắm bắn (8)
@@ -480,5 +481,17 @@ export const MINIGAME_REGISTRY: MinigamePlugin[] = [
     icon: '🐉',
     ready: true,
     component: DragonSnakeGame,
+  },
+  // Nhóm 7: Camera AI
+  {
+    id: 'ong-kinh-may-man',
+    name: 'Ống Kính May Mắn',
+    category: 'CAMERA_AI',
+    description: 'Quét khuôn mặt trực tiếp bằng Camera AI để chọn ngẫu nhiên 1 bạn hoặc ghép cặp 2 bạn ngay trên lớp.',
+    badge: 'AI Camera',
+    gradient: 'from-cyan-500 via-blue-600 to-indigo-700',
+    icon: '📷',
+    ready: true,
+    component: LuckyLensGame,
   },
 ];
