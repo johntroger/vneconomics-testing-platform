@@ -136,13 +136,183 @@ function playSoftThunder(muted: boolean): void {
   }
 }
 
+interface BoatMetrics {
+  boatW: number;
+  boatH: number;
+  numRows: number;
+  /** Number of middle bench-bay tiles (1 = standard 5 bays, 2 = expanded ~10 bays) */
+  bayRepeats: number;
+  studentScale: number;
+  /** X bounds inside the hollowed seating cavity (relative to boat center) */
+  seatLeft: number;
+  seatRight: number;
+  /** Stern wooden deck X where the teacher stands */
+  teacherSternX: number;
+}
+
+function getBoatMetrics(count: number): BoatMetrics {
+  if (count <= 10) {
+    return {
+      boatW: 760,
+      boatH: 184,
+      numRows: 1,
+      bayRepeats: 1,
+      studentScale: 0.92,
+      seatLeft: -175,
+      seatRight: 205,
+      teacherSternX: -275,
+    };
+  }
+  if (count <= 22) {
+    return {
+      boatW: 880,
+      boatH: 202,
+      numRows: 2,
+      bayRepeats: 1.35,
+      studentScale: 0.8,
+      seatLeft: -230,
+      seatRight: 265,
+      teacherSternX: -330,
+    };
+  }
+  if (count <= 38) {
+    return {
+      boatW: 1010,
+      boatH: 218,
+      numRows: 3,
+      bayRepeats: 1.75,
+      studentScale: 0.68,
+      seatLeft: -290,
+      seatRight: 325,
+      teacherSternX: -392,
+    };
+  }
+  // Large class (39–80+ students): expanded long ferry with 4 staggered rows & more bench bays
+  return {
+    boatW: 1120,
+    boatH: 232,
+    numRows: 4,
+    bayRepeats: 2.15,
+    studentScale: 0.58,
+    seatLeft: -340,
+    seatRight: 375,
+    teacherSternX: -445,
+  };
+}
+
+/**
+ * Draws the traditional wooden boat using horizontal 3-slice tiling so that:
+ * - Left stern (teacher deck + lifebuoy) keeps exact aspect ratio
+ * - Right prow (curved bow + red ribbon) keeps exact aspect ratio
+ * - Middle wooden bench section repeats seamlessly to add MORE compartments for larger classes!
+ * - Center lotus ornament is overlaid cleanly at the exact center of the hull.
+ */
+function drawBoat3Slice(
+  ctx: CanvasRenderingContext2D,
+  img: HTMLImageElement,
+  boatW: number,
+  boatH: number,
+  bayRepeats: number,
+): void {
+  const sw = img.width;
+  const sh = img.height;
+  const scaleY = boatH / sh;
+
+  // Source slices (in source image pixels)
+  const leftSrcW = Math.round(sw * 0.22); // Stern platform + lifebuoy
+  const rightSrcX = Math.round(sw * 0.77);
+  const rightSrcW = sw - rightSrcX; // Curved prow + red silk ribbon
+
+  // A clean single-bay wooden bench slice (between 22% and 40%, avoiding the center lotus)
+  const baySrcX = Math.round(sw * 0.22);
+  const baySrcW = Math.round(sw * 0.175);
+
+  const leftDstW = leftSrcW * scaleY;
+  const rightDstW = rightSrcW * scaleY;
+  const midDstW = Math.max(40, boatW - leftDstW - rightDstW);
+
+  const leftX = -boatW / 2;
+  const topY = -boatH / 2;
+
+  if (bayRepeats <= 1.05) {
+    // Standard single-piece boat (no extra bays needed)
+    ctx.drawImage(img, leftX, topY, boatW, boatH);
+    return;
+  }
+
+  // 1. Tile wooden bench bays across the entire middle span so more students = more real compartments!
+  const targetBayCount = Math.max(3, Math.round(bayRepeats * 3.2));
+  const tileW = midDstW / targetBayCount;
+  const midStartX = leftX + leftDstW - 2;
+
+  for (let i = 0; i < targetBayCount; i++) {
+    const tx = midStartX + i * tileW;
+    // Alternate normal & slightly shifted bay slice to keep wood grain organic
+    const srcX = i % 2 === 0 ? baySrcX : Math.round(sw * 0.60);
+    ctx.drawImage(img, srcX, 0, baySrcW, sh, tx, topY, tileW + 2, boatH);
+  }
+
+  // 2. Draw Left Stern & Right Prow cleanly at natural proportions
+  ctx.drawImage(img, 0, 0, leftSrcW, sh, leftX, topY, leftDstW + 1, boatH);
+  ctx.drawImage(
+    img,
+    rightSrcX,
+    0,
+    rightSrcW,
+    sh,
+    leftX + boatW - rightDstW - 1,
+    topY,
+    rightDstW + 1,
+    boatH,
+  );
+
+  // 3. Overlay the golden lotus emblem cleanly in the middle of the front hull
+  const lotusSrcX = Math.round(sw * 0.405);
+  const lotusSrcW = Math.round(sw * 0.19);
+  const lotusSrcY = Math.round(sh * 0.54);
+  const lotusSrcH = sh - lotusSrcY;
+  const lotusDstW = lotusSrcW * scaleY;
+  const lotusDstH = lotusSrcH * scaleY;
+  ctx.drawImage(
+    img,
+    lotusSrcX,
+    lotusSrcY,
+    lotusSrcW,
+    lotusSrcH,
+    -lotusDstW / 2,
+    topY + lotusSrcY * scaleY,
+    lotusDstW,
+    lotusDstH,
+  );
+}
+
+/**
+ * Clips to ONLY the front exterior wooden gunwale & lower hull of the boat,
+ * so drawing the boat a second time inside this clip tucks the teacher's feet
+ * and all students' lower torsos INSIDE the boat hull realistically!
+ */
+function clipFrontHull(ctx: CanvasRenderingContext2D, boatW: number, boatH: number): void {
+  const halfW = boatW / 2;
+  const topY = -boatH / 2;
+  const botY = boatH / 2;
+
+  ctx.beginPath();
+  // Follow the exact front wooden rim curve of boat.png (left rim -> gentle dip at center -> right bow rim)
+  ctx.moveTo(-halfW, topY + boatH * 0.30);
+  ctx.quadraticCurveTo(0, topY + boatH * 0.50, halfW * 0.94, topY + boatH * 0.28);
+  ctx.lineTo(halfW, topY + boatH * 0.24);
+  ctx.lineTo(halfW, botY + 8);
+  ctx.lineTo(-halfW, botY + 8);
+  ctx.closePath();
+  ctx.clip();
+}
+
 function layoutPassengers(students: RosterStudent[], winnerIds: Set<string>): Passenger[] {
   const count = students.length;
   if (count === 0) return [];
 
-  // Seat area inside boat hull: x from -240 to +285 relative to boat center
-  // Distribute across 1, 2, or 3 rows depending on class size
-  const numRows = count <= 10 ? 1 : count <= 24 ? 2 : 3;
+  const metrics = getBoatMetrics(count);
+  const { numRows, seatLeft, seatRight, boatH } = metrics;
   const rows: RosterStudent[][] = Array.from({ length: numRows }, () => []);
   students.forEach((s, i) => {
     const rowIdx = Math.floor((i * numRows) / count);
@@ -152,32 +322,24 @@ function layoutPassengers(students: RosterStudent[], winnerIds: Set<string>): Pa
   const passengers: Passenger[] = [];
   let globalIdx = 0;
 
+  // Vertical seating anchor (bottom of student torso) inside the hollowed boat cavity:
+  // Back row sits near upper bench (-0.06 * boatH), front row tucks deep behind front gunwale (+0.11 * boatH)
   rows.forEach((rowList, rowIdx) => {
     const n = rowList.length;
-    // Back row sits slightly higher, front row sits slightly lower
-    const rowYOffset =
-      numRows === 1
-        ? -24
-        : numRows === 2
-          ? rowIdx === 0
-            ? -44
-            : -10
-          : rowIdx === 0
-            ? -56
-            : rowIdx === 1
-              ? -28
-              : 0;
+    const rowFrac = numRows === 1 ? 0.5 : rowIdx / (numRows - 1);
+    const rowYOffset = boatH * (-0.07 + rowFrac * 0.17);
 
-    // Slight stagger between rows so faces & name tags don't collide
-    const spanLeft = -230 + rowIdx * 10;
-    const spanRight = 275 - rowIdx * 8;
-    const span = spanRight - spanLeft;
+    // Gentle stagger between rows so every face & name tag is clearly visible
+    const stagger = (rowIdx % 2 === 1 ? 1 : -1) * Math.min(14, (seatRight - seatLeft) / Math.max(6, n * 2.4));
+    const spanLeft = seatLeft + (rowIdx * 8);
+    const spanRight = seatRight - (rowIdx * 6);
+    const span = Math.max(40, spanRight - spanLeft);
 
     rowList.forEach((student, colIdx) => {
       const t = n === 1 ? 0.5 : colIdx / (n - 1);
-      const seatX = spanLeft + t * span;
-      // Follow gentle upward curve of the wooden boat at bow/stern
-      const curveLift = Math.pow((t - 0.5) * 2, 2) * 8;
+      const seatX = spanLeft + t * span + (n > 2 ? stagger * 0.35 : 0);
+      // Match the natural upward curve of the boat benches toward stern and prow
+      const curveLift = Math.pow((t - 0.5) * 2, 2) * (boatH * 0.055);
       const seatY = rowYOffset - curveLift;
 
       passengers.push({
@@ -344,10 +506,11 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
   // Refresh seated passengers whenever student list changes in IDLE
   useEffect(() => {
     if (simRef.current.phase === 'IDLE') {
+      const m = getBoatMetrics(students.length);
       simRef.current.passengers = layoutPassengers(students, new Set());
       simRef.current.dockSlide = 0;
       simRef.current.stormAlpha = 0;
-      simRef.current.teacherWalkX = -340;
+      simRef.current.teacherWalkX = m.teacherSternX;
     }
   }, [students]);
 
@@ -410,6 +573,7 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
 
     const totalMs = VOYAGE_MS_BY_PACE[paceRef.current];
     const now = performance.now();
+    const metrics = getBoatMetrics(students.length);
 
     simRef.current.phase = 'DEPART';
     simRef.current.voyageStartMs = now;
@@ -418,7 +582,7 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
     simRef.current.stormAlpha = 0;
     simRef.current.lightningAlpha = 0;
     simRef.current.nextLightningMs = now + totalMs * 0.28;
-    simRef.current.teacherWalkX = -340;
+    simRef.current.teacherWalkX = metrics.teacherSternX;
     simRef.current.passengers = passengers;
     simRef.current.winners = chosen;
     simRef.current.lastTickStep = -1;
@@ -441,11 +605,12 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
 
   const resetToIdle = useCallback(() => {
     stopBackgroundMusic();
+    const metrics = getBoatMetrics(students.length);
     simRef.current.phase = 'IDLE';
     simRef.current.dockSlide = 0;
     simRef.current.stormAlpha = 0;
     simRef.current.lightningAlpha = 0;
-    simRef.current.teacherWalkX = -340;
+    simRef.current.teacherWalkX = metrics.teacherSternX;
     simRef.current.passengers = layoutPassengers(students, new Set());
     simRef.current.winners = [];
     setPhase('IDLE');
@@ -545,8 +710,9 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
         const disElapsed = (now - sim.disembarkStartMs) / 1000;
         let allAwakeGone = true;
 
-        // Boat docked gently at wooden pier
-        const boatCenterX = 435;
+        const mDis = getBoatMetrics(sim.passengers.length);
+        // Boat docked gently at wooden pier (adapts to boat width so prow meets the pier)
+        const boatCenterX = Math.max(mDis.boatW / 2 + 18, 920 - mDis.boatW / 2);
         const boatCenterY = 448;
 
         for (const p of sim.passengers) {
@@ -568,14 +734,14 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
           if (p.leaveProgress < 1) allAwakeGone = false;
         }
 
-        // Teacher walks gently toward the sleeping students once most awake students left
+        // Teacher walks gently along the boat deck toward the sleeping students once most awake students left
         if (disElapsed > 1.35) {
           const avgWinnerX =
             sim.passengers
               .filter((p) => p.isSleepyWinner)
               .reduce((acc, p) => acc + p.seatX, 0) /
             Math.max(1, sim.winners.length);
-          const targetTeacherX = Math.max(-320, Math.min(120, avgWinnerX - 95));
+          const targetTeacherX = Math.max(mDis.teacherSternX, Math.min(mDis.seatRight - 60, avgWinnerX - 85));
           sim.teacherWalkX += (targetTeacherX - sim.teacherWalkX) * Math.min(1, dt * 3.5);
         }
 
@@ -721,14 +887,16 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
       }
       ctx.restore();
 
-      // 2E. Boat + Teacher + Seated Passengers (transformed together with wave bob & pitch)
+      // 2E. Boat + Teacher + Seated Passengers (3-layer depth: Back Hull -> Characters -> Front Hull Mask)
+      const metrics = getBoatMetrics(sim.passengers.length);
+      const { boatW, boatH, bayRepeats, studentScale, teacherSternX } = metrics;
       const isDocked = sim.phase === 'DISEMBARK' || sim.phase === 'REVEAL';
-      const boatBaseX = isDocked ? 435 : 515;
-      const boatBaseY = isDocked ? 448 : 438;
+      const boatBaseX = isDocked
+        ? Math.max(boatW / 2 + 18, 920 - boatW / 2)
+        : Math.max(boatW / 2 + 28, Math.min(LOGICAL_W - boatW / 2 - 28, LOGICAL_W * 0.48));
+      const boatBaseY = isDocked ? 448 : 440;
       const bobY = Math.sin(tSec * waveFreq) * waveAmp;
       const boatTilt = Math.sin(tSec * waveFreq * 0.85 + 0.65) * tiltAmp;
-      const boatW = 820;
-      const boatH = 178;
 
       ctx.save();
       ctx.translate(boatBaseX, boatBaseY + bobY);
@@ -737,35 +905,41 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
       // Soft water reflection / shadow under boat
       ctx.fillStyle = 'rgba(12, 48, 66, 0.24)';
       ctx.beginPath();
-      ctx.ellipse(0, 74, boatW * 0.44, 18, 0, 0, Math.PI * 2);
+      ctx.ellipse(0, boatH * 0.42, boatW * 0.45, 18, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // Draw Boat Back Rim (full boat drawn first, then students sit inside, then foreground wave covers bottom)
-      ctx.drawImage(assets.boat, -boatW / 2, -boatH / 2, boatW, boatH);
+      // LAYER 1: Full 3-slice wooden boat (interior floor, benches, back rim, prow & stern)
+      drawBoat3Slice(ctx, assets.boat, boatW, boatH, bayRepeats);
 
-      // Draw Teacher at stern (or walking toward sleeping students during reveal)
+      // LAYER 2A: Teacher standing FIRMLY on the stern wooden deck (feet planted at y = -boatH * 0.08)
       const isRowing = sim.phase === 'DEPART' || sim.phase === 'STORM' || sim.phase === 'ARRIVING';
-      const rowAngle = isRowing ? Math.sin(tSec * (sim.phase === 'STORM' ? 7.5 : 4.8)) * 0.14 : 0;
+      const rowAngle = isRowing ? Math.sin(tSec * (sim.phase === 'STORM' ? 7.5 : 4.8)) * 0.11 : 0;
       const walkBob =
-        sim.phase === 'DISEMBARK' && sim.teacherWalkX > -335
-          ? Math.abs(Math.sin(tSec * 9)) * -6
+        sim.phase === 'DISEMBARK' && sim.teacherWalkX > teacherSternX + 5
+          ? Math.abs(Math.sin(tSec * 9)) * -5
           : 0;
 
-      ctx.save();
-      ctx.translate(sim.teacherWalkX, -76 + walkBob);
-      ctx.rotate(rowAngle);
-      const tH = 196;
+      const tH = Math.min(205, boatH * 0.98);
       const tW = (assets.teacher.width / assets.teacher.height) * tH;
-      ctx.drawImage(assets.teacher, -tW / 2, -tH / 2, tW, tH);
+      // Plant feet right onto the flat wooden deck inside the stern
+      const teacherFeetY = -boatH * 0.07 + walkBob;
+
+      ctx.save();
+      ctx.translate(sim.teacherWalkX, teacherFeetY);
+      ctx.rotate(rowAngle);
+      ctx.drawImage(assets.teacher, -tW / 2, -tH, tW, tH);
       ctx.restore();
 
-      // Draw Seated Students inside boat
-      const studentScale =
-        sim.passengers.length <= 12
-          ? 0.96
-          : sim.passengers.length <= 24
-            ? 0.8
-            : 0.68;
+      // LAYER 2B: Seated Students tucked INSIDE the wooden bench compartments (sorted back-to-front)
+      interface TagOverlay {
+        x: number;
+        y: number;
+        text: string;
+        showSleeping: boolean;
+        bobPhase: number;
+        drawH: number;
+      }
+      const tagOverlays: TagOverlay[] = [];
 
       for (const p of sim.passengers) {
         if (p.leaveProgress > 0) continue; // Already disembarking in world space
@@ -773,13 +947,12 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
         const showSleeping =
           p.isSleepyWinner && (sim.phase === 'DISEMBARK' || sim.phase === 'REVEAL');
 
-        // Subtle playful decoy nod during storm (never reveals actual winner!)
         const stormBounce =
           sim.phase === 'STORM'
-            ? Math.sin(tSec * 6 + p.bobPhase) * 3.5
-            : Math.sin(tSec * 2.5 + p.bobPhase) * 1.5;
+            ? Math.sin(tSec * 6 + p.bobPhase) * 3.0
+            : Math.sin(tSec * 2.5 + p.bobPhase) * 1.2;
 
-        const sleepNod = showSleeping ? Math.sin(tSec * 2.2 + p.bobPhase) * 0.11 : 0;
+        const sleepNod = showSleeping ? Math.sin(tSec * 2.2 + p.bobPhase) * 0.1 : 0;
 
         const sprite = showSleeping
           ? p.isGirl
@@ -793,35 +966,58 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
         const drawW = (sprite.width / sprite.height) * drawH;
 
         // Golden spotlight beam from sky onto sleeping winners during REVEAL / late DISEMBARK
-        if (showSleeping && (sim.phase === 'REVEAL' || (sim.phase === 'DISEMBARK' && (now - sim.disembarkStartMs) > 1700))) {
+        if (
+          showSleeping &&
+          (sim.phase === 'REVEAL' ||
+            (sim.phase === 'DISEMBARK' && now - sim.disembarkStartMs > 1700))
+        ) {
           ctx.save();
-          const beamGrad = ctx.createLinearGradient(p.seatX, -380, p.seatX, p.seatY + 30);
+          const beamGrad = ctx.createLinearGradient(p.seatX, -380, p.seatX, p.seatY + 20);
           beamGrad.addColorStop(0, 'rgba(254, 240, 138, 0.02)');
           beamGrad.addColorStop(0.55, 'rgba(254, 240, 138, 0.28)');
-          beamGrad.addColorStop(1, 'rgba(250, 204, 21, 0.45)');
+          beamGrad.addColorStop(1, 'rgba(250, 204, 21, 0.44)');
           ctx.fillStyle = beamGrad;
           ctx.beginPath();
-          ctx.moveTo(p.seatX - 22, -380);
-          ctx.lineTo(p.seatX + 22, -380);
-          ctx.lineTo(p.seatX + 54, p.seatY + 26);
-          ctx.lineTo(p.seatX - 54, p.seatY + 26);
+          ctx.moveTo(p.seatX - 20, -380);
+          ctx.lineTo(p.seatX + 20, -380);
+          ctx.lineTo(p.seatX + 48, p.seatY + 20);
+          ctx.lineTo(p.seatX - 48, p.seatY + 20);
           ctx.closePath();
           ctx.fill();
           ctx.restore();
         }
 
+        // Anchor student bottom torso cleanly inside the hollowed cavity so front gunwale overlaps lower chest
         ctx.save();
         ctx.translate(p.seatX, p.seatY + stormBounce);
         ctx.rotate(sleepNod);
-        ctx.drawImage(sprite, -drawW / 2, -drawH * 0.72, drawW, drawH);
+        ctx.drawImage(sprite, -drawW / 2, -drawH * 0.86, drawW, drawH);
         ctx.restore();
 
-        // Floating "Zzz" animation above sleeping students
-        if (showSleeping) {
+        tagOverlays.push({
+          x: p.seatX,
+          y: p.seatY + stormBounce,
+          text: p.shortName,
+          showSleeping,
+          bobPhase: p.bobPhase,
+          drawH,
+        });
+      }
+
+      // LAYER 3: Front Wooden Gunwale & Lower Hull Overlay (clips boat front over lower torsos & teacher's shoes!)
+      ctx.save();
+      clipFrontHull(ctx, boatW, boatH);
+      drawBoat3Slice(ctx, assets.boat, boatW, boatH, bayRepeats);
+      ctx.restore();
+
+      // LAYER 4: Floating Name Tag Pills & "Zzz" bubbles rendered crisply above the boat & characters
+      const tagFontSize = sim.passengers.length > 36 ? 10 : sim.passengers.length > 22 ? 11 : 13;
+      for (const tag of tagOverlays) {
+        if (tag.showSleeping) {
           ctx.save();
-          const zCycle = (tSec * 0.9 + p.bobPhase) % 1;
-          const zx = p.seatX + 16 + zCycle * 18;
-          const zy = p.seatY - drawH * 0.62 - zCycle * 34;
+          const zCycle = (tSec * 0.9 + tag.bobPhase) % 1;
+          const zx = tag.x + 14 + zCycle * 18;
+          const zy = tag.y - tag.drawH * 0.72 - zCycle * 32;
           ctx.font = `900 ${Math.round(13 + zCycle * 7)}px system-ui, sans-serif`;
           ctx.fillStyle = `rgba(255, 251, 235, ${1 - zCycle * 0.85})`;
           ctx.strokeStyle = `rgba(92, 51, 23, ${1 - zCycle * 0.85})`;
@@ -831,39 +1027,27 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
           ctx.restore();
         }
 
-        // Name Tag Pill above head
-        const tagFontSize = sim.passengers.length > 26 ? 11 : 13;
         ctx.font = `800 ${tagFontSize}px system-ui, -apple-system, sans-serif`;
-        const textW = ctx.measureText(p.shortName).width;
-        const pillW = Math.max(38, textW + 14);
-        const pillH = tagFontSize + 8;
-        const pillX = p.seatX - pillW / 2;
-        const pillY = p.seatY - drawH * 0.76 - pillH + 2 + stormBounce;
+        const textW = ctx.measureText(tag.text).width;
+        const pillW = Math.max(32, textW + 12);
+        const pillH = tagFontSize + 7;
+        const pillX = tag.x - pillW / 2;
+        const pillY = tag.y - tag.drawH * 0.88 - pillH + 2;
 
         ctx.save();
         drawRoundedRect(ctx, pillX, pillY, pillW, pillH, 6);
-        ctx.fillStyle = showSleeping ? '#fef08a' : 'rgba(255, 251, 235, 0.94)';
+        ctx.fillStyle = tag.showSleeping ? '#fef08a' : 'rgba(255, 251, 235, 0.94)';
         ctx.fill();
-        ctx.lineWidth = showSleeping ? 2.2 : 1.5;
-        ctx.strokeStyle = showSleeping ? '#b45309' : '#5c3a21';
+        ctx.lineWidth = tag.showSleeping ? 2.2 : 1.4;
+        ctx.strokeStyle = tag.showSleeping ? '#b45309' : '#5c3a21';
         ctx.stroke();
 
-        ctx.fillStyle = showSleeping ? '#7c2d12' : '#29170b';
+        ctx.fillStyle = tag.showSleeping ? '#7c2d12' : '#29170b';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(p.shortName, p.seatX, pillY + pillH / 2 + 0.5);
+        ctx.fillText(tag.text, tag.x, pillY + pillH / 2 + 0.5);
         ctx.restore();
       }
-
-      // Draw a subtle front wooden gunwale highlight strip so students look tucked INSIDE the boat
-      ctx.save();
-      ctx.strokeStyle = 'rgba(133, 77, 14, 0.65)';
-      ctx.lineWidth = 6;
-      ctx.beginPath();
-      ctx.moveTo(-290, 2);
-      ctx.quadraticCurveTo(0, 18, 315, -4);
-      ctx.stroke();
-      ctx.restore();
 
       ctx.restore(); // End boat transform
 
