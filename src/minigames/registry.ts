@@ -40,6 +40,7 @@ const CaptainDraftGame = lazy(() => import('./games/CaptainDraftGame'));
 const DogChaseGame = lazy(() => import('./games/DogChaseGame'));
 const MangoHarvestGame = lazy(() => import('./games/MangoHarvestGame'));
 const DragonSnakeGame = lazy(() => import('./games/DragonSnakeGame'));
+const LuckyStarGame = lazy(() => import('./games/LuckyStarGame'));
 const LuckyLensGame = lazy(() => import('./games/LuckyLensGame'));
 
 export const MINIGAME_REGISTRY: MinigamePlugin[] = [
@@ -481,6 +482,17 @@ export const MINIGAME_REGISTRY: MinigamePlugin[] = [
     icon: '🐉',
     ready: true,
     component: DragonSnakeGame,
+  },
+  {
+    id: 'ngoi-sao-may-man',
+    name: 'Ngôi Sao May Mắn',
+    category: 'VIETNAM',
+    description: 'Quả cầu ngôi sao 3D xoay giữa bầu trời đêm, chọn 1–5 ngôi sao bay ra giữa màn hình rực rỡ!',
+    badge: 'Game Việt',
+    gradient: 'from-amber-400 via-yellow-500 to-indigo-700',
+    icon: '⭐',
+    ready: true,
+    component: LuckyStarGame,
   },
   // Nhóm 7: Camera AI
   {
