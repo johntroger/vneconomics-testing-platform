@@ -98,6 +98,9 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
   const rafRef = useRef<number | null>(null);
   const confettiTimerRef = useRef<number | null>(null);
   const lastDetectMsRef = useRef<number>(0);
+  const lastVideoTimeRef = useRef<number>(-1);
+  const lastFaceCountRef = useRef<number>(0);
+  const lastCountdownRef = useRef<number>(-1);
   const nextFaceIdRef = useRef<number>(1);
   const trackedFacesRef = useRef<TrackedFace[]>([]);
 
@@ -114,13 +117,21 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
     startMs: number;
     durationMs: number;
     lastHopMs: number;
+    cursor1: number;
+    cursor2: number;
     highlightIndices: number[];
+    glide1: { x: number; y: number; w: number; h: number } | null;
+    glide2: { x: number; y: number; w: number; h: number } | null;
   }>({
     active: false,
     startMs: 0,
     durationMs: 10000,
     lastHopMs: 0,
+    cursor1: 0,
+    cursor2: 0,
     highlightIndices: [],
+    glide1: null,
+    glide2: null,
   });
 
   // Sync scanSeconds when top-bar paceMode changes
@@ -141,6 +152,8 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
       videoRef.current.srcObject = null;
     }
     trackedFacesRef.current = [];
+    lastFaceCountRef.current = 0;
+    lastVideoTimeRef.current = -1;
     setFaceCount(0);
     setCameraActive(false);
     setScanning(false);
@@ -173,8 +186,8 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
           delegate: 'GPU',
         },
         runningMode: 'VIDEO',
-        minDetectionConfidence: 0.42,
-        minSuppressionThreshold: 0.3,
+        minDetectionConfidence: 0.28,
+        minSuppressionThreshold: 0.25,
       });
       detectorRef.current = gpuDetector;
       setAiReady(true);
@@ -186,8 +199,8 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
           delegate: 'CPU',
         },
         runningMode: 'VIDEO',
-        minDetectionConfidence: 0.42,
-        minSuppressionThreshold: 0.3,
+        minDetectionConfidence: 0.28,
+        minSuppressionThreshold: 0.25,
       });
       detectorRef.current = cpuDetector;
       setAiReady(true);
@@ -357,14 +370,19 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
         }
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          // 1. Run MediaPipe FaceDetector throttled to ~18fps for cool & smooth laptop performance
-          if (detector && now - lastDetectMsRef.current >= 55) {
+          // 1. Run MediaPipe FaceDetector at ~24fps only on fresh video frames
+          if (
+            detector &&
+            now - lastDetectMsRef.current >= 40 &&
+            video.currentTime !== lastVideoTimeRef.current
+          ) {
             lastDetectMsRef.current = now;
+            lastVideoTimeRef.current = video.currentTime;
             try {
               const res = detector.detectForVideo(video, now);
               const rawBoxes = (res.detections ?? [])
                 .map((d) => d.boundingBox)
-                .filter((b): b is NonNullable<typeof b> => Boolean(b && b.width > 12 && b.height > 12))
+                .filter((b): b is NonNullable<typeof b> => Boolean(b && b.width > 10 && b.height > 10))
                 .map((b) => {
                   const nx = b.originX / vw;
                   const ny = b.originY / vh;
@@ -378,7 +396,7 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
                   };
                 });
 
-              // Proximity smoothing so boxes glide smoothly instead of jittering
+              // Responsive proximity smoothing so boxes stay glued when panning camera
               const prev = trackedFacesRef.current;
               const usedPrev = new Set<number>();
               const updated: TrackedFace[] = [];
@@ -387,7 +405,7 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
                 const rcx = rb.x + rb.w / 2;
                 const rcy = rb.y + rb.h / 2;
                 let bestIdx = -1;
-                let bestDist = 0.14;
+                let bestDist = 0.16;
                 for (let i = 0; i < prev.length; i++) {
                   if (usedPrev.has(i)) continue;
                   const pcx = prev[i].x + prev[i].w / 2;
@@ -401,7 +419,7 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
                 if (bestIdx >= 0) {
                   usedPrev.add(bestIdx);
                   const old = prev[bestIdx];
-                  const alpha = 0.45;
+                  const alpha = 0.72;
                   updated.push({
                     id: old.id,
                     x: old.x + (rb.x - old.x) * alpha,
@@ -422,50 +440,56 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
                 }
               }
 
-              // Keep briefly occluded faces for 320ms to prevent flicker
+              // Keep briefly occluded faces for 260ms to prevent flicker
               for (let i = 0; i < prev.length; i++) {
-                if (!usedPrev.has(i) && now - prev[i].lastSeen < 320) {
+                if (!usedPrev.has(i) && now - prev[i].lastSeen < 260) {
                   updated.push(prev[i]);
                 }
               }
 
-              // Sort left-to-right for deterministic visuals
+              // Sort left-to-right so scanning sweeps cleanly across the classroom
               updated.sort((a, b) => a.x - b.x);
               trackedFacesRef.current = updated;
-              setFaceCount(updated.length);
+              if (updated.length !== lastFaceCountRef.current) {
+                lastFaceCountRef.current = updated.length;
+                setFaceCount(updated.length);
+              }
             } catch {
               // Ignore transient frame errors
             }
           }
 
-          // 2. Update randomizer hopping logic when scanning
+          // 2. Update round-robin looping scanner logic when scanning
           const scan = scanStateRef.current;
           const faces = trackedFacesRef.current;
 
           if (scan.active) {
             const elapsed = now - scan.startMs;
             const remaining = Math.max(0, (scan.durationMs - elapsed) / 1000);
-            setCountdownSec(Math.ceil(remaining * 10) / 10);
+            const roundedSec = Math.ceil(remaining * 10) / 10;
+            if (roundedSec !== lastCountdownRef.current) {
+              lastCountdownRef.current = roundedSec;
+              setCountdownSec(roundedSec);
+            }
 
             if (elapsed >= scan.durationMs) {
               finalizeSelection(scan.highlightIndices);
             } else if (faces.length > 0) {
-              // Progressively slow down hops in the final 35% like a dramatic roulette wheel!
+              // Progressively slow down round-robin sweep in final 35%
               const progress = elapsed / scan.durationMs;
-              const hopIntervalMs = 85 + Math.pow(progress, 2.3) * 440;
+              const hopIntervalMs = 90 + Math.pow(progress, 2.3) * 420;
               if (now - scan.lastHopMs >= hopIntervalMs) {
                 scan.lastHopMs = now;
                 if (modeRef.current === 'PAIR' && faces.length >= 2) {
-                  const first = cryptoRandomInt(faces.length);
-                  let second = cryptoRandomInt(faces.length - 1);
-                  if (second >= first) second += 1;
-                  scan.highlightIndices = [first, second];
-                } else {
-                  let pick = cryptoRandomInt(faces.length);
-                  if (faces.length > 1 && pick === scan.highlightIndices[0]) {
-                    pick = (pick + 1) % faces.length;
+                  scan.cursor1 = (scan.cursor1 + 1) % faces.length;
+                  scan.cursor2 = (scan.cursor2 - 1 + faces.length) % faces.length;
+                  if (scan.cursor2 === scan.cursor1) {
+                    scan.cursor2 = (scan.cursor1 + Math.max(1, Math.floor(faces.length / 2))) % faces.length;
                   }
-                  scan.highlightIndices = [pick];
+                  scan.highlightIndices = [scan.cursor1, scan.cursor2];
+                } else {
+                  scan.cursor1 = (scan.cursor1 + 1) % faces.length;
+                  scan.highlightIndices = [scan.cursor1];
                 }
                 if (!mutedRef.current) playWheelTick();
               }
@@ -475,69 +499,135 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
           // 3. Render overlay boxes at 60fps
           ctx.clearRect(0, 0, vw, vh);
 
-          // Subtle radar scan beam during active scan
+          // Radar scan beam & sweeping reticle during active scan
           if (scan.active) {
-            const beamY = ((now * 0.35) % (vh + 120)) - 60;
+            const beamY = ((now * 0.38) % (vh + 120)) - 60;
             const grad = ctx.createLinearGradient(0, beamY - 35, 0, beamY + 35);
             grad.addColorStop(0, 'rgba(34, 211, 238, 0)');
-            grad.addColorStop(0.5, 'rgba(34, 211, 238, 0.22)');
+            grad.addColorStop(0.5, 'rgba(34, 211, 238, 0.24)');
             grad.addColorStop(1, 'rgba(34, 211, 238, 0)');
             ctx.fillStyle = grad;
             ctx.fillRect(0, beamY - 35, vw, 70);
           }
 
-          // Draw energy link between paired faces
-          if (
-            scan.active &&
-            modeRef.current === 'PAIR' &&
-            scan.highlightIndices.length === 2 &&
-            faces[scan.highlightIndices[0]] &&
-            faces[scan.highlightIndices[1]]
-          ) {
-            const f1 = faces[scan.highlightIndices[0]];
-            const f2 = faces[scan.highlightIndices[1]];
-            const x1 = (f1.x + f1.w / 2) * vw;
-            const y1 = (f1.y + f1.h / 2) * vh;
-            const x2 = (f2.x + f2.w / 2) * vw;
-            const y2 = (f2.y + f2.h / 2) * vh;
-            ctx.save();
-            ctx.strokeStyle = '#facc15';
-            ctx.lineWidth = 4;
-            ctx.setLineDash([12, 8]);
-            ctx.shadowColor = '#facc15';
-            ctx.shadowBlur = 12;
-            ctx.beginPath();
-            ctx.moveTo(x1, y1);
-            ctx.lineTo(x2, y2);
-            ctx.stroke();
-            ctx.restore();
-          }
+          // Base subtle cyan frames on all detected faces
+          faces.forEach((f) => {
+            drawCornerBox(
+              ctx,
+              f.x * vw,
+              f.y * vh,
+              f.w * vw,
+              f.h * vh,
+              'rgba(56, 189, 248, 0.72)',
+              2.5,
+              false,
+            );
+          });
 
-          faces.forEach((f, idx) => {
-            const px = f.x * vw;
-            const py = f.y * vh;
-            const pw = f.w * vw;
-            const ph = f.h * vh;
+          // Smooth gliding active scanner box(es) looping around detected faces
+          if (scan.active && faces.length > 0) {
+            const f1 = faces[scan.highlightIndices[0] % faces.length];
+            if (f1) {
+              const tx = f1.x * vw;
+              const ty = f1.y * vh;
+              const tw = f1.w * vw;
+              const th = f1.h * vh;
+              if (!scan.glide1) {
+                scan.glide1 = { x: tx, y: ty, w: tw, h: th };
+              } else {
+                const gAlpha = 0.32;
+                scan.glide1.x += (tx - scan.glide1.x) * gAlpha;
+                scan.glide1.y += (ty - scan.glide1.y) * gAlpha;
+                scan.glide1.w += (tw - scan.glide1.w) * gAlpha;
+                scan.glide1.h += (th - scan.glide1.h) * gAlpha;
+              }
+            }
 
-            const hlPos = scan.active ? scan.highlightIndices.indexOf(idx) : -1;
-            if (hlPos === 0) {
+            const f2 =
+              modeRef.current === 'PAIR' && faces.length >= 2
+                ? faces[(scan.highlightIndices[1] ?? 1) % faces.length]
+                : null;
+            if (f2) {
+              const tx = f2.x * vw;
+              const ty = f2.y * vh;
+              const tw = f2.w * vw;
+              const th = f2.h * vh;
+              if (!scan.glide2) {
+                scan.glide2 = { x: tx, y: ty, w: tw, h: th };
+              } else {
+                const gAlpha = 0.32;
+                scan.glide2.x += (tx - scan.glide2.x) * gAlpha;
+                scan.glide2.y += (ty - scan.glide2.y) * gAlpha;
+                scan.glide2.w += (tw - scan.glide2.w) * gAlpha;
+                scan.glide2.h += (th - scan.glide2.h) * gAlpha;
+              }
+            } else {
+              scan.glide2 = null;
+            }
+
+            if (scan.glide1 && scan.glide2) {
+              const x1 = scan.glide1.x + scan.glide1.w / 2;
+              const y1 = scan.glide1.y + scan.glide1.h / 2;
+              const x2 = scan.glide2.x + scan.glide2.w / 2;
+              const y2 = scan.glide2.y + scan.glide2.h / 2;
+              ctx.save();
+              ctx.strokeStyle = '#facc15';
+              ctx.lineWidth = 4;
+              ctx.setLineDash([12, 8]);
+              ctx.shadowColor = '#facc15';
+              ctx.shadowBlur = 12;
+              ctx.beginPath();
+              ctx.moveTo(x1, y1);
+              ctx.lineTo(x2, y2);
+              ctx.stroke();
+              ctx.restore();
+            }
+
+            if (scan.glide1) {
               drawCornerBox(
                 ctx,
-                px,
-                py,
-                pw,
-                ph,
+                scan.glide1.x,
+                scan.glide1.y,
+                scan.glide1.w,
+                scan.glide1.h,
                 '#4ade80',
                 5,
                 true,
-                modeRef.current === 'PAIR' ? 'BẠN 1 ✨' : 'ĐANG CHỌN 🎯',
+                modeRef.current === 'PAIR' ? 'BẠN 1 ✨' : 'ĐANG QUÉT 🎯',
               );
-            } else if (hlPos === 1) {
-              drawCornerBox(ctx, px, py, pw, ph, '#fbbf24', 5, true, 'BẠN 2 🤝');
-            } else {
-              drawCornerBox(ctx, px, py, pw, ph, 'rgba(56, 189, 248, 0.78)', 2.5, false);
             }
-          });
+            if (scan.glide2) {
+              drawCornerBox(
+                ctx,
+                scan.glide2.x,
+                scan.glide2.y,
+                scan.glide2.w,
+                scan.glide2.h,
+                '#fbbf24',
+                5,
+                true,
+                'BẠN 2 🤝',
+              );
+            }
+
+            // If only 1 face is currently visible, draw orbiting scan ring so it feels alive
+            if (faces.length === 1 && scan.glide1) {
+              const cx = scan.glide1.x + scan.glide1.w / 2;
+              const cy = scan.glide1.y + scan.glide1.h / 2;
+              const rad = Math.max(scan.glide1.w, scan.glide1.h) * 0.68;
+              const ang = (now / 260) % (Math.PI * 2);
+              ctx.save();
+              ctx.strokeStyle = 'rgba(74, 222, 128, 0.8)';
+              ctx.lineWidth = 3.5;
+              ctx.beginPath();
+              ctx.arc(cx, cy, rad, ang, ang + Math.PI * 0.7);
+              ctx.stroke();
+              ctx.restore();
+            }
+          } else {
+            scan.glide1 = null;
+            scan.glide2 = null;
+          }
         }
       }
 
@@ -631,13 +721,22 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
       return;
     }
 
+    const startCursor1 = cryptoRandomInt(currentCount);
+    const startCursor2 =
+      currentCount >= 2 ? (startCursor1 + Math.max(1, Math.floor(currentCount / 2))) % currentCount : 0;
+
     setCapturedWinners(null);
+    lastCountdownRef.current = -1;
     scanStateRef.current = {
       active: true,
       startMs: performance.now(),
       durationMs: scanSeconds * 1000,
       lastHopMs: 0,
-      highlightIndices: [],
+      cursor1: startCursor1,
+      cursor2: startCursor2,
+      highlightIndices: mode === 'PAIR' && currentCount >= 2 ? [startCursor1, startCursor2] : [startCursor1],
+      glide1: null,
+      glide2: null,
     };
     setCountdownSec(scanSeconds);
     setScanning(true);
@@ -809,6 +908,12 @@ export const LuckyLensGame: React.FC<MinigameProps> = ({ muted }) => {
             {warningTip && (
               <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-2xl bg-rose-600/95 text-white text-xs sm:text-sm font-bold shadow-xl">
                 ⚠️ {warningTip}
+              </div>
+            )}
+
+            {!warningTip && scanning && faceCount === 1 && (
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-2xl bg-slate-950/80 border border-cyan-400/40 text-cyan-200 text-xs font-bold backdrop-blur-md">
+                💡 Hiện chỉ thấy 1 khuôn mặt — lia camera rộng hơn để quét vòng quanh nhiều bạn!
               </div>
             )}
           </div>
