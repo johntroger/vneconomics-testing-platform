@@ -81,14 +81,38 @@ interface FoamBubble {
 const FEMALE_TOKENS = new Set([
   'thị', 'ngọc', 'lan', 'linh', 'vy', 'nhi', 'thảo', 'trúc', 'hà', 'hân',
   'quỳnh', 'ngân', 'yến', 'mai', 'duyên', 'châu', 'trang', 'hương', 'phương',
-  'hoa', 'tâm', 'thu', 'thủy', 'thanh', 'nga', 'nhung', 'my', 'chi', 'tiên',
-  'trinh', 'oanh', 'ly', 'huyền', 'giang', 'hiền', 'vân', 'nguyệt', 'bích',
+  'hoa', 'thu', 'thủy', 'nga', 'nhung', 'my', 'chi', 'tiên',
+  'trinh', 'oanh', 'ly', 'huyền', 'hiền', 'vân', 'nguyệt', 'bích', 'diễm',
+  'tuyết', 'như', 'uyên', 'tâm', 'hạnh', 'đào', 'nhã', 'khuê', 'thư',
 ]);
 
-function guessIsGirl(name: string, index: number): boolean {
-  const tokens = name.toLowerCase().trim().split(/\s+/);
+const MALE_TOKENS = new Set([
+  'văn', 'bảo', 'duy', 'huy', 'kiệt', 'long', 'nam', 'phong', 'sơn', 'tuấn',
+  'vinh', 'hùng', 'hưng', 'hiếu', 'khang', 'khôi', 'mạnh', 'đức', 'hoàng',
+  'quốc', 'tùng', 'đạt', 'trung', 'dũng', 'khoa', 'phúc', 'quân', 'thịnh',
+  'tiến', 'tài', 'cường', 'nhật', 'lâm', 'nghĩa', 'trí', 'thành', 'hải',
+  'quang', 'toàn', 'sang', 'phát', 'bình', 'thắng', 'công', 'tân', 'trọng',
+  'tấn', 'khải', 'triết', 'vũ', 'lộc', 'nhân', 'anh',
+]);
+
+function guessIsGirl(student: RosterStudent, index: number): boolean {
+  const g = (student.gender || '').toLowerCase().trim();
+  if (g === 'nữ' || g === 'nu' || g === 'female' || g === 'f') return true;
+  if (g === 'nam' || g === 'male' || g === 'm') return false;
+
+  const tokens = student.name.toLowerCase().trim().split(/\s+/);
+  // Check middle name "thị" / "văn" first
+  if (tokens.includes('thị')) return true;
+  if (tokens.includes('văn')) return false;
+
+  // Check last name (given name) first for highest accuracy
+  const given = tokens[tokens.length - 1];
+  if (FEMALE_TOKENS.has(given)) return true;
+  if (MALE_TOKENS.has(given)) return false;
+
   for (const t of tokens) {
     if (FEMALE_TOKENS.has(t)) return true;
+    if (MALE_TOKENS.has(t)) return false;
   }
   return index % 2 === 1;
 }
@@ -297,11 +321,11 @@ function clipFrontHull(ctx: CanvasRenderingContext2D, boatW: number, boatH: numb
   const botY = boatH / 2;
 
   ctx.beginPath();
-  // Follow the lower exterior front rim of boat.png so ONLY students' laps/skirts tuck behind the wood,
-  // while their full faces, red neckerchiefs, and BOTH waving/sleeping arms stay 100% visible!
-  ctx.moveTo(-halfW, topY + boatH * 0.38);
-  ctx.quadraticCurveTo(0, topY + boatH * 0.56, halfW * 0.94, topY + boatH * 0.36);
-  ctx.lineTo(halfW, topY + boatH * 0.30);
+  // Follow the lower exterior front rim of boat.png so ONLY students' hips/laps tuck behind the wood,
+  // while their full faces, white shirts, red neckerchiefs, and BOTH waving/sleeping arms stay 100% visible!
+  ctx.moveTo(-halfW, topY + boatH * 0.44);
+  ctx.quadraticCurveTo(0, topY + boatH * 0.58, halfW * 0.94, topY + boatH * 0.42);
+  ctx.lineTo(halfW, topY + boatH * 0.34);
   ctx.lineTo(halfW, botY + 8);
   ctx.lineTo(-halfW, botY + 8);
   ctx.closePath();
@@ -324,11 +348,11 @@ function layoutPassengers(students: RosterStudent[], winnerIds: Set<string>): Pa
   let globalIdx = 0;
 
   // Vertical seating anchor (hip/lap line of the full upper-body student sprite):
-  // Back row sits higher (-0.16 * boatH), front row sits nicely at (+0.05 * boatH) so laps tuck behind front rim
+  // Sit comfortably high so shoulders, neckerchief & BOTH arms are fully visible above the front gunwale
   rows.forEach((rowList, rowIdx) => {
     const n = rowList.length;
     const rowFrac = numRows === 1 ? 0.65 : rowIdx / (numRows - 1);
-    const rowYOffset = boatH * (-0.16 + rowFrac * 0.21);
+    const rowYOffset = boatH * (-0.23 + rowFrac * 0.21);
 
     // Gentle stagger between rows so every face, waving hand & name tag is clearly visible
     const stagger = (rowIdx % 2 === 1 ? 1 : -1) * Math.min(14, (seatRight - seatLeft) / Math.max(6, n * 2.4));
@@ -340,13 +364,13 @@ function layoutPassengers(students: RosterStudent[], winnerIds: Set<string>): Pa
       const t = n === 1 ? 0.5 : colIdx / (n - 1);
       const seatX = spanLeft + t * span + (n > 2 ? stagger * 0.35 : 0);
       // Match the natural upward curve of the boat benches toward stern and prow
-      const curveLift = Math.pow((t - 0.5) * 2, 2) * (boatH * 0.05);
+      const curveLift = Math.pow((t - 0.5) * 2, 2) * (boatH * 0.045);
       const seatY = rowYOffset - curveLift;
 
       passengers.push({
         student,
         shortName: getLastWordName(student.name),
-        isGirl: guessIsGirl(student.name, globalIdx),
+        isGirl: guessIsGirl(student, globalIdx),
         seatX,
         seatY,
         row: rowIdx,
@@ -1011,26 +1035,27 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
       drawBoat3Slice(ctx, assets.boat, boatW, boatH, bayRepeats);
       ctx.restore();
 
-      // LAYER 3B: Extended Wooden Oar Blade dipping right INTO the river water when teacher is at the stern!
+      // LAYER 3B: Extended Wooden Oar Blade aligned seamlessly with teacher-row.png's oar shaft & dipping INTO water!
       if (sim.teacherWalkX <= teacherSternX + 18) {
         const oarSwing = isRowing ? Math.sin(tSec * (sim.phase === 'STORM' ? 7.5 : 4.8)) : 0;
-        const oarPivotX = sim.teacherWalkX - tW * 0.28;
-        const oarPivotY = teacherFeetY - tH * 0.24;
-        const oarEndX = oarPivotX - 78 + oarSwing * 18;
-        const oarEndY = boatH * 0.44 + Math.abs(oarSwing) * 6; // Reaches right into the water line!
+        // Exact continuation from the bottom-left paddle end of teacher-row.png
+        const oarPivotX = sim.teacherWalkX - tW * 0.42;
+        const oarPivotY = teacherFeetY - tH * 0.10;
+        const oarEndX = oarPivotX - 72 + oarSwing * 18;
+        const oarEndY = boatH * 0.48 + Math.abs(oarSwing) * 5;
 
         ctx.save();
         // Wooden shaft continuing seamlessly from teacher's oar handle
         ctx.lineCap = 'round';
         ctx.strokeStyle = '#4a2c15';
-        ctx.lineWidth = 9;
+        ctx.lineWidth = 8.5;
         ctx.beginPath();
         ctx.moveTo(oarPivotX, oarPivotY);
         ctx.lineTo(oarEndX, oarEndY);
         ctx.stroke();
 
         ctx.strokeStyle = '#9a6332';
-        ctx.lineWidth = 5;
+        ctx.lineWidth = 4.5;
         ctx.beginPath();
         ctx.moveTo(oarPivotX, oarPivotY);
         ctx.lineTo(oarEndX, oarEndY);
@@ -1041,7 +1066,7 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
         ctx.translate(oarEndX, oarEndY);
         ctx.rotate(angle);
         ctx.beginPath();
-        ctx.ellipse(-6, 0, 24, 9, 0, 0, Math.PI * 2);
+        ctx.ellipse(-6, 0, 26, 9, 0, 0, Math.PI * 2);
         ctx.fillStyle = '#a46b38';
         ctx.fill();
         ctx.lineWidth = 2.2;
@@ -1056,7 +1081,7 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
         ctx.strokeStyle = `rgba(255, 255, 255, ${rippleAlpha})`;
         ctx.lineWidth = 2.5;
         ctx.beginPath();
-        ctx.ellipse(oarEndX - 4, boatH * 0.44, rippleR, rippleR * 0.34, 0, 0, Math.PI * 2);
+        ctx.ellipse(oarEndX - 4, boatH * 0.48, rippleR, rippleR * 0.34, 0, 0, Math.PI * 2);
         ctx.stroke();
         ctx.restore();
       }
@@ -1137,42 +1162,44 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
         }
       }
 
-      // 2G. Foreground Animated Watercolor Waves in front of the boat
+      // 2G. Foreground Soft Watercolor Waves (smooth 8px sampling, low enough to never cover the boat's golden lotus!)
       ctx.save();
-      const waveHeight = 8 + sim.stormAlpha * 16;
-      const waveSpeed = (wakeActive ? 4.4 : 1.4) + sim.stormAlpha * 2.8;
+      const waveHeight = 6 + sim.stormAlpha * 11;
+      const waveSpeed = (wakeActive ? 4.0 : 1.3) + sim.stormAlpha * 2.4;
+      const waveBaseY = 556;
+
       ctx.beginPath();
       ctx.moveTo(0, LOGICAL_H);
-      for (let x = 0; x <= LOGICAL_W; x += 28) {
+      for (let x = 0; x <= LOGICAL_W; x += 8) {
         const y =
-          522 +
-          Math.sin(x * 0.014 + tSec * waveSpeed) * waveHeight +
-          Math.cos(x * 0.029 - tSec * waveSpeed * 0.7) * (waveHeight * 0.4);
+          waveBaseY +
+          Math.sin(x * 0.011 + tSec * waveSpeed) * waveHeight +
+          Math.cos(x * 0.023 - tSec * waveSpeed * 0.65) * (waveHeight * 0.35);
         ctx.lineTo(x, y);
       }
       ctx.lineTo(LOGICAL_W, LOGICAL_H);
       ctx.closePath();
 
-      const waterGrad = ctx.createLinearGradient(0, 500, 0, LOGICAL_H);
+      const waterGrad = ctx.createLinearGradient(0, waveBaseY - 18, 0, LOGICAL_H);
       if (sim.stormAlpha > 0.35) {
-        waterGrad.addColorStop(0, `rgba(30, 82, 114, ${0.72 + sim.stormAlpha * 0.16})`);
-        waterGrad.addColorStop(1, 'rgba(14, 48, 74, 0.92)');
+        waterGrad.addColorStop(0, `rgba(38, 102, 132, ${0.52 + sim.stormAlpha * 0.14})`);
+        waterGrad.addColorStop(1, 'rgba(18, 62, 88, 0.82)');
       } else {
-        waterGrad.addColorStop(0, 'rgba(56, 178, 192, 0.56)');
-        waterGrad.addColorStop(1, 'rgba(20, 128, 152, 0.82)');
+        waterGrad.addColorStop(0, 'rgba(72, 192, 206, 0.46)');
+        waterGrad.addColorStop(1, 'rgba(28, 138, 162, 0.72)');
       }
       ctx.fillStyle = waterGrad;
       ctx.fill();
 
-      // White foam crest along foreground wave
-      ctx.strokeStyle = `rgba(255, 255, 255, ${0.42 + sim.stormAlpha * 0.38})`;
-      ctx.lineWidth = 3 + sim.stormAlpha * 2;
+      // Delicate watercolor foam crest
+      ctx.strokeStyle = `rgba(255, 255, 255, ${0.38 + sim.stormAlpha * 0.32})`;
+      ctx.lineWidth = 2.5 + sim.stormAlpha * 1.2;
       ctx.beginPath();
-      for (let x = 0; x <= LOGICAL_W; x += 28) {
+      for (let x = 0; x <= LOGICAL_W; x += 8) {
         const y =
-          522 +
-          Math.sin(x * 0.014 + tSec * waveSpeed) * waveHeight +
-          Math.cos(x * 0.029 - tSec * waveSpeed * 0.7) * (waveHeight * 0.4);
+          waveBaseY +
+          Math.sin(x * 0.011 + tSec * waveSpeed) * waveHeight +
+          Math.cos(x * 0.023 - tSec * waveSpeed * 0.65) * (waveHeight * 0.35);
         if (x === 0) ctx.moveTo(x, y);
         else ctx.lineTo(x, y);
       }
