@@ -35,7 +35,7 @@ export const InstructorGuidePage: React.FC = () => {
     <div className="min-h-screen bg-slate-50 text-ink-900 flex flex-col">
       {/* Top sticky navigation */}
       <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-6 py-3 print:hidden">
-        <div className="max-w-5xl mx-auto flex flex-wrap items-center justify-between gap-3">
+        <div className="w-full lg:px-2 flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center p-1 shadow-2xs shrink-0 overflow-hidden">
               <img src="/logo.png" alt="VNEconomics Logo" className="w-full h-full object-contain" />
@@ -77,7 +77,7 @@ export const InstructorGuidePage: React.FC = () => {
         </div>
       </header>
 
-      <main className="max-w-5xl w-full mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
+      <main className="w-full px-4 sm:px-6 lg:px-8 py-6 sm:py-8 space-y-6">
         {/* Hero Intro Card */}
         <section className="bg-gradient-to-br from-brand-50 via-white to-support-50 rounded-2xl border border-brand-200 p-5 sm:p-6 shadow-xs space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">

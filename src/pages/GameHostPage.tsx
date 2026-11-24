@@ -375,7 +375,7 @@ export const GameHostPage: React.FC = () => {
       </header>
 
       {/* Main Stage */}
-      <main className="flex-1 flex flex-col p-6 max-w-6xl w-full mx-auto">
+      <main className="flex-1 flex flex-col p-4 sm:p-6 lg:px-8 w-full">
         {session.state === 'LOBBY' && (
           <div className="flex-1 flex flex-col items-center justify-center gap-8">
             <div className="w-full max-w-3xl bg-gradient-to-br from-indigo-900/80 to-violet-900/80 border border-indigo-500/30 rounded-3xl p-8 shadow-2xl flex flex-col sm:flex-row items-center justify-between gap-6">

@@ -223,7 +223,7 @@ export const ExamLobbyPage: React.FC = () => {
         </div>
       )}
 
-      <div className="max-w-2xl mx-auto space-y-4">
+      <div className="w-full px-1 sm:px-4 lg:px-6 space-y-4">
         <button
           type="button"
           onClick={() => navigate('/')}

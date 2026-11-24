@@ -238,7 +238,7 @@ export const AttendanceCheckInPage: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-surface-100 to-slate-100 flex flex-col">
       <header className="sticky top-0 z-20 bg-white/95 backdrop-blur-md border-b border-slate-200/80 px-4 py-3">
-        <div className="max-w-lg mx-auto flex items-center justify-between gap-2">
+        <div className="w-full lg:px-4 flex items-center justify-between gap-2">
           <Link
             to="/"
             className="inline-flex items-center gap-1.5 text-xs font-bold text-ink-700 hover:text-brand-700"
@@ -254,7 +254,7 @@ export const AttendanceCheckInPage: React.FC = () => {
       </header>
 
       <main className="flex-1 flex items-center justify-center p-4 pb-10">
-        <div className="w-full max-w-lg space-y-4">
+        <div className="w-full lg:px-4 space-y-4">
           {isInAppWebView && (
             <div className="bg-amber-50 border border-amber-300 rounded-2xl p-3.5 text-xs text-amber-900 flex items-start gap-2.5">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />

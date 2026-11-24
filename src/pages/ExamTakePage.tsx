@@ -409,8 +409,8 @@ export const ExamTakePage: React.FC = () => {
       )}
 
       {/* Main Scrollable Question Card(s) */}
-      <main ref={mainScrollRef} className="flex-1 overflow-y-auto px-3 sm:px-4 pt-3.5 pb-6 z-30">
-        <div className="max-w-xl mx-auto space-y-4">
+      <main ref={mainScrollRef} className="flex-1 overflow-y-auto px-3 sm:px-6 lg:px-8 pt-3.5 pb-6 z-30">
+        <div className="w-full space-y-4">
           {visibleEntries.map(({ snap, idx, qObj }) => {
             if (!qObj) return null;
             const ans = attempt.answers[qObj.id];

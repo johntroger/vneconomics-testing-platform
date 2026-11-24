@@ -919,7 +919,7 @@ export const AdminDashboardPage: React.FC = () => {
     <div className="min-h-screen bg-surface-100 pb-12 safe-bottom">
       {/* Top Admin Navbar */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-40 safe-top">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2.5 flex flex-col md:flex-row md:items-center md:justify-between gap-2.5">
+        <div className="w-full px-3 sm:px-6 lg:px-8 py-2.5 flex flex-col md:flex-row md:items-center md:justify-between gap-2.5">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white border border-slate-200 flex items-center justify-center p-1 shadow-sm shrink-0 overflow-hidden">
               <img src="/logo.png" alt="VNEconomics Logo" className="w-full h-full object-contain" />
@@ -1043,7 +1043,7 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
 
         {/* Navigation Tabs (synced from ADMIN_TAB_REGISTRY — 1 single row on desktop) */}
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 flex lg:grid lg:grid-cols-8 gap-1 overflow-x-auto lg:overflow-visible no-scrollbar border-t border-slate-100">
+        <div className="w-full px-3 sm:px-6 lg:px-8 flex lg:grid lg:grid-cols-8 gap-1 overflow-x-auto lg:overflow-visible no-scrollbar border-t border-slate-100">
           {ADMIN_TAB_REGISTRY.map((spec) => {
             const iconMap: Record<AdminTabId, typeof BookOpen> = {
               COURSES: BookOpen,
@@ -1089,7 +1089,7 @@ export const AdminDashboardPage: React.FC = () => {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto px-3 sm:px-4 pt-4 sm:pt-5 space-y-5">
+      <main className="w-full px-3 sm:px-6 lg:px-8 pt-4 sm:pt-5 space-y-5">
         {toast && (
           <div className="bg-support-600 text-white text-xs font-bold px-3.5 py-2 rounded-xl shadow flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">

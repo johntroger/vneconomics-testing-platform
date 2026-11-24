@@ -66,7 +66,7 @@ export const ExamResultPage: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-surface-100 pt-6 pb-10 safe-bottom px-4">
-      <div className="max-w-lg mx-auto space-y-4">
+      <div className="w-full px-1 sm:px-4 lg:px-6 space-y-4">
         <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 sm:p-6 space-y-5">
           <div className="flex items-start justify-between gap-3">
             <div>
