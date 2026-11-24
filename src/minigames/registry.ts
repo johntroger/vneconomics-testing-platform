@@ -38,6 +38,7 @@ const TurnOrderGame = lazy(() => import('./games/TurnOrderGame'));
 const PairMatchGame = lazy(() => import('./games/PairMatchGame'));
 const CaptainDraftGame = lazy(() => import('./games/CaptainDraftGame'));
 const DogChaseGame = lazy(() => import('./games/DogChaseGame'));
+const MangoHarvestGame = lazy(() => import('./games/MangoHarvestGame'));
 
 export const MINIGAME_REGISTRY: MinigamePlugin[] = [
   // Nhóm 1: Vòng quay & Nhắm bắn (8)
@@ -456,5 +457,16 @@ export const MINIGAME_REGISTRY: MinigamePlugin[] = [
     icon: '🐕',
     ready: true,
     component: DogChaseGame,
+  },
+  {
+    id: 'hai-xoai-cham-muoi',
+    name: 'Hái Xoài Chấm Muối Tôm',
+    category: 'VIETNAM',
+    description: 'Cây xoài cổ thụ trĩu quả mang tên cả lớp, chọc hụt kiến cắn, Anh Ba ra tay hạ xoài võ Thiếu Lâm!',
+    badge: 'Game Việt',
+    gradient: 'from-lime-500 via-amber-500 to-orange-600',
+    icon: '🥭',
+    ready: true,
+    component: MangoHarvestGame,
   },
 ];

@@ -1,7 +1,7 @@
 let sharedAudioCtx: AudioContext | null = null;
 let noiseBuffer: AudioBuffer | null = null;
 let musicTimer: number | null = null;
-let currentTrack: 'NONE' | 'LOBBY' | 'COUNTDOWN' | 'CHASE' = 'NONE';
+let currentTrack: 'NONE' | 'LOBBY' | 'COUNTDOWN' | 'CHASE' | 'FOLK' = 'NONE';
 let stepIndex = 0;
 
 function getAudioCtx(): AudioContext | null {
@@ -322,4 +322,92 @@ export function playRaceStartHorn(): void {
 
 export function playWinnerFanfare(): void {
   playPodiumSound();
+}
+
+// Cheerful Vietnamese childhood pentatonic folk groove (Đàn T'rưng / Woodblock vibe)
+export function startMangoFolkMusic(): void {
+  if (currentTrack === 'FOLK') return;
+  stopBackgroundMusic();
+  currentTrack = 'FOLK';
+  // Pentatonic C-D-E-G-A playful bounce
+  const bassNotes = [130.81, 0, 196.0, 0, 146.83, 0, 220.0, 196.0];
+  const melody = [
+    523.25, 659.25, 783.99, 880.0, 783.99, 659.25, 587.33, 523.25,
+    659.25, 783.99, 1046.5, 880.0, 783.99, 659.25, 587.33, 659.25,
+  ];
+
+  musicTimer = window.setInterval(() => {
+    try {
+      const ctx = getAudioCtx();
+      if (!ctx || ctx.state !== 'running') return;
+      const t = ctx.currentTime + 0.02;
+      const step = stepIndex % 16;
+      if (step % 4 === 0) playKick(ctx, t, 0.11);
+      if (step % 2 === 1) playHiHat(ctx, t, 0.028);
+
+      const bass = bassNotes[step % 8];
+      if (bass > 0) playSynthNote(ctx, bass, t, 0.15, 'triangle', 0.075);
+      playSynthNote(ctx, melody[step], t, 0.16, 'sine', 0.055);
+      stepIndex++;
+    } catch {
+      // Ignore
+    }
+  }, 215);
+}
+
+export function playSaltShakeSound(): void {
+  try {
+    const ctx = getAudioCtx();
+    if (!ctx || ctx.state !== 'running') return;
+    [0, 0.11, 0.22].forEach((off) => {
+      playHiHat(ctx, ctx.currentTime + off, 0.08);
+    });
+  } catch {
+    // Ignore
+  }
+}
+
+export function playAntBiteSound(): void {
+  playTone(980, 0.06, 'sawtooth', 0.09, 0);
+  playTone(1420, 0.08, 'sawtooth', 0.1, 0.06);
+  playTone(420, 0.18, 'triangle', 0.09, 0.15);
+}
+
+export function playKungFuWhoosh(): void {
+  try {
+    const ctx = getAudioCtx();
+    if (!ctx || ctx.state !== 'running') return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(680, now);
+    osc.frequency.exponentialRampToValueAtTime(190, now + 0.14);
+    gain.gain.setValueAtTime(0.12, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.15);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + 0.16);
+  } catch {
+    // Ignore
+  }
+}
+
+export function playMangoKnockSound(): void {
+  // Crisp bamboo "CỌC!"
+  playTone(760, 0.055, 'triangle', 0.13, 0);
+  playTone(1140, 0.035, 'sine', 0.08, 0.01);
+}
+
+export function playMangoThudSound(): void {
+  // Warm earthy "BỊCH!"
+  try {
+    const ctx = getAudioCtx();
+    if (!ctx || ctx.state !== 'running') return;
+    playKick(ctx, ctx.currentTime, 0.28);
+    playTone(180, 0.12, 'triangle', 0.1, 0.02);
+  } catch {
+    // Ignore
+  }
 }
