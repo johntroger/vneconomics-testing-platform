@@ -300,18 +300,18 @@ export const MinigameStageLayout: React.FC = () => {
 
           {plugin.category === 'VIETNAM' && (
             <div
-              className="flex items-center gap-1 rounded-xl bg-amber-400/15 border border-amber-300/40 px-2 py-1"
-              title="Chọn số lượng sinh viên gọi lên bảng trong 1 lượt (tùy chỉnh theo nhu cầu)"
+              className="flex items-center gap-1 rounded-xl bg-amber-400/15 border border-amber-300/40 px-2.5 py-1"
+              title="Tất cả sinh viên đều tham gia chơi — chọn số lượng bạn được gọi lên bảng mỗi lượt"
             >
               <span className="text-[11px] font-black text-amber-200 whitespace-nowrap mr-0.5">
-                👥 Gọi:
+                🎯 Chọn lên bảng:
               </span>
               <button
                 type="button"
                 onClick={() => setPickCount(pickCount - 1)}
                 disabled={pickCount <= 1}
                 className="w-6 h-6 rounded-lg bg-white/15 hover:bg-white/25 disabled:opacity-35 font-black text-xs flex items-center justify-center transition"
-                aria-label="Giảm số sinh viên gọi"
+                aria-label="Giảm số sinh viên chọn lên bảng"
               >
                 −
               </button>
@@ -325,17 +325,18 @@ export const MinigameStageLayout: React.FC = () => {
                   if (!Number.isNaN(val)) setPickCount(val);
                 }}
                 className="w-10 text-center bg-black/35 border border-white/20 rounded-lg py-0.5 text-xs font-black text-amber-200 focus:outline-none focus:border-amber-400"
-                aria-label="Số lượng sinh viên gọi mỗi lượt"
+                aria-label="Số lượng sinh viên chọn lên bảng mỗi lượt"
               />
               <button
                 type="button"
                 onClick={() => setPickCount(pickCount + 1)}
                 disabled={pickCount >= maxPickAllowed}
                 className="w-6 h-6 rounded-lg bg-white/15 hover:bg-white/25 disabled:opacity-35 font-black text-xs flex items-center justify-center transition"
-                aria-label="Tăng số sinh viên gọi"
+                aria-label="Tăng số sinh viên chọn lên bảng"
               >
                 +
               </button>
+              <span className="text-[11px] font-bold text-amber-100/80 ml-0.5">bạn</span>
             </div>
           )}
 

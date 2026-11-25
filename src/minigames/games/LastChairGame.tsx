@@ -999,45 +999,48 @@ export const LastChairGame: React.FC<MinigameProps> = ({
       items.sort((a, b) => a.y - b.y || a.zBias - b.zBias);
       for (const item of items) item.draw();
 
-      // Spotlight / Guard Twist overlay on top of schoolyard
+      // Spotlight / Guard Twist overlay on top of schoolyard (renders ALL K losers cleanly!)
       if (sim.phase === 'SPOTLIGHT' || sim.phase === 'TWIST_GUARD' || (sim.phase === 'REVEAL' && sim.twist !== 'CAT')) {
-        const loserD = sim.loserDancer;
-        if (loserD) {
-          const lx = loserD.x;
-          const ly = loserD.y;
+        const loserList = sim.loserDancers.length > 0 ? sim.loserDancers : sim.loserDancer ? [sim.loserDancer] : [];
+        if (loserList.length > 0) {
+          const anchorY = loserList[0].y;
 
           if (sim.phase === 'SPOTLIGHT' || (sim.phase === 'REVEAL' && sim.twist === 'NONE')) {
             ctx.save();
             ctx.fillStyle = 'rgba(15, 23, 42, 0.54)';
             ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
 
-            const beamGrad = ctx.createLinearGradient(lx, 0, lx, ly + 40);
-            beamGrad.addColorStop(0, 'rgba(254, 240, 138, 0.12)');
-            beamGrad.addColorStop(0.65, 'rgba(254, 240, 138, 0.34)');
-            beamGrad.addColorStop(1, 'rgba(250, 204, 21, 0.48)');
-            ctx.fillStyle = beamGrad;
-            ctx.beginPath();
-            ctx.moveTo(lx - 45, 0);
-            ctx.lineTo(lx + 45, 0);
-            ctx.lineTo(lx + 110, ly + 35);
-            ctx.lineTo(lx - 110, ly + 35);
-            ctx.closePath();
-            ctx.fill();
+            for (const ld of loserList) {
+              const lx = ld.x;
+              const ly = ld.y;
+              const beamGrad = ctx.createLinearGradient(lx, 0, lx, ly + 40);
+              beamGrad.addColorStop(0, 'rgba(254, 240, 138, 0.10)');
+              beamGrad.addColorStop(0.65, 'rgba(254, 240, 138, 0.30)');
+              beamGrad.addColorStop(1, 'rgba(250, 204, 21, 0.44)');
+              ctx.fillStyle = beamGrad;
+              ctx.beginPath();
+              ctx.moveTo(lx - 40, 0);
+              ctx.lineTo(lx + 40, 0);
+              ctx.lineTo(lx + 92, ly + 32);
+              ctx.lineTo(lx - 92, ly + 32);
+              ctx.closePath();
+              ctx.fill();
 
-            ctx.fillStyle = 'rgba(254, 240, 138, 0.38)';
-            ctx.beginPath();
-            ctx.ellipse(lx, ly + 4, 72, 20, 0, 0, Math.PI * 2);
-            ctx.fill();
+              ctx.fillStyle = 'rgba(254, 240, 138, 0.36)';
+              ctx.beginPath();
+              ctx.ellipse(lx, ly + 4, 62, 18, 0, 0, Math.PI * 2);
+              ctx.fill();
+            }
             ctx.restore();
           }
 
-          // If TWIST_GUARD is active, draw Security Guard jogging in with an extra red chair!
+          // If TWIST_GUARD is active, draw Security Guard jogging in with extra red chairs!
           const guardArrived = (sim.phase === 'TWIST_GUARD' && sim.guardX > 400) || (sim.phase === 'REVEAL' && sim.twist === 'GUARD');
           if (sim.phase === 'TWIST_GUARD' || (sim.phase === 'REVEAL' && sim.twist === 'GUARD')) {
             const gh = 148;
             const gw = (assets.guardChair.width / assets.guardChair.height) * gh;
             const gx = sim.guardX;
-            const gy = ly;
+            const gy = anchorY;
             const gBob = sim.phase === 'TWIST_GUARD' && !guardArrived ? Math.abs(Math.sin(tSec * 12)) * -8 : 0;
             ctx.drawImage(assets.guardChair, gx - gw / 2, gy - gh + gBob, gw, gh);
 
@@ -1058,25 +1061,49 @@ export const LastChairGame: React.FC<MinigameProps> = ({
             ctx.restore();
           }
 
-          // Draw Loser (saved & happy if guard arrived, otherwise sad & shivering!)
-          if (guardArrived) {
-            ctx.drawImage(assets.chairRed, lx - chairW / 2, ly - chairH, chairW, chairH);
-            const happySpr = loserD.isGirl ? assets.girlSit : assets.boySit;
-            const hh = 112;
-            const hw = (happySpr.width / happySpr.height) * hh;
-            ctx.drawImage(happySpr, lx - hw / 2, ly - hh - 8, hw, hh);
-          } else {
-            const sadSpr = loserD.isGirl ? assets.girlSad : assets.boySad;
-            const bigH = 122;
-            const bigW = (sadSpr.width / sadSpr.height) * bigH;
-            const shiver = Math.sin(tSec * 22) * 2.2;
-            ctx.drawImage(sadSpr, lx - bigW / 2 + shiver, ly - bigH, bigW, bigH);
+          const bigH = loserList.length > 4 ? 92 : loserList.length > 1 ? 108 : 122;
+          for (const ld of loserList) {
+            const lx = ld.x;
+            const ly = ld.y;
+            if (guardArrived) {
+              ctx.drawImage(assets.chairRed, lx - chairW / 2, ly - chairH, chairW, chairH);
+              const happySpr = ld.isGirl ? assets.girlSit : assets.boySit;
+              const hh = Math.min(112, bigH);
+              const hw = (happySpr.width / happySpr.height) * hh;
+              ctx.drawImage(happySpr, lx - hw / 2, ly - hh - 8, hw, hh);
+            } else {
+              const sadSpr = ld.isGirl ? assets.girlSad : assets.boySad;
+              const bigW = (sadSpr.width / sadSpr.height) * bigH;
+              const shiver = Math.sin(tSec * 22 + ld.bobPhase) * 2.0;
+              ctx.drawImage(sadSpr, lx - bigW / 2 + shiver, ly - bigH, bigW, bigH);
 
+              ctx.save();
+              ctx.font = '900 13px system-ui, sans-serif';
+              const nw = ctx.measureText(ld.shortName).width + 16;
+              drawRoundedRect(ctx, lx - nw / 2, ly - bigH - 28, nw, 24, 8);
+              ctx.fillStyle = '#fef08a';
+              ctx.fill();
+              ctx.strokeStyle = '#dc2626';
+              ctx.lineWidth = 2;
+              ctx.stroke();
+              ctx.fillStyle = '#991b1b';
+              ctx.textAlign = 'center';
+              ctx.textBaseline = 'middle';
+              ctx.fillText(ld.shortName, lx, ly - bigH - 15.5);
+              ctx.restore();
+            }
+          }
+
+          if (!guardArrived) {
+            const centerX = loserList.reduce((a, b) => a + b.x, 0) / loserList.length;
             ctx.save();
-            const cryText = 'Huhu... chậm mất một nhịp! 😭';
+            const cryText =
+              loserList.length > 1
+                ? `Huhu... ${loserList.length} đứa mình chậm mất một nhịp! 😭`
+                : 'Huhu... chậm mất một nhịp! 😭';
             ctx.font = '900 15px system-ui, sans-serif';
             const cw = ctx.measureText(cryText).width + 28;
-            drawRoundedRect(ctx, lx - cw / 2, ly - bigH - 46, cw, 34, 14);
+            drawRoundedRect(ctx, centerX - cw / 2, anchorY - bigH - 68, cw, 34, 14);
             ctx.fillStyle = '#ffffff';
             ctx.fill();
             ctx.lineWidth = 2.5;
@@ -1085,7 +1112,7 @@ export const LastChairGame: React.FC<MinigameProps> = ({
             ctx.fillStyle = '#7f1d1d';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.fillText(cryText, lx, ly - bigH - 28.5);
+            ctx.fillText(cryText, centerX, anchorY - bigH - 50.5);
             ctx.restore();
           }
         }

@@ -793,12 +793,16 @@ export const DogChaseGame: React.FC<MinigameProps> = ({
           dogY = 562;
           spotlightTargetX = 635;
 
-          const winActor = actorsRef.current.find((a) => a.isWinner);
-          if (winActor) {
-            winActor.x += (555 - winActor.x) * Math.min(1, dt * 9);
-            winActor.y += (562 - winActor.y) * Math.min(1, dt * 9);
-            winActor.laneScale += (1.06 - winActor.laneScale) * Math.min(1, dt * 6);
-          }
+          const winActors = actorsRef.current.filter((a) => a.isWinner);
+          const span = Math.min(460, Math.max(0, (winActors.length - 1) * 105));
+          winActors.forEach((wa, idx) => {
+            const frac = winActors.length <= 1 ? 0.5 : idx / (winActors.length - 1);
+            const targetX = winActors.length === 1 ? 555 : 460 - span / 2 + frac * span;
+            const targetY = 556 + (idx % 2) * 14;
+            wa.x += (targetX - wa.x) * Math.min(1, dt * 9);
+            wa.y += (targetY - wa.y) * Math.min(1, dt * 9);
+            wa.laneScale += ((winActors.length > 3 ? 0.92 : 1.06) - wa.laneScale) * Math.min(1, dt * 6);
+          });
 
           // Clear stragglers off-screen cleanly
           actorsRef.current.forEach((a) => {
@@ -1039,10 +1043,11 @@ export const DogChaseGame: React.FC<MinigameProps> = ({
       [poolCopy[i], poolCopy[j]] = [poolCopy[j], poolCopy[i]];
     }
     const chosenWinners = poolCopy.slice(0, k);
+    const chosenIds = new Set(chosenWinners.map((s) => s.id));
     const winner = chosenWinners[0];
-    const others = students.filter((s) => s.id !== winner.id);
-    const chosenOthers = others.slice(0, Math.max(0, MAX_VISIBLE_CROWD - 1));
-    const crowd = [...chosenOthers, winner];
+    const others = students.filter((s) => !chosenIds.has(s.id));
+    const chosenOthers = others.slice(0, Math.max(0, MAX_VISIBLE_CROWD - chosenWinners.length));
+    const crowd = [...chosenOthers, ...chosenWinners];
     simRef.current.winners = chosenWinners;
 
     for (let i = crowd.length - 1; i > 0; i--) {
@@ -1057,7 +1062,7 @@ export const DogChaseGame: React.FC<MinigameProps> = ({
       const col = Math.floor(idx / DEPTH_LANES.length);
       const lane = DEPTH_LANES[laneIdx];
       const spreadX = Math.min(76, 560 / Math.max(1, cols));
-      const isWinner = st.id === winner.id;
+      const isWinner = chosenIds.has(st.id);
       return {
         student: st,
         isGirl: inferIsFemale(st, idx),

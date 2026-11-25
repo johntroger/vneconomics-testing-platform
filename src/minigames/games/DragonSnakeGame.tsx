@@ -856,14 +856,18 @@ export const DragonSnakeGame: React.FC<MinigameProps> = ({
       [poolCopy[i], poolCopy[j]] = [poolCopy[j], poolCopy[i]];
     }
     const chosenWinners = poolCopy.slice(0, k);
+    const chosenIds = new Set(chosenWinners.map((s) => s.id));
     const winner = chosenWinners[0];
     simRef.current.winners = chosenWinners;
-    const others = students.filter((s) => s.id !== winner.id);
+    const others = students.filter((s) => !chosenIds.has(s.id));
     for (let i = others.length - 1; i > 0; i--) {
       const j = cryptoRandomInt(i + 1);
       [others[i], others[j]] = [others[j], others[i]];
     }
-    const crowd = [...others.slice(0, Math.max(0, MAX_DRAGON_LENGTH - 1)), winner];
+    const crowd = [
+      ...others.slice(0, Math.max(0, MAX_DRAGON_LENGTH - chosenWinners.length)),
+      ...chosenWinners,
+    ];
     for (let i = crowd.length - 1; i > 0; i--) {
       const j = cryptoRandomInt(i + 1);
       [crowd[i], crowd[j]] = [crowd[j], crowd[i]];
@@ -891,7 +895,7 @@ export const DragonSnakeGame: React.FC<MinigameProps> = ({
         y: pt.y,
         facingLeft: false,
         phaseOffset: (h % 100) / 14,
-        isWinner: st.id === winner.id,
+        isWinner: chosenIds.has(st.id),
       };
     });
 

@@ -597,17 +597,27 @@ export const MangoHarvestGame: React.FC<MinigameProps> = ({
               targetPoleX = winMango.homeX;
               targetPoleY = winMango.homeY;
 
+              const allWinMangoes = mangoes.filter((m) => m.isWinner);
               triggerOnce('knock', () => {
-                winMango.detached = true;
+                allWinMangoes.forEach((wm) => {
+                  wm.detached = true;
+                });
                 sim.shakeUntil = now + 260;
                 if (!mutedRef.current) playMangoKnockSound();
-                setStatusText('🎯 CỌC!! Trúng phóc cuống xoài rồi!!');
+                setStatusText(
+                  allWinMangoes.length > 1
+                    ? `🎯 CỌC!! Trúng phóc ${allWinMangoes.length} quả xoài rụng xuống!!`
+                    : '🎯 CỌC!! Trúng phóc cuống xoài rồi!!',
+                );
               });
 
               const f = Math.max(0, (fallSub - 0.15) / 0.85);
-              winMango.x = winMango.homeX + (518 - winMango.homeX) * f;
-              winMango.y = winMango.homeY + (578 - winMango.homeY) * (f * f);
-              winMango.rot = f * Math.PI * 4;
+              allWinMangoes.forEach((wm, idx) => {
+                const landX = 480 + (allWinMangoes.length === 1 ? 38 : (idx - (allWinMangoes.length - 1) / 2) * 54);
+                wm.x = wm.homeX + (landX - wm.homeX) * f;
+                wm.y = wm.homeY + (578 - wm.homeY) * (f * f);
+                wm.rot = f * Math.PI * 4;
+              });
 
               anhBaBubble = { text: 'Còn né nữa hả?!' };
               if (fallSub < 0.45) {
@@ -615,9 +625,13 @@ export const MangoHarvestGame: React.FC<MinigameProps> = ({
               }
             } else {
               // Landed BỊCH! beside chili-salt paper!
-              winMango.x = 518;
-              winMango.y = 578;
-              winMango.rot = 0.22;
+              const allWinMangoes = mangoes.filter((m) => m.isWinner);
+              allWinMangoes.forEach((wm, idx) => {
+                const landX = 480 + (allWinMangoes.length === 1 ? 38 : (idx - (allWinMangoes.length - 1) / 2) * 54);
+                wm.x = landX;
+                wm.y = 578;
+                wm.rot = 0.22;
+              });
               boyX = 425;
               girlX = 690;
               anhBaX = 325;
@@ -902,22 +916,28 @@ export const MangoHarvestGame: React.FC<MinigameProps> = ({
       [poolCopy[i], poolCopy[j]] = [poolCopy[j], poolCopy[i]];
     }
     const chosenWinners = poolCopy.slice(0, k);
+    const chosenIds = new Set(chosenWinners.map((s) => s.id));
     const winner = chosenWinners[0];
     simRef.current.winners = chosenWinners;
-    const others = students.filter((s) => s.id !== winner.id);
-    // Shuffle others so if >45 students, random classmates appear alongside winner
+    const others = students.filter((s) => !chosenIds.has(s.id));
     for (let i = others.length - 1; i > 0; i--) {
       const j = cryptoRandomInt(i + 1);
       [others[i], others[j]] = [others[j], others[i]];
     }
-    const chosenPool = [...others.slice(0, Math.max(0, MAX_CANOPY_MANGOES - 1)), winner];
+    const chosenPool = [
+      ...others.slice(0, Math.max(0, MAX_CANOPY_MANGOES - chosenWinners.length)),
+      ...chosenWinners,
+    ];
     // Shuffle canopy placement
     for (let i = chosenPool.length - 1; i > 0; i--) {
       const j = cryptoRandomInt(i + 1);
       [chosenPool[i], chosenPool[j]] = [chosenPool[j], chosenPool[i]];
     }
 
-    const built = buildCanopyPositions(chosenPool, winner.id);
+    const built = buildCanopyPositions(chosenPool, winner.id).map((m) => ({
+      ...m,
+      isWinner: chosenIds.has(m.student.id),
+    }));
     const nonWinners = built.filter((m) => !m.isWinner);
     if (nonWinners.length >= 1) {
       nonWinners[cryptoRandomInt(nonWinners.length)].isDecoy1 = true;
