@@ -7,6 +7,8 @@ export interface MinigameStageSettings {
   paceMode: PaceMode;
   render3D: boolean;
   theme: StageTheme;
+  pickCount: number;
+  setPickCount: (count: number) => void;
 }
 
 export const PACE_META: Record<
@@ -62,6 +64,8 @@ export const MinigameStageContext = createContext<MinigameStageSettings>({
   paceMode: 'NORMAL',
   render3D: false,
   theme: 'NEON',
+  pickCount: 1,
+  setPickCount: () => {},
 });
 
 export function useMinigameStageSettings(): MinigameStageSettings {

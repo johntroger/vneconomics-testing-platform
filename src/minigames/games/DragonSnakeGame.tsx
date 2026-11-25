@@ -166,8 +166,9 @@ export const DragonSnakeGame: React.FC<MinigameProps> = ({
   students,
   muted,
   onPickStudent,
+  onPickStudents,
 }) => {
-  const { paceMode } = useMinigameStageSettings();
+  const { paceMode, pickCount } = useMinigameStageSettings();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const finishTimerRef = useRef<number | null>(null);
@@ -183,6 +184,8 @@ export const DragonSnakeGame: React.FC<MinigameProps> = ({
   mutedRef.current = muted;
   const onPickRef = useRef(onPickStudent);
   onPickRef.current = onPickStudent;
+  const onPickManyRef = useRef(onPickStudents);
+  onPickManyRef.current = onPickStudents;
 
   const segmentsRef = useRef<DragonSegment[]>([]);
   const trailRef = useRef<Array<{ x: number; y: number }>>([]);
@@ -193,6 +196,7 @@ export const DragonSnakeGame: React.FC<MinigameProps> = ({
     startTime: number;
     durationMs: number;
     winner: RosterStudent | null;
+    winners: RosterStudent[];
     finished: boolean;
     tailSwapped: boolean;
     cueFlags: Record<string, boolean>;
@@ -206,6 +210,7 @@ export const DragonSnakeGame: React.FC<MinigameProps> = ({
     startTime: 0,
     durationMs: 17200,
     winner: null,
+    winners: [],
     finished: false,
     tailSwapped: false,
     cueFlags: {},
@@ -650,10 +655,14 @@ export const DragonSnakeGame: React.FC<MinigameProps> = ({
             sim.active = false;
             stopBackgroundMusic();
             setRunning(false);
-            if (sim.winner) {
-              const picked = sim.winner;
+            if (sim.winners.length > 0) {
+              const pickedList = sim.winners;
               finishTimerRef.current = window.setTimeout(() => {
-                onPickRef.current(picked);
+                if (onPickManyRef.current) {
+                  onPickManyRef.current(pickedList, 'Rồng Rắn Lên Mây');
+                } else {
+                  onPickRef.current(pickedList[0]);
+                }
               }, 350);
             }
           }
@@ -840,7 +849,15 @@ export const DragonSnakeGame: React.FC<MinigameProps> = ({
       }
     });
 
-    const winner = students[cryptoRandomInt(students.length)];
+    const k = Math.max(1, Math.min(pickCount, students.length));
+    const poolCopy = [...students];
+    for (let i = poolCopy.length - 1; i > 0; i--) {
+      const j = cryptoRandomInt(i + 1);
+      [poolCopy[i], poolCopy[j]] = [poolCopy[j], poolCopy[i]];
+    }
+    const chosenWinners = poolCopy.slice(0, k);
+    const winner = chosenWinners[0];
+    simRef.current.winners = chosenWinners;
     const others = students.filter((s) => s.id !== winner.id);
     for (let i = others.length - 1; i > 0; i--) {
       const j = cryptoRandomInt(i + 1);
@@ -884,6 +901,7 @@ export const DragonSnakeGame: React.FC<MinigameProps> = ({
       startTime: performance.now(),
       durationMs: TOTAL_MS_BY_PACE[paceMode],
       winner,
+      winners: chosenWinners,
       finished: false,
       tailSwapped: false,
       cueFlags: {},

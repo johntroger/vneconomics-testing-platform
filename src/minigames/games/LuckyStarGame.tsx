@@ -129,14 +129,15 @@ function drawRoundedStar(
 export const LuckyStarGame: React.FC<MinigameProps> = ({
   students,
   muted,
+  onPickStudent,
+  onPickStudents,
 }) => {
-  const { paceMode } = useMinigameStageSettings();
+  const { paceMode, pickCount, setPickCount } = useMinigameStageSettings();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const confettiTimerRef = useRef<number | null>(null);
 
   const [phase, setPhase] = useState<'IDLE' | 'SPINNING' | 'REVEAL'>('IDLE');
-  const [pickCount, setPickCount] = useState<number>(1);
   const [showCountMenu, setShowCountMenu] = useState<boolean>(false);
   const [speedMult, setSpeedMult] = useState<number>(1.0);
   const [remainingSec, setRemainingSec] = useState<number>(0);
@@ -206,32 +207,8 @@ export const LuckyStarGame: React.FC<MinigameProps> = ({
       return;
     }
 
-    const k = Math.min(pickCountRef.current, currentPool.length);
+    const k = Math.max(1, Math.min(pickCountRef.current, currentPool.length));
     const chosen = cryptoShuffle(currentPool).slice(0, k);
-    const chosenIds = new Set(chosen.map((c) => c.id));
-
-    // Persist all chosen stars into store so "Không gọi trùng" excludes them on next round
-    const store = readMinigameStore();
-    const nowIso = new Date().toISOString();
-    const nextStudents = store.students.map((s) =>
-      chosenIds.has(s.id) ? { ...s, called: true } : s,
-    );
-    const newEntries = chosen.map((st, idx) => ({
-      id: `hist_${Date.now().toString(36)}_${idx}`,
-      studentId: st.id,
-      studentName: st.name,
-      studentCode: st.studentCode,
-      gameId: 'ngoi-sao-may-man',
-      gameName: 'Ngôi Sao May Mắn',
-      bonusAwarded: 0,
-      status: 'PICKED' as const,
-      at: nowIso,
-    }));
-    writeMinigameStore({
-      ...store,
-      students: nextStudents,
-      history: [...newEntries, ...store.history].slice(0, 500),
-    });
 
     spinRef.current.state = 'REVEAL';
     setWinners(chosen);
@@ -239,13 +216,19 @@ export const LuckyStarGame: React.FC<MinigameProps> = ({
     stopBackgroundMusic();
     setConfetti(true);
 
+    if (onPickStudents) {
+      onPickStudents(chosen, 'Ngôi Sao May Mắn');
+    } else if (chosen[0]) {
+      onPickStudent(chosen[0], 'Ngôi Sao May Mắn');
+    }
+
     if (!mutedRef.current) {
       playCatchSound();
       playWinnerFanfare();
     }
     if (confettiTimerRef.current !== null) window.clearTimeout(confettiTimerRef.current);
     confettiTimerRef.current = window.setTimeout(() => setConfetti(false), 3800);
-  }, []);
+  }, [onPickStudent, onPickStudents]);
 
   const triggerStop = useCallback(() => {
     if (spinRef.current.state !== 'SPINNING') return;

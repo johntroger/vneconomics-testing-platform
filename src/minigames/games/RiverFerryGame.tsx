@@ -417,6 +417,7 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
   students,
   allStudents,
   onPickStudent,
+  onPickStudents,
   muted,
 }) => {
   const totalCount = allStudents.length;
@@ -424,12 +425,11 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
     () => allStudents.filter((s) => s.called && !s.absent).length,
     [allStudents],
   );
-  const { paceMode } = useMinigameStageSettings();
+  const { paceMode, pickCount, setPickCount } = useMinigameStageSettings();
 
   const [assets, setAssets] = useState<LoadedAssets | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [phase, setPhase] = useState<GamePhase>('IDLE');
-  const [pickCount, setPickCount] = useState<number>(1);
   const [showCountMenu, setShowCountMenu] = useState(false);
   const [remainingSec, setRemainingSec] = useState<number>(0);
   const [statusBanner, setStatusBanner] = useState<string>('Ai sẽ ngủ gục trên chuyến đò hôm nay?');
@@ -549,23 +549,14 @@ export const RiverFerryGame: React.FC<MinigameProps> = ({
 
   const commitWinnersToStore = useCallback(
     (chosen: RosterStudent[]) => {
-      if (chosen.length === 1) {
+      if (chosen.length === 0) return;
+      if (onPickStudents) {
+        onPickStudents(chosen, 'Ngủ gục trên Chuyến Đò Vượt Sóng');
+      } else {
         onPickStudent(chosen[0], 'Ngủ gục trên Chuyến Đò Vượt Sóng');
-      } else if (chosen.length > 1) {
-        // Persist all selected students as called in store
-        try {
-          const store = readMinigameStore();
-          const chosenIds = new Set(chosen.map((s) => s.id));
-          const updatedStudents = store.students.map((s) =>
-            chosenIds.has(s.id) ? { ...s, called: true } : s,
-          );
-          writeMinigameStore({ ...store, students: updatedStudents });
-        } catch {
-          // Ignore storage error
-        }
       }
     },
-    [onPickStudent],
+    [onPickStudent, onPickStudents],
   );
 
   const handleResetClass = useCallback(() => {

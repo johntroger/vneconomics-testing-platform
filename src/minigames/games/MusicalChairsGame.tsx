@@ -136,8 +136,8 @@ function drawRoundedRect(
   ctx.closePath();
 }
 
-function layoutChairs(studentCount: number): ChairPos[] {
-  const chairCount = Math.max(0, studentCount - 1);
+function layoutChairs(studentCount: number, pickCount: number): ChairPos[] {
+  const chairCount = Math.max(0, studentCount - Math.max(1, pickCount));
   if (chairCount === 0) return [];
 
   // Place N-1 red plastic chairs in 1 row (<= 10 chairs) or 2 tidy rows (> 10 chairs)
@@ -189,9 +189,9 @@ function sampleOvalTrack(tNorm: number, chairCount: number): { x: number; y: num
   return { x, y, facingLeft };
 }
 
-function createInitialDancers(students: RosterStudent[]): Dancer[] {
+function createInitialDancers(students: RosterStudent[], pickCount: number): Dancer[] {
   const n = students.length;
-  const chairCount = Math.max(0, n - 1);
+  const chairCount = Math.max(0, n - Math.max(1, pickCount));
   return students.map((student, i) => {
     const trackT = n === 0 ? 0 : i / n;
     const pos = sampleOvalTrack(trackT, chairCount);
@@ -219,15 +219,17 @@ export const MusicalChairsGame: React.FC<MinigameProps> = ({
   students,
   allStudents,
   onPickStudent,
+  onPickStudents,
   muted,
 }) => {
-  const { paceMode } = useMinigameStageSettings();
+  const { paceMode, pickCount } = useMinigameStageSettings();
+  const effectivePick = Math.max(1, Math.min(pickCount, Math.max(1, students.length)));
 
   const [assets, setAssets] = useState<LoadedAssets | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [phase, setPhase] = useState<GamePhase>('IDLE');
   const [mcSpeech, setMcSpeech] = useState<string>('Sẵn sàng giành ghế chưa cả lớp!');
-  const [loser, setLoser] = useState<RosterStudent | null>(null);
+  const [losers, setLosers] = useState<RosterStudent[]>([]);
   const [showCard, setShowCard] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
 
@@ -236,9 +238,11 @@ export const MusicalChairsGame: React.FC<MinigameProps> = ({
   mutedRef.current = muted;
   const paceRef = useRef(paceMode);
   paceRef.current = paceMode;
+  const pickRef = useRef(effectivePick);
+  pickRef.current = effectivePick;
 
   const totalCount = allStudents.length;
-  const chairCount = Math.max(0, students.length - 1);
+  const chairCount = Math.max(0, students.length - effectivePick);
 
   const simRef = useRef<{
     phase: GamePhase;
@@ -246,7 +250,7 @@ export const MusicalChairsGame: React.FC<MinigameProps> = ({
     danceTotalMs: number;
     chairs: ChairPos[];
     dancers: Dancer[];
-    loser: RosterStudent | null;
+    losers: RosterStudent[];
     notes: FloatingNote[];
     lastNoteMs: number;
     cardShown: boolean;
@@ -256,7 +260,7 @@ export const MusicalChairsGame: React.FC<MinigameProps> = ({
     danceTotalMs: DANCE_MS_BY_PACE.NORMAL,
     chairs: [],
     dancers: [],
-    loser: null,
+    losers: [],
     notes: [],
     lastNoteMs: 0,
     cardShown: false,
@@ -291,14 +295,14 @@ export const MusicalChairsGame: React.FC<MinigameProps> = ({
     };
   }, []);
 
-  // Refresh chairs & dancers in IDLE when roster changes
+  // Refresh chairs & dancers in IDLE when roster or pickCount changes
   useEffect(() => {
     if (simRef.current.phase === 'IDLE') {
-      simRef.current.chairs = layoutChairs(students.length);
-      simRef.current.dancers = createInitialDancers(students);
+      simRef.current.chairs = layoutChairs(students.length, effectivePick);
+      simRef.current.dancers = createInitialDancers(students, effectivePick);
       simRef.current.notes = [];
     }
-  }, [students]);
+  }, [students, effectivePick]);
 
   useEffect(() => {
     return () => {
@@ -313,12 +317,13 @@ export const MusicalChairsGame: React.FC<MinigameProps> = ({
     stopBackgroundMusic();
     if (!mutedRef.current) playCatchSound();
 
-    // Fairly pick 1 loser; assign every other dancer to their nearest available red chair!
+    // Fairly pick K losers; assign every other dancer to their nearest available red chair!
+    const k = Math.max(1, Math.min(pickRef.current, sim.dancers.length));
     const shuffledDancers = cryptoShuffle([...sim.dancers]);
-    const pickedLoser = shuffledDancers[0];
-    const winners = sim.dancers.filter((d) => d.student.id !== pickedLoser.student.id);
+    const pickedLosers = shuffledDancers.slice(0, k);
+    const loserIds = new Set(pickedLosers.map((d) => d.student.id));
+    const winners = sim.dancers.filter((d) => !loserIds.has(d.student.id));
 
-    // Greedy nearest-chair assignment so students dash naturally to the closest open chair
     const remainingChairIndices = sim.chairs.map((_, idx) => idx);
     for (const d of winners) {
       d.isLoser = false;
@@ -345,16 +350,20 @@ export const MusicalChairsGame: React.FC<MinigameProps> = ({
       }
     }
 
-    // Loser dashes toward center-front looking for a chair and ends up standing alone in the spotlight!
-    pickedLoser.isLoser = true;
-    pickedLoser.chairIdx = -1;
-    pickedLoser.grabStartX = pickedLoser.x;
-    pickedLoser.grabStartY = pickedLoser.y;
-    pickedLoser.grabTargetX = 585;
-    pickedLoser.grabTargetY = 568;
-    pickedLoser.seated = false;
+    // Spread K losers neatly along center-front stage under the spotlight!
+    const spreadSpan = Math.min(760, (pickedLosers.length - 1) * 110);
+    pickedLosers.forEach((d, idx) => {
+      const frac = pickedLosers.length <= 1 ? 0.5 : idx / (pickedLosers.length - 1);
+      d.isLoser = true;
+      d.chairIdx = -1;
+      d.grabStartX = d.x;
+      d.grabStartY = d.y;
+      d.grabTargetX = 585 - spreadSpan / 2 + frac * spreadSpan;
+      d.grabTargetY = 568;
+      d.seated = false;
+    });
 
-    sim.loser = pickedLoser.student;
+    sim.losers = pickedLosers.map((d) => d.student);
     sim.phase = 'GRAB';
     sim.phaseStartMs = performance.now();
     sim.cardShown = false;
@@ -368,40 +377,40 @@ export const MusicalChairsGame: React.FC<MinigameProps> = ({
     unlockGameAudio();
     if (!mutedRef.current) startLobbyMusic();
 
-    const chairs = layoutChairs(students.length);
-    const dancers = createInitialDancers(students);
+    const chairs = layoutChairs(students.length, effectivePick);
+    const dancers = createInitialDancers(students, effectivePick);
     const totalMs = DANCE_MS_BY_PACE[paceRef.current];
 
     simRef.current.chairs = chairs;
     simRef.current.dancers = dancers;
-    simRef.current.loser = null;
+    simRef.current.losers = [];
     simRef.current.notes = [];
     simRef.current.phase = 'DANCING';
     simRef.current.phaseStartMs = performance.now();
     simRef.current.danceTotalMs = totalMs;
     simRef.current.cardShown = false;
 
-    setLoser(null);
+    setLosers([]);
     setShowCard(false);
     setShowConfetti(false);
     setPhase('DANCING');
     setMcSpeech('Cả lớp lên sân nhảy nào! 🎶');
-  }, [students]);
+  }, [students, effectivePick]);
 
   const resetToIdle = useCallback(() => {
     stopBackgroundMusic();
     simRef.current.phase = 'IDLE';
-    simRef.current.chairs = layoutChairs(students.length);
-    simRef.current.dancers = createInitialDancers(students);
-    simRef.current.loser = null;
+    simRef.current.chairs = layoutChairs(students.length, effectivePick);
+    simRef.current.dancers = createInitialDancers(students, effectivePick);
+    simRef.current.losers = [];
     simRef.current.notes = [];
     simRef.current.cardShown = false;
     setPhase('IDLE');
-    setLoser(null);
+    setLosers([]);
     setShowCard(false);
     setShowConfetti(false);
     setMcSpeech('Sẵn sàng giành ghế chưa cả lớp!');
-  }, [students]);
+  }, [students, effectivePick]);
 
   // Main 60fps Canvas Render Loop
   useEffect(() => {
@@ -479,20 +488,24 @@ export const MusicalChairsGame: React.FC<MinigameProps> = ({
           sim.phase = 'REVEAL';
           sim.phaseStartMs = now;
           setPhase('REVEAL');
-          setMcSpeech('Chiếc ghế cuối cùng đã có chủ!');
-          if (sim.loser) {
-            setLoser(sim.loser);
+          setMcSpeech('Những chiếc ghế cuối cùng đã có chủ!');
+          if (sim.losers.length > 0) {
+            setLosers(sim.losers);
             if (!mutedRef.current) playWheelTick();
           }
         }
       } else if (sim.phase === 'REVEAL') {
         const revSec = (now - sim.phaseStartMs) / 1000;
-        if (revSec >= 1.15 && !sim.cardShown && sim.loser) {
+        if (revSec >= 1.15 && !sim.cardShown && sim.losers.length > 0) {
           sim.cardShown = true;
           setShowCard(true);
           setShowConfetti(true);
           if (!mutedRef.current) playWinnerFanfare();
-          onPickStudent(sim.loser, 'Chậm chân mất một nhịp trong Giành Ghế Âm Nhạc');
+          if (onPickStudents) {
+            onPickStudents(sim.losers, 'Chậm chân mất một nhịp trong Giành Ghế Âm Nhạc');
+          } else {
+            onPickStudent(sim.losers[0], 'Chậm chân mất một nhịp trong Giành Ghế Âm Nhạc');
+          }
         }
       }
 
@@ -674,76 +687,86 @@ export const MusicalChairsGame: React.FC<MinigameProps> = ({
         ctx.restore();
       }
 
-      // 2B. Dramatic Spotlight & Sad Loser on top during REVEAL!
+      // 2B. Dramatic Spotlight & Sad Loser(s) on top during REVEAL!
       if (sim.phase === 'REVEAL') {
-        const loserDancer = sim.dancers.find((d) => d.isLoser);
-        if (loserDancer) {
-          // Dim the rest of the schoolyard
+        const loserDancers = sim.dancers.filter((d) => d.isLoser);
+        if (loserDancers.length > 0) {
           ctx.save();
           ctx.fillStyle = 'rgba(15, 23, 42, 0.54)';
           ctx.fillRect(0, 0, LOGICAL_W, LOGICAL_H);
 
-          // Warm golden spotlight cone beaming onto the loser
-          const lx = loserDancer.x;
-          const ly = loserDancer.y;
-          const beamGrad = ctx.createLinearGradient(lx, 0, lx, ly + 40);
-          beamGrad.addColorStop(0, 'rgba(254, 240, 138, 0.12)');
-          beamGrad.addColorStop(0.65, 'rgba(254, 240, 138, 0.32)');
-          beamGrad.addColorStop(1, 'rgba(250, 204, 21, 0.45)');
-          ctx.fillStyle = beamGrad;
-          ctx.beginPath();
-          ctx.moveTo(lx - 45, 0);
-          ctx.lineTo(lx + 45, 0);
-          ctx.lineTo(lx + 110, ly + 35);
-          ctx.lineTo(lx - 110, ly + 35);
-          ctx.closePath();
-          ctx.fill();
+          for (const ld of loserDancers) {
+            const lx = ld.x;
+            const ly = ld.y;
+            const beamGrad = ctx.createLinearGradient(lx, 0, lx, ly + 40);
+            beamGrad.addColorStop(0, 'rgba(254, 240, 138, 0.10)');
+            beamGrad.addColorStop(0.65, 'rgba(254, 240, 138, 0.28)');
+            beamGrad.addColorStop(1, 'rgba(250, 204, 21, 0.42)');
+            ctx.fillStyle = beamGrad;
+            ctx.beginPath();
+            ctx.moveTo(lx - 38, 0);
+            ctx.lineTo(lx + 38, 0);
+            ctx.lineTo(lx + 85, ly + 30);
+            ctx.lineTo(lx - 85, ly + 30);
+            ctx.closePath();
+            ctx.fill();
 
-          // Spotlight floor ring
-          ctx.fillStyle = 'rgba(254, 240, 138, 0.38)';
-          ctx.beginPath();
-          ctx.ellipse(lx, ly + 4, 72, 20, 0, 0, Math.PI * 2);
-          ctx.fill();
+            ctx.fillStyle = 'rgba(254, 240, 138, 0.34)';
+            ctx.beginPath();
+            ctx.ellipse(lx, ly + 4, 58, 16, 0, 0, Math.PI * 2);
+            ctx.fill();
+          }
           ctx.restore();
 
-          // Draw Loser larger & trembling comically in the spotlight!
-          const sadSprite = loserDancer.isGirl ? assets.girlSad : assets.boySad;
-          const bigH = 122;
-          const bigW = (sadSprite.width / sadSprite.height) * bigH;
-          const shiver = Math.sin(tSec * 22) * 2.2;
+          const bigH = loserDancers.length > 4 ? 92 : loserDancers.length > 1 ? 108 : 122;
+          for (const ld of loserDancers) {
+            const lx = ld.x;
+            const ly = ld.y;
+            const sadSprite = ld.isGirl ? assets.girlSad : assets.boySad;
+            const bigW = (sadSprite.width / sadSprite.height) * bigH;
+            const shiver = Math.sin(tSec * 22 + ld.bobPhase) * 2.0;
 
+            ctx.save();
+            ctx.translate(lx + shiver, ly);
+            ctx.drawImage(sadSprite, -bigW / 2, -bigH, bigW, bigH);
+            ctx.restore();
+
+            ctx.save();
+            ctx.font = '900 14px system-ui, sans-serif';
+            const nw = ctx.measureText(ld.shortName).width + 18;
+            drawRoundedRect(ctx, lx - nw / 2, ly - bigH - 28, nw, 24, 8);
+            ctx.fillStyle = '#fef08a';
+            ctx.fill();
+            ctx.lineWidth = 2.2;
+            ctx.strokeStyle = '#dc2626';
+            ctx.stroke();
+            ctx.fillStyle = '#991b1b';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(ld.shortName, lx, ly - bigH - 15.5);
+            ctx.restore();
+          }
+
+          // Shared comic cry bubble above center
+          const centerX = loserDancers.reduce((a, b) => a + b.x, 0) / loserDancers.length;
+          const topY = loserDancers[0].y - bigH - 70;
           ctx.save();
-          ctx.translate(lx + shiver, ly);
-          ctx.drawImage(sadSprite, -bigW / 2, -bigH, bigW, bigH);
-          ctx.restore();
-
-          // Highlighted name pill
-          ctx.save();
-          ctx.font = '900 15px system-ui, sans-serif';
-          const nw = ctx.measureText(loserDancer.shortName).width + 20;
-          drawRoundedRect(ctx, lx - nw / 2, ly - bigH - 30, nw, 26, 8);
-          ctx.fillStyle = '#fef08a';
-          ctx.fill();
-          ctx.lineWidth = 2.5;
-          ctx.strokeStyle = '#dc2626';
-          ctx.stroke();
-          ctx.fillStyle = '#991b1b';
-          ctx.textAlign = 'center';
-          ctx.textBaseline = 'middle';
-          ctx.fillText(loserDancer.shortName, lx, ly - bigH - 16.5);
-
-          // Comic speech bubble: "Huhu... chậm mất một nhịp!"
-          const cryText = 'Huhu... chậm mất một nhịp! 😭';
+          const cryText =
+            loserDancers.length > 1
+              ? `Huhu... ${loserDancers.length} đứa mình chậm mất một nhịp! 😭`
+              : 'Huhu... chậm mất một nhịp! 😭';
           ctx.font = '900 15px system-ui, sans-serif';
           const cw = ctx.measureText(cryText).width + 28;
-          drawRoundedRect(ctx, lx - cw / 2, ly - bigH - 72, cw, 34, 14);
+          drawRoundedRect(ctx, centerX - cw / 2, topY, cw, 34, 14);
           ctx.fillStyle = '#ffffff';
           ctx.fill();
           ctx.lineWidth = 2.5;
           ctx.strokeStyle = '#dc2626';
           ctx.stroke();
           ctx.fillStyle = '#7f1d1d';
-          ctx.fillText(cryText, lx, ly - bigH - 54.5);
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          ctx.fillText(cryText, centerX, topY + 17.5);
           ctx.restore();
         }
       }
@@ -754,7 +777,7 @@ export const MusicalChairsGame: React.FC<MinigameProps> = ({
 
     rafId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(rafId);
-  }, [assets, mcSpeech, onPickStudent, triggerMusicStopAndGrab]);
+  }, [assets, mcSpeech, onPickStudent, onPickStudents, triggerMusicStopAndGrab]);
 
   const isRunning = phase === 'DANCING' || phase === 'GRAB';
 
@@ -794,22 +817,31 @@ export const MusicalChairsGame: React.FC<MinigameProps> = ({
           <canvas ref={canvasRef} className="w-full h-auto block aspect-[1280/620]" />
         )}
 
-        {/* Reveal Modal Overlay matching the video's charming announcement card! */}
-        {phase === 'REVEAL' && showCard && loser && (
-          <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 w-[90%] max-w-md rounded-3xl bg-slate-900/95 border-4 border-amber-400 shadow-[0_20px_55px_rgba(0,0,0,0.65)] p-5 text-center backdrop-blur-md text-white">
+        {/* Reveal Modal Overlay (supports 1 or K losers!) */}
+        {phase === 'REVEAL' && showCard && losers.length > 0 && (
+          <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 w-[92%] max-w-xl rounded-3xl bg-slate-900/95 border-4 border-amber-400 shadow-[0_20px_55px_rgba(0,0,0,0.65)] p-5 text-center backdrop-blur-md text-white">
             <div className="inline-block px-3.5 py-1 rounded-full bg-rose-500 text-white font-black text-xs uppercase tracking-wider mb-2">
               🪑 Hết ghế rồi!
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-amber-300 mb-1">
-              {loser.name}
+            <div className="flex flex-wrap items-center justify-center gap-2 max-h-48 overflow-y-auto my-2">
+              {losers.map((w) => (
+                <div
+                  key={w.id}
+                  className="px-4 py-2 rounded-2xl bg-white/10 border border-amber-300/40"
+                >
+                  <div className="text-lg sm:text-xl font-black text-amber-300">{w.name}</div>
+                  {w.studentCode && (
+                    <div className="text-xs font-mono font-bold text-slate-400">
+                      {w.studentCode}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
-            {loser.studentCode && (
-              <div className="text-xs font-mono font-bold text-slate-400 mb-2">
-                {loser.studentCode}
-              </div>
-            )}
             <p className="text-sm font-bold text-amber-100/90 mb-4">
-              Mời em lên bảng nhé! ({students.length} bạn, {chairCount} ghế — chậm mất một nhịp!)
+              {losers.length > 1
+                ? `Mời ${losers.length} em lên bảng nhé! (${students.length} bạn, ${chairCount} ghế)`
+                : `Mời em lên bảng nhé! (${students.length} bạn, ${chairCount} ghế — chậm mất một nhịp!)`}
             </p>
             <button
               type="button"

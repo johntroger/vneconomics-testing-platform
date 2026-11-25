@@ -168,8 +168,9 @@ export const DogChaseGame: React.FC<MinigameProps> = ({
   students,
   muted,
   onPickStudent,
+  onPickStudents,
 }) => {
-  const { paceMode } = useMinigameStageSettings();
+  const { paceMode, pickCount } = useMinigameStageSettings();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const finishTimerRef = useRef<number | null>(null);
@@ -183,6 +184,8 @@ export const DogChaseGame: React.FC<MinigameProps> = ({
   mutedRef.current = muted;
   const onPickRef = useRef(onPickStudent);
   onPickRef.current = onPickStudent;
+  const onPickManyRef = useRef(onPickStudents);
+  onPickManyRef.current = onPickStudents;
 
   const actorsRef = useRef<RunnerActor[]>([]);
   const particlesRef = useRef<FxParticle[]>([]);
@@ -195,6 +198,7 @@ export const DogChaseGame: React.FC<MinigameProps> = ({
     barkTime: number;
     danceStarted: boolean;
     winner: RosterStudent | null;
+    winners: RosterStudent[];
     finished: boolean;
   }>({
     active: false,
@@ -205,6 +209,7 @@ export const DogChaseGame: React.FC<MinigameProps> = ({
     barkTime: 0,
     danceStarted: false,
     winner: null,
+    winners: [],
     finished: false,
   });
 
@@ -844,10 +849,14 @@ export const DogChaseGame: React.FC<MinigameProps> = ({
             sim.active = false;
             stopBackgroundMusic();
             setRunning(false);
-            if (sim.winner) {
-              const picked = sim.winner;
+            if (sim.winners.length > 0) {
+              const pickedList = sim.winners;
               finishTimerRef.current = window.setTimeout(() => {
-                onPickRef.current(picked);
+                if (onPickManyRef.current) {
+                  onPickManyRef.current(pickedList, 'Chó Rượt Kiểm Tra Bài');
+                } else {
+                  onPickRef.current(pickedList[0]);
+                }
               }, 350);
             }
           }
@@ -1023,10 +1032,18 @@ export const DogChaseGame: React.FC<MinigameProps> = ({
       }
     });
 
-    const winner = students[cryptoRandomInt(students.length)];
+    const k = Math.max(1, Math.min(pickCount, students.length));
+    const poolCopy = [...students];
+    for (let i = poolCopy.length - 1; i > 0; i--) {
+      const j = cryptoRandomInt(i + 1);
+      [poolCopy[i], poolCopy[j]] = [poolCopy[j], poolCopy[i]];
+    }
+    const chosenWinners = poolCopy.slice(0, k);
+    const winner = chosenWinners[0];
     const others = students.filter((s) => s.id !== winner.id);
     const chosenOthers = others.slice(0, Math.max(0, MAX_VISIBLE_CROWD - 1));
     const crowd = [...chosenOthers, winner];
+    simRef.current.winners = chosenWinners;
 
     for (let i = crowd.length - 1; i > 0; i--) {
       const j = cryptoRandomInt(i + 1);
@@ -1068,6 +1085,7 @@ export const DogChaseGame: React.FC<MinigameProps> = ({
       barkTime: 0,
       danceStarted: false,
       winner,
+      winners: chosenWinners,
       finished: false,
     };
 

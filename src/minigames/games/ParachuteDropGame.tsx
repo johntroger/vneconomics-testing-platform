@@ -354,16 +354,17 @@ export const ParachuteDropGame: React.FC<MinigameProps> = ({
   students,
   allStudents,
   onPickStudent,
+  onPickStudents,
   muted,
 }) => {
-  const { paceMode } = useMinigameStageSettings();
+  const { paceMode, pickCount } = useMinigameStageSettings();
 
   const [assets, setAssets] = useState<LoadedAssets | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [phase, setPhase] = useState<GamePhase>('IDLE');
   const [ruleMode, setRuleMode] = useState<RuleMode>('NEAREST');
   const [countdownNum, setCountdownNum] = useState<string>('');
-  const [winner, setWinner] = useState<RosterStudent | null>(null);
+  const [winners, setWinners] = useState<RosterStudent[]>([]);
   const [winnerReason, setWinnerReason] = useState<string>('');
   const [showConfetti, setShowConfetti] = useState(false);
 
@@ -411,7 +412,7 @@ export const ParachuteDropGame: React.FC<MinigameProps> = ({
     phaseStartMs: number;
     flightTotalMs: number;
     jumpers: Jumper[];
-    winner: RosterStudent | null;
+    winners: RosterStudent[];
     ducks: ActiveDuck[];
     clouds: ActiveCloud[];
     smoke: SmokePuff[];
@@ -425,7 +426,7 @@ export const ParachuteDropGame: React.FC<MinigameProps> = ({
     phaseStartMs: 0,
     flightTotalMs: FLIGHT_MS_BY_PACE.NORMAL,
     jumpers: [],
-    winner: null,
+    winners: [],
     ducks: [],
     clouds: [],
     smoke: [],
@@ -485,14 +486,16 @@ export const ParachuteDropGame: React.FC<MinigameProps> = ({
     unlockGameAudio();
     playThemeAudio();
 
+    const effectivePick = Math.max(1, Math.min(pickCount, students.length));
     const shuffled = cryptoShuffle([...students]);
-    const chosenWinner = shuffled[0];
+    const chosenWinners = shuffled.slice(0, effectivePick);
+    const chosenIds = new Set(chosenWinners.map((s) => s.id));
     const isNearest = ruleRef.current === 'NEAREST';
 
     const jumpers = createInitialJumpers(students);
-    const others = cryptoShuffle(jumpers.filter((j) => j.student.id !== chosenWinner.id));
+    const winnerJumpers = jumpers.filter((j) => chosenIds.has(j.student.id));
+    const others = cryptoShuffle(jumpers.filter((j) => !chosenIds.has(j.student.id)));
 
-    // Assign dramatic landing spots across the lush valley!
     jumpers.forEach((j) => {
       j.jumpDelay = Math.random() * 0.35;
       j.landed = false;
@@ -501,48 +504,49 @@ export const ParachuteDropGame: React.FC<MinigameProps> = ({
       j.boostTriggered = false;
       j.badgeText = '';
       j.badgeUntilMs = 0;
+      j.isWinner = false;
+      j.willGetZapped = false;
+      j.willHitDuck = false;
+      j.willGetBoost = false;
+    });
 
-      if (j.student.id === chosenWinner.id) {
-        j.isWinner = true;
-        if (isNearest) {
-          // Closest to the cliff edge (gets hilariously zapped by lightning!)
-          j.targetX = 595 + Math.random() * 95;
-          j.targetY = 815 + Math.random() * 30;
-          j.flightDuration = 0.62;
-          j.willGetZapped = true;
-          j.zapAtProgress = 0.44 + Math.random() * 0.14;
-        } else {
-          // Farthest across the valley (lands right on the red-tiled rooftop!)
-          j.targetX = 1915 + Math.random() * 110;
-          j.targetY = 765 + Math.random() * 45;
-          j.flightDuration = 0.96;
-          j.willGetBoost = true;
-          j.boostAtProgress = 0.42;
-        }
+    winnerJumpers.forEach((j, idx) => {
+      j.isWinner = true;
+      const spread = winnerJumpers.length <= 1 ? 0 : (idx / (winnerJumpers.length - 1)) * 150;
+      if (isNearest) {
+        // Closest to the cliff edge (hilariously zapped by storm clouds!)
+        j.targetX = 560 + spread + Math.random() * 35;
+        j.targetY = 795 + (idx % 3) * 26 + Math.random() * 14;
+        j.flightDuration = 0.58 + (idx % 3) * 0.04;
+        j.willGetZapped = true;
+        j.zapAtProgress = 0.36 + (idx % 4) * 0.07 + Math.random() * 0.05;
+      } else {
+        // Farthest across the valley (land right on the red-tiled rooftops!)
+        j.targetX = 1860 + spread * 0.9 + Math.random() * 45;
+        j.targetY = 755 + (idx % 3) * 26 + Math.random() * 14;
+        j.flightDuration = 0.92 + (idx % 3) * 0.02;
+        j.willGetBoost = true;
+        j.boostAtProgress = 0.38 + (idx % 3) * 0.06;
       }
     });
 
-    // Spread all other students organically across the valley so the race looks packed & exciting
+    // Spread all other students organically across the valley
     others.forEach((j, idx) => {
       const frac = others.length <= 1 ? 0.5 : idx / (others.length - 1);
       if (isNearest) {
-        // Safely farther than the nearest loser (820 .. 2010)
-        j.targetX = 830 + frac * 1160 + (Math.random() - 0.5) * 70;
+        j.targetX = 870 + frac * 1120 + (Math.random() - 0.5) * 70;
         j.targetY = 765 + (idx % 4) * 26 + Math.random() * 14;
         j.flightDuration = 0.72 + Math.random() * 0.24;
       } else {
-        // Safely closer than the farthest winner (640 .. 1760)
-        j.targetX = 640 + frac * 1100 + (Math.random() - 0.5) * 70;
+        j.targetX = 630 + frac * 1080 + (Math.random() - 0.5) * 70;
         j.targetY = 770 + (idx % 4) * 26 + Math.random() * 14;
         j.flightDuration = 0.68 + Math.random() * 0.24;
       }
 
-      // Assign hilarious duck collisions to ~20% of jumpers (at least 1-2 ducks!)
       if (idx === 0 || (idx < 4 && Math.random() < 0.45)) {
         j.willHitDuck = true;
         j.duckAtProgress = 0.28 + Math.random() * 0.32;
       } else if (idx >= others.length - 2 && isNearest) {
-        // 1-2 lucky flyers get a tailwind boost all the way to the rooftops/haystacks
         j.willGetBoost = true;
         j.boostAtProgress = 0.35 + Math.random() * 0.2;
       }
@@ -553,28 +557,28 @@ export const ParachuteDropGame: React.FC<MinigameProps> = ({
     simRef.current.phaseStartMs = now;
     simRef.current.flightTotalMs = FLIGHT_MS_BY_PACE[paceRef.current];
     simRef.current.jumpers = jumpers;
-    simRef.current.winner = chosenWinner;
+    simRef.current.winners = chosenWinners;
     simRef.current.ducks = [];
     simRef.current.clouds = [];
     simRef.current.smoke = [];
     simRef.current.lastCountdownStep = -1;
 
-    setWinner(null);
+    setWinners([]);
     setWinnerReason('');
     setShowConfetti(false);
     setCountdownNum('3');
     setPhase('COUNTDOWN');
-  }, [students, playThemeAudio]);
+  }, [students, pickCount, playThemeAudio]);
 
   const resetToCliff = useCallback(() => {
     stopThemeAudio();
     simRef.current.phase = 'IDLE';
     simRef.current.jumpers = createInitialJumpers(students);
-    simRef.current.winner = null;
+    simRef.current.winners = [];
     simRef.current.ducks = [];
     simRef.current.clouds = [];
     simRef.current.smoke = [];
-    setWinner(null);
+    setWinners([]);
     setWinnerReason('');
     setShowConfetti(false);
     setCountdownNum('');
@@ -763,12 +767,16 @@ export const ParachuteDropGame: React.FC<MinigameProps> = ({
           sim.phaseStartMs = now;
           stopThemeAudio();
           setPhase('ZOOM_REVEAL');
-          if (sim.winner) {
-            setWinner(sim.winner);
+          if (sim.winners.length > 0) {
+            setWinners(sim.winners);
             setWinnerReason(
               ruleRef.current === 'NEAREST'
-                ? 'BAY GẦN NHẤT — THUA RỒI!'
-                : 'BAY XA NHẤT — LÊN BẢNG!',
+                ? sim.winners.length > 1
+                  ? `${sim.winners.length} BẠN BAY GẦN NHẤT — THUA RỒI!`
+                  : 'BAY GẦN NHẤT — THUA RỒI!'
+                : sim.winners.length > 1
+                  ? `${sim.winners.length} BẠN BAY XA NHẤT — LÊN BẢNG!`
+                  : 'BAY XA NHẤT — LÊN BẢNG!',
             );
             setShowConfetti(true);
             if (!mutedRef.current) {
@@ -777,35 +785,41 @@ export const ParachuteDropGame: React.FC<MinigameProps> = ({
                 if (!mutedRef.current) playWinnerFanfare();
               }, 260);
             }
-            onPickStudent(
-              sim.winner,
+            const note =
               ruleRef.current === 'NEAREST'
                 ? 'Bay gần nhất trong Nhảy Dù Trả Bài'
-                : 'Bay xa nhất trong Nhảy Dù Trả Bài',
-            );
+                : 'Bay xa nhất trong Nhảy Dù Trả Bài';
+            if (onPickStudents) {
+              onPickStudents(sim.winners, note);
+            } else {
+              onPickStudent(sim.winners[0], note);
+            }
           }
         }
       } else if (sim.phase === 'ZOOM_REVEAL') {
-        const winJumper = sim.jumpers.find((j) => j.isWinner);
-        if (winJumper) {
-          targetCamZoom = 1.38;
+        const winJumpers = sim.jumpers.filter((j) => j.isWinner);
+        if (winJumpers.length > 0) {
+          const avgWx = winJumpers.reduce((acc, j) => acc + j.x, 0) / winJumpers.length;
+          const avgWy = winJumpers.reduce((acc, j) => acc + j.y, 0) / winJumpers.length;
+          targetCamZoom = winJumpers.length > 1 ? 1.08 : 1.38;
           targetCamX = Math.max(
             VIEW_W / (2 * targetCamZoom),
-            Math.min(WORLD_W - VIEW_W / (2 * targetCamZoom), winJumper.x),
+            Math.min(WORLD_W - VIEW_W / (2 * targetCamZoom), avgWx),
           );
           targetCamY = Math.max(
             VIEW_H / (2 * targetCamZoom),
-            Math.min(WORLD_H - VIEW_H / (2 * targetCamZoom), winJumper.y - 75),
+            Math.min(WORLD_H - VIEW_H / (2 * targetCamZoom), avgWy - 75),
           );
-          // Keep emitting tiny comical smoke puffs if winner got zapped!
-          if (winJumper.isZapped && Math.random() < 0.16) {
-            sim.smoke.push({
-              x: winJumper.x + (Math.random() - 0.5) * 18,
-              y: winJumper.y - 46,
-              r: 6 + Math.random() * 7,
-              vy: -24 - Math.random() * 18,
-              alpha: 0.55,
-            });
+          for (const wj of winJumpers) {
+            if (wj.isZapped && Math.random() < 0.14) {
+              sim.smoke.push({
+                x: wj.x + (Math.random() - 0.5) * 18,
+                y: wj.y - 46,
+                r: 6 + Math.random() * 7,
+                vy: -24 - Math.random() * 18,
+                alpha: 0.55,
+              });
+            }
           }
         }
       }
@@ -1019,7 +1033,7 @@ export const ParachuteDropGame: React.FC<MinigameProps> = ({
 
     rafId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(rafId);
-  }, [assets, onPickStudent, stopThemeAudio]);
+  }, [assets, onPickStudent, onPickStudents, stopThemeAudio]);
 
   const isRunning = phase === 'COUNTDOWN' || phase === 'FLYING';
 
@@ -1069,24 +1083,31 @@ export const ParachuteDropGame: React.FC<MinigameProps> = ({
           <canvas ref={canvasRef} className="w-full h-auto block aspect-[1280/620]" />
         )}
 
-        {/* Winner Reveal Card Overlay (matches the video's parachute banner card!) */}
-        {phase === 'ZOOM_REVEAL' && winner && (
-          <div className="absolute top-14 left-1/2 -translate-x-1/2 z-20 w-[90%] max-w-md rounded-3xl bg-white/95 border-4 border-orange-500 shadow-[0_18px_45px_rgba(15,23,42,0.45)] p-5 text-center backdrop-blur-md">
-            <div className="inline-block px-4 py-1 rounded-full bg-gradient-to-r from-red-500 to-orange-500 text-white font-black text-xs uppercase tracking-wider mb-2 shadow">
+        {/* Winner Reveal Card Overlay (supports 1 or K students!) */}
+        {phase === 'ZOOM_REVEAL' && winners.length > 0 && (
+          <div className="absolute top-14 left-1/2 -translate-x-1/2 z-20 w-[92%] max-w-xl rounded-3xl bg-white/95 border-4 border-orange-500 shadow-[0_18px_45px_rgba(15,23,42,0.45)] p-5 text-center backdrop-blur-md">
+            <div className="inline-block px-4 py-1 rounded-full bg-gradient-to-r from-red-500 to-orange-500 text-white font-black text-xs uppercase tracking-wider mb-3 shadow">
               🪂 {winnerReason}
             </div>
-            <div className="text-2xl sm:text-3xl font-black text-slate-900 mb-1">
-              {winner.name}
+            <div className="flex flex-wrap items-center justify-center gap-2 max-h-48 overflow-y-auto mb-3">
+              {winners.map((w) => (
+                <div
+                  key={w.id}
+                  className="px-4 py-2 rounded-2xl bg-amber-100 border-2 border-orange-400/60"
+                >
+                  <div className="text-lg sm:text-xl font-black text-slate-900">{w.name}</div>
+                  {w.studentCode && (
+                    <div className="text-xs font-mono font-bold text-slate-500">
+                      {w.studentCode}
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
-            {winner.studentCode && (
-              <div className="text-xs font-mono font-bold text-slate-500 mb-3">
-                {winner.studentCode}
-              </div>
-            )}
             <button
               type="button"
               onClick={resetToCliff}
-              className="mt-2 px-6 py-2.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 hover:brightness-110 text-white font-black text-sm shadow-lg shadow-orange-500/30 transition active:scale-95"
+              className="mt-1 px-6 py-2.5 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 hover:brightness-110 text-white font-black text-sm shadow-lg shadow-orange-500/30 transition active:scale-95"
             >
               🪂 Lượt nhảy tiếp theo
             </button>

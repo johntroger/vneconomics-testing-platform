@@ -136,8 +136,9 @@ export const MangoHarvestGame: React.FC<MinigameProps> = ({
   students,
   muted,
   onPickStudent,
+  onPickStudents,
 }) => {
-  const { paceMode } = useMinigameStageSettings();
+  const { paceMode, pickCount } = useMinigameStageSettings();
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rafRef = useRef<number | null>(null);
   const finishTimerRef = useRef<number | null>(null);
@@ -153,6 +154,8 @@ export const MangoHarvestGame: React.FC<MinigameProps> = ({
   mutedRef.current = muted;
   const onPickRef = useRef(onPickStudent);
   onPickRef.current = onPickStudent;
+  const onPickManyRef = useRef(onPickStudents);
+  onPickManyRef.current = onPickStudents;
 
   const mangoesRef = useRef<CanopyMango[]>([]);
   const fxRef = useRef<FloatingFx[]>([]);
@@ -162,6 +165,7 @@ export const MangoHarvestGame: React.FC<MinigameProps> = ({
     durationMs: number;
     gagChoice: 'ANTS' | 'SHORT'; // Used in NORMAL 17s mode for variety
     winner: RosterStudent | null;
+    winners: RosterStudent[];
     finished: boolean;
     cueFlags: Record<string, boolean>;
     poleTipX: number;
@@ -173,6 +177,7 @@ export const MangoHarvestGame: React.FC<MinigameProps> = ({
     durationMs: 17200,
     gagChoice: 'ANTS',
     winner: null,
+    winners: [],
     finished: false,
     cueFlags: {},
     poleTipX: 460,
@@ -647,10 +652,14 @@ export const MangoHarvestGame: React.FC<MinigameProps> = ({
           sim.active = false;
           stopBackgroundMusic();
           setRunning(false);
-          if (sim.winner) {
-            const picked = sim.winner;
+          if (sim.winners.length > 0) {
+            const pickedList = sim.winners;
             finishTimerRef.current = window.setTimeout(() => {
-              onPickRef.current(picked);
+              if (onPickManyRef.current) {
+                onPickManyRef.current(pickedList, 'Hái Xoài Chấm Muối Tôm');
+              } else {
+                onPickRef.current(pickedList[0]);
+              }
             }, 350);
           }
         }
@@ -886,7 +895,15 @@ export const MangoHarvestGame: React.FC<MinigameProps> = ({
       }
     });
 
-    const winner = students[cryptoRandomInt(students.length)];
+    const k = Math.max(1, Math.min(pickCount, students.length));
+    const poolCopy = [...students];
+    for (let i = poolCopy.length - 1; i > 0; i--) {
+      const j = cryptoRandomInt(i + 1);
+      [poolCopy[i], poolCopy[j]] = [poolCopy[j], poolCopy[i]];
+    }
+    const chosenWinners = poolCopy.slice(0, k);
+    const winner = chosenWinners[0];
+    simRef.current.winners = chosenWinners;
     const others = students.filter((s) => s.id !== winner.id);
     // Shuffle others so if >45 students, random classmates appear alongside winner
     for (let i = others.length - 1; i > 0; i--) {
@@ -920,6 +937,7 @@ export const MangoHarvestGame: React.FC<MinigameProps> = ({
       durationMs: TOTAL_MS_BY_PACE[paceMode],
       gagChoice: cryptoRandomInt(2) === 0 ? 'ANTS' : 'SHORT',
       winner,
+      winners: chosenWinners,
       finished: false,
       cueFlags: {},
       poleTipX: 480,

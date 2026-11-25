@@ -161,8 +161,8 @@ function playRecordScratch(muted: boolean): void {
   }
 }
 
-function layoutChairs(studentCount: number): ChairPos[] {
-  const chairCount = Math.max(0, studentCount - 1);
+function layoutChairs(studentCount: number, pickCount: number): ChairPos[] {
+  const chairCount = Math.max(0, studentCount - Math.max(1, pickCount));
   if (chairCount === 0) return [];
   const useTwoRows = chairCount > 10;
   const chairs: ChairPos[] = [];
@@ -205,9 +205,9 @@ function sampleOvalTrack(tNorm: number, chairCount: number): { x: number; y: num
   return { x, y, facingLeft: Math.sin(angle) > 0 };
 }
 
-function createDancers(list: RosterStudent[]): Dancer[] {
+function createDancers(list: RosterStudent[], pickCount: number): Dancer[] {
   const n = list.length;
-  const chairCount = Math.max(0, n - 1);
+  const chairCount = Math.max(0, n - Math.max(1, pickCount));
   return list.map((student, i) => {
     const trackT = n === 0 ? 0 : i / n;
     const pos = sampleOvalTrack(trackT, chairCount);
@@ -232,9 +232,10 @@ export const LastChairGame: React.FC<MinigameProps> = ({
   students,
   allStudents,
   onPickStudent,
+  onPickStudents,
   muted,
 }) => {
-  const { paceMode } = useMinigameStageSettings();
+  const { paceMode, pickCount } = useMinigameStageSettings();
 
   const [assets, setAssets] = useState<LoadedAssets | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -243,7 +244,7 @@ export const LastChairGame: React.FC<MinigameProps> = ({
   const [enableTwist, setEnableTwist] = useState<boolean>(true);
   const [activePool, setActivePool] = useState<RosterStudent[]>(students);
   const [mcSpeech, setMcSpeech] = useState<string>('Alo alo! Chiếc ghế cuối cùng sẵn sàng!');
-  const [loser, setLoser] = useState<RosterStudent | null>(null);
+  const [losers, setLosers] = useState<RosterStudent[]>([]);
   const [twistOutcome, setTwistOutcome] = useState<TwistOutcome>('NONE');
   const [showConfetti, setShowConfetti] = useState(false);
 
@@ -258,9 +259,12 @@ export const LastChairGame: React.FC<MinigameProps> = ({
   const totalCount = allStudents.length;
 
   const displayPool = useMemo(() => {
-    if (groupSize === 'ALL' || students.length <= groupSize) return students;
-    return students.slice(0, groupSize);
-  }, [students, groupSize]);
+    const minPool = Math.max(2, pickCount + 1);
+    if (groupSize === 'ALL' || students.length <= Math.max(groupSize, minPool)) return students;
+    return students.slice(0, Math.max(groupSize, minPool));
+  }, [students, groupSize, pickCount]);
+
+  const effectivePick = Math.max(1, Math.min(pickCount, Math.max(1, activePool.length)));
 
   const simRef = useRef<{
     phase: GamePhase;
@@ -271,6 +275,7 @@ export const LastChairGame: React.FC<MinigameProps> = ({
     twist: TwistOutcome;
     chairs: ChairPos[];
     dancers: Dancer[];
+    loserDancers: Dancer[];
     loserDancer: Dancer | null;
     duelWinnerDancer: Dancer | null;
     guardX: number;
@@ -284,6 +289,7 @@ export const LastChairGame: React.FC<MinigameProps> = ({
     twist: 'NONE',
     chairs: [],
     dancers: [],
+    loserDancers: [],
     loserDancer: null,
     duelWinnerDancer: null,
     guardX: -120,
@@ -319,14 +325,15 @@ export const LastChairGame: React.FC<MinigameProps> = ({
     };
   }, []);
 
-  // Refresh chairs & dancers in IDLE when pool changes
+  // Refresh chairs & dancers in IDLE when pool or pickCount changes
   useEffect(() => {
     if (simRef.current.phase === 'IDLE') {
+      const effK = Math.max(1, Math.min(pickCount, Math.max(1, displayPool.length)));
       setActivePool(displayPool);
-      simRef.current.chairs = layoutChairs(displayPool.length);
-      simRef.current.dancers = createDancers(displayPool);
+      simRef.current.chairs = layoutChairs(displayPool.length, effK);
+      simRef.current.dancers = createDancers(displayPool, effK);
     }
-  }, [displayPool]);
+  }, [displayPool, pickCount]);
 
   useEffect(() => {
     return () => {
@@ -341,14 +348,20 @@ export const LastChairGame: React.FC<MinigameProps> = ({
     stopBackgroundMusic();
     playRecordScratch(mutedRef.current);
 
-    // Seat all dancers except the 2 finalists (or all except loser) for when we return to the yard
+    // Seat all non-losers onto red chairs; spread K losers cleanly along center-front stage!
     const remainingChairs = sim.chairs.map((_, idx) => idx);
+    const loserList = sim.dancers.filter((d) => d.isLoser);
+    const spreadSpan = Math.min(720, (loserList.length - 1) * 110);
+    let loserIdx = 0;
+
     for (const d of sim.dancers) {
       if (d.isLoser) {
+        const frac = loserList.length <= 1 ? 0.5 : loserIdx / (loserList.length - 1);
         d.chairIdx = -1;
         d.seated = false;
-        d.x = 580;
+        d.x = 580 - spreadSpan / 2 + frac * spreadSpan;
         d.y = 562;
+        loserIdx++;
         continue;
       }
       const cIdx = remainingChairs.shift();
@@ -371,27 +384,30 @@ export const LastChairGame: React.FC<MinigameProps> = ({
     unlockGameAudio();
     if (!mutedRef.current) startLobbyMusic();
 
-    // Pick subset if playing by group size (6 / 10 / 16)
+    const minPool = Math.max(2, pickCount + 1);
     const pool =
-      groupSize === 'ALL' || students.length <= groupSize
+      groupSize === 'ALL' || students.length <= Math.max(groupSize, minPool)
         ? [...students]
-        : cryptoShuffle([...students]).slice(0, groupSize);
+        : cryptoShuffle([...students]).slice(0, Math.max(groupSize, minPool));
 
+    const effK = Math.max(1, Math.min(pickCount, pool.length));
     setActivePool(pool);
 
-    const chairs = layoutChairs(pool.length);
-    const dancers = createDancers(pool);
+    const chairs = layoutChairs(pool.length, effK);
+    const dancers = createDancers(pool, effK);
 
-    // Fairly pick the loser and the duel contender
+    // Fairly pick K losers and 1 duel winner
     const shuffled = cryptoShuffle([...dancers]);
-    const pickedLoser = shuffled[0];
-    const pickedDuelWinner = shuffled[1] || shuffled[0];
-    pickedLoser.isLoser = true;
-    if (pickedDuelWinner !== pickedLoser) {
+    const pickedLosers = shuffled.slice(0, effK);
+    const pickedDuelWinner = shuffled[effK] || shuffled[0];
+    pickedLosers.forEach((d) => {
+      d.isLoser = true;
+    });
+    if (pickedDuelWinner && !pickedDuelWinner.isLoser) {
       pickedDuelWinner.isDuelWinner = true;
     }
 
-    // Decide Plot Twist outcome (~38% chance when Plot Twist toggle is ON!)
+    // Decide Plot Twist outcome (~38% chance when Plot Twist toggle is ON & single loser for clean guard/cat gag!)
     let twist: TwistOutcome = 'NONE';
     if (twistEnabledRef.current && pool.length >= 2 && Math.random() < 0.38) {
       twist = Math.random() < 0.5 ? 'GUARD' : 'CAT';
@@ -402,38 +418,41 @@ export const LastChairGame: React.FC<MinigameProps> = ({
 
     simRef.current.chairs = chairs;
     simRef.current.dancers = dancers;
-    simRef.current.loserDancer = pickedLoser;
+    simRef.current.loserDancers = pickedLosers;
+    simRef.current.loserDancer = pickedLosers[0] || null;
     simRef.current.duelWinnerDancer = pickedDuelWinner;
     simRef.current.twist = twist;
     simRef.current.danceElapsedMs = 0;
     simRef.current.danceTotalMs = totalMs;
-    simRef.current.didFakeStop = paceRef.current === 'TURBO'; // Skip fake-out in 3s turbo mode
+    simRef.current.didFakeStop = paceRef.current === 'TURBO';
     simRef.current.guardX = -120;
     simRef.current.committed = false;
     simRef.current.phase = 'DANCING';
     simRef.current.phaseStartMs = now;
 
-    setLoser(pickedLoser.student);
+    setLosers(pickedLosers.map((d) => d.student));
     setTwistOutcome(twist);
     setShowConfetti(false);
     setPhase('DANCING');
-    setMcSpeech(`Alo alo! Mời ${pool.length} bạn nhảy quanh ${Math.max(0, pool.length - 1)} ghế!`);
-  }, [students, groupSize]);
+    setMcSpeech(`Alo alo! Mời ${pool.length} bạn nhảy quanh ${Math.max(0, pool.length - effK)} ghế!`);
+  }, [students, groupSize, pickCount]);
 
   const resetToIdle = useCallback(() => {
     stopBackgroundMusic();
+    const effK = Math.max(1, Math.min(pickCount, Math.max(1, displayPool.length)));
     simRef.current.phase = 'IDLE';
-    simRef.current.chairs = layoutChairs(displayPool.length);
-    simRef.current.dancers = createDancers(displayPool);
+    simRef.current.chairs = layoutChairs(displayPool.length, effK);
+    simRef.current.dancers = createDancers(displayPool, effK);
+    simRef.current.loserDancers = [];
     simRef.current.loserDancer = null;
     simRef.current.duelWinnerDancer = null;
     simRef.current.committed = false;
     setPhase('IDLE');
-    setLoser(null);
+    setLosers([]);
     setTwistOutcome('NONE');
     setShowConfetti(false);
     setMcSpeech('Alo alo! Chiếc ghế cuối cùng sẵn sàng!');
-  }, [displayPool]);
+  }, [displayPool, pickCount]);
 
   // Main 60fps Canvas Loop (Yard + Fake-out + Anime Cutscenes + Twists!)
   useEffect(() => {
@@ -528,12 +547,14 @@ export const LastChairGame: React.FC<MinigameProps> = ({
           setPhase('REVEAL');
           setShowConfetti(true);
           if (!mutedRef.current) playWinnerFanfare();
-          if (!sim.committed && sim.loserDancer) {
+          if (!sim.committed && sim.loserDancers.length > 0) {
             sim.committed = true;
-            onPickStudent(
-              sim.loserDancer.student,
-              `Chậm chân mất một nhịp trong Chiếc Ghế Cuối Cùng`,
-            );
+            const chosenStudents = sim.loserDancers.map((d) => d.student);
+            if (onPickStudents) {
+              onPickStudents(chosenStudents, 'Chậm chân mất một nhịp trong Chiếc Ghế Cuối Cùng');
+            } else {
+              onPickStudent(chosenStudents[0], 'Chậm chân mất một nhịp trong Chiếc Ghế Cuối Cùng');
+            }
           }
         }
       } else if (sim.phase === 'TWIST_GUARD') {
@@ -1076,10 +1097,10 @@ export const LastChairGame: React.FC<MinigameProps> = ({
 
     rafId = requestAnimationFrame(render);
     return () => cancelAnimationFrame(rafId);
-  }, [assets, mcSpeech, onPickStudent, enterCutsceneButton]);
+  }, [assets, mcSpeech, onPickStudent, onPickStudents, enterCutsceneButton]);
 
   const isRunning = phase !== 'IDLE' && phase !== 'REVEAL';
-  const chairCount = Math.max(0, activePool.length - 1);
+  const chairCount = Math.max(0, activePool.length - effectivePick);
 
   return (
     <div className="w-full flex flex-col items-center gap-3 select-none">
@@ -1119,16 +1140,16 @@ export const LastChairGame: React.FC<MinigameProps> = ({
           <canvas ref={canvasRef} className="w-full h-auto block aspect-[1280/620]" />
         )}
 
-        {/* Reveal Overlay Card (Normal Loser OR Happy End Plot Twist!) */}
-        {phase === 'REVEAL' && loser && (
-          <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 w-[92%] max-w-md rounded-3xl bg-slate-900/95 border-4 border-amber-400 shadow-[0_20px_55px_rgba(0,0,0,0.65)] p-5 text-center backdrop-blur-md text-white">
+        {/* Reveal Overlay Card (Normal Loser(s) OR Happy End Plot Twist!) */}
+        {phase === 'REVEAL' && losers.length > 0 && (
+          <div className="absolute top-12 left-1/2 -translate-x-1/2 z-20 w-[92%] max-w-xl rounded-3xl bg-slate-900/95 border-4 border-amber-400 shadow-[0_20px_55px_rgba(0,0,0,0.65)] p-5 text-center backdrop-blur-md text-white">
             {twistOutcome === 'GUARD' ? (
               <>
                 <div className="inline-block px-3.5 py-1 rounded-full bg-emerald-500 text-white font-black text-xs uppercase tracking-wider mb-2">
                   👮‍♂️ PLOT TWIST — HAPPY END!
                 </div>
                 <div className="text-xl sm:text-2xl font-black text-emerald-300 mb-1">
-                  Bác Bảo Vệ đã cứu {loser.name}!
+                  Bác Bảo Vệ đã cứu {losers.map((l) => l.name).join(', ')}!
                 </div>
                 <p className="text-sm font-bold text-slate-200 mb-4">
                   Bác mang thêm ghế đỏ đúng lúc! Bấm chơi lại — lần này chưa chắc có ai cứu đâu nha! 😂
@@ -1147,7 +1168,7 @@ export const LastChairGame: React.FC<MinigameProps> = ({
                   🐈‍⬛ PLOT TWIST — MÈO MUN CHIẾM GHẾ!
                 </div>
                 <div className="text-xl sm:text-2xl font-black text-amber-300 mb-1">
-                  Mèo Mun đã cứu {loser.name} thoát nạn!
+                  Mèo Mun đã cứu {losers.map((l) => l.name).join(', ')} thoát nạn!
                 </div>
                 <p className="text-sm font-bold text-slate-200 mb-4">
                   Chú Tư bó tay: &ldquo;Ghế này... của mèo?!&rdquo; Bấm chơi lượt mới để tìm người lên bảng nào!
@@ -1163,18 +1184,27 @@ export const LastChairGame: React.FC<MinigameProps> = ({
             ) : (
               <>
                 <div className="inline-block px-3.5 py-1 rounded-full bg-rose-500 text-white font-black text-xs uppercase tracking-wider mb-2">
-                  🪑 Bạn lên bảng hôm nay là...
+                  {losers.length > 1
+                    ? `🪑 ${losers.length} bạn lên bảng hôm nay là...`
+                    : '🪑 Bạn lên bảng hôm nay là...'}
                 </div>
-                <div className="text-2xl sm:text-3xl font-black text-amber-300 mb-1">
-                  {loser.name}
+                <div className="flex flex-wrap items-center justify-center gap-2 max-h-44 overflow-y-auto my-2">
+                  {losers.map((w) => (
+                    <div
+                      key={w.id}
+                      className="px-4 py-2 rounded-2xl bg-white/10 border border-amber-300/40"
+                    >
+                      <div className="text-lg sm:text-xl font-black text-amber-300">{w.name}</div>
+                      {w.studentCode && (
+                        <div className="text-xs font-mono font-bold text-slate-400">
+                          {w.studentCode}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </div>
-                {loser.studentCode && (
-                  <div className="text-xs font-mono font-bold text-slate-400 mb-2">
-                    {loser.studentCode}
-                  </div>
-                )}
                 <p className="text-sm font-bold text-amber-100/90 mb-4">
-                  {activePool.length} bạn giành {chairCount} ghế — em chậm chân mất một nhịp!
+                  {activePool.length} bạn giành {chairCount} ghế — chậm chân mất một nhịp!
                 </p>
                 <button
                   type="button"

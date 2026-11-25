@@ -86,7 +86,8 @@ export const MinigameStageLayout: React.FC = () => {
   const [muted, setMuted] = useState(false);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const [winner, setWinner] = useState<RosterStudent | null>(null);
+  const [pickCount, setPickCountState] = useState<number>(1);
+  const [winners, setWinners] = useState<RosterStudent[]>([]);
   const [confetti, setConfetti] = useState(false);
   const [pickedQuestion, setPickedQuestion] = useState<{
     question: Question;
@@ -134,53 +135,81 @@ export const MinigameStageLayout: React.FC = () => {
     [store.students, store.excludeCalled],
   );
 
+  const maxPickAllowed = useMemo(() => {
+    if (plugin.id === 'nguoi-ay-la-ai') return 20;
+    return Math.max(1, availableStudents.length);
+  }, [plugin.id, availableStudents.length]);
+
+  const setPickCount = useCallback(
+    (n: number) => {
+      const safe = Math.max(1, Math.min(maxPickAllowed, Math.floor(Number.isFinite(n) ? n : 1)));
+      setPickCountState(safe);
+    },
+    [maxPickAllowed],
+  );
+
+  // Keep pickCount clamped when availableStudents shrinks
+  useEffect(() => {
+    if (pickCount > maxPickAllowed) {
+      setPickCountState(maxPickAllowed);
+    }
+  }, [pickCount, maxPickAllowed]);
+
   const updateStore = (next: MinigameStateStore) => {
     setStore(next);
     writeMinigameStore(next);
   };
 
-  const handlePickStudent = (student: RosterStudent) => {
+  const handlePickStudents = (pickedList: RosterStudent[]) => {
+    if (pickedList.length === 0) return;
     void unlockGameAudio();
-    setWinner(student);
+    setWinners(pickedList);
     setPickedQuestion(null);
     setRevealAnswer(false);
     setConfetti(true);
     if (!muted) playWinnerFanfare();
-    if (voiceEnabled && !muted) speakVietnameseName(student.name);
+    if (voiceEnabled && !muted) {
+      const namesText = pickedList.map((s) => s.name).join(', ');
+      speakVietnameseName(namesText);
+    }
     window.setTimeout(() => setConfetti(false), 3800);
 
+    const pickedIds = new Set(pickedList.map((s) => s.id));
     const nextStudents = store.students.map((s) =>
-      s.id === student.id ? { ...s, called: true } : s,
+      pickedIds.has(s.id) ? { ...s, called: true } : s,
     );
-    const nextHistory = [
-      {
-        id: `hist_${Date.now().toString(36)}`,
-        studentId: student.id,
-        studentName: student.name,
-        studentCode: student.studentCode,
-        gameId: plugin.id,
-        gameName: plugin.name,
-        bonusAwarded: 0,
-        status: 'PICKED' as const,
-        at: new Date().toISOString(),
-      },
-      ...store.history,
-    ].slice(0, 500);
+    const nowIso = new Date().toISOString();
+    const newEntries = pickedList.map((student, idx) => ({
+      id: `hist_${Date.now().toString(36)}_${idx}`,
+      studentId: student.id,
+      studentName: student.name,
+      studentCode: student.studentCode,
+      gameId: plugin.id,
+      gameName: plugin.name,
+      bonusAwarded: 0,
+      status: 'PICKED' as const,
+      at: nowIso,
+    }));
+    const nextHistory = [...newEntries, ...store.history].slice(0, 500);
 
     updateStore({ ...store, students: nextStudents, history: nextHistory });
   };
 
-  const handleMarkWinnerAbsent = () => {
-    if (!winner) return;
+  const handlePickStudent = (student: RosterStudent) => {
+    handlePickStudents([student]);
+  };
+
+  const handleMarkWinnerAbsent = (targetStudent: RosterStudent) => {
     const nextStudents = store.students.map((s) =>
-      s.id === winner.id ? { ...s, absent: true, called: false } : s,
+      s.id === targetStudent.id ? { ...s, absent: true, called: false } : s,
     );
-    const nextHistory = [...store.history];
-    if (nextHistory[0] && nextHistory[0].studentId === winner.id) {
-      nextHistory[0] = { ...nextHistory[0], status: 'ABSENT' };
-    }
+    const nextHistory = store.history.map((h, idx) =>
+      idx < 25 && h.studentId === targetStudent.id && h.status === 'PICKED'
+        ? { ...h, status: 'ABSENT' as const }
+        : h,
+    );
     updateStore({ ...store, students: nextStudents, history: nextHistory });
-    setWinner(null);
+    setWinners((prev) => prev.filter((w) => w.id !== targetStudent.id));
   };
 
   const handleResetCalls = () => {
@@ -268,6 +297,47 @@ export const MinigameStageLayout: React.FC = () => {
           >
             <RotateCcw className="w-3.5 h-3.5" /> Reset
           </button>
+
+          {plugin.category === 'VIETNAM' && (
+            <div
+              className="flex items-center gap-1 rounded-xl bg-amber-400/15 border border-amber-300/40 px-2 py-1"
+              title="Chọn số lượng sinh viên gọi lên bảng trong 1 lượt (tùy chỉnh theo nhu cầu)"
+            >
+              <span className="text-[11px] font-black text-amber-200 whitespace-nowrap mr-0.5">
+                👥 Gọi:
+              </span>
+              <button
+                type="button"
+                onClick={() => setPickCount(pickCount - 1)}
+                disabled={pickCount <= 1}
+                className="w-6 h-6 rounded-lg bg-white/15 hover:bg-white/25 disabled:opacity-35 font-black text-xs flex items-center justify-center transition"
+                aria-label="Giảm số sinh viên gọi"
+              >
+                −
+              </button>
+              <input
+                type="number"
+                min={1}
+                max={maxPickAllowed}
+                value={pickCount}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value, 10);
+                  if (!Number.isNaN(val)) setPickCount(val);
+                }}
+                className="w-10 text-center bg-black/35 border border-white/20 rounded-lg py-0.5 text-xs font-black text-amber-200 focus:outline-none focus:border-amber-400"
+                aria-label="Số lượng sinh viên gọi mỗi lượt"
+              />
+              <button
+                type="button"
+                onClick={() => setPickCount(pickCount + 1)}
+                disabled={pickCount >= maxPickAllowed}
+                className="w-6 h-6 rounded-lg bg-white/15 hover:bg-white/25 disabled:opacity-35 font-black text-xs flex items-center justify-center transition"
+                aria-label="Tăng số sinh viên gọi"
+              >
+                +
+              </button>
+            </div>
+          )}
 
           <div
             className="flex items-center rounded-xl bg-black/25 p-1 gap-1 border border-white/10"
@@ -375,21 +445,22 @@ export const MinigameStageLayout: React.FC = () => {
               </div>
             }
           >
-            <MinigameStageContext.Provider value={{ paceMode, render3D, theme }}>
+            <MinigameStageContext.Provider value={{ paceMode, render3D, theme, pickCount, setPickCount }}>
               <GameComponent
                 students={availableStudents}
                 allStudents={store.students}
                 muted={muted}
                 theme={theme}
                 onPickStudent={handlePickStudent}
+                onPickStudents={handlePickStudents}
               />
             </MinigameStageContext.Provider>
           </Suspense>
         </MinigameErrorBoundary>
       </main>
 
-      {/* Spotlight Winner Modal */}
-      {winner && (
+      {/* Spotlight Winner Modal (supports 1 or K students!) */}
+      {winners.length > 0 && (
         <div className="fixed inset-0 z-50 bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4 overflow-hidden">
           <div
             className="absolute w-[620px] h-[620px] rounded-full opacity-25 pointer-events-none animate-sunburst"
@@ -398,28 +469,67 @@ export const MinigameStageLayout: React.FC = () => {
                 'conic-gradient(from 0deg, transparent 0deg 18deg, rgba(251,191,36,0.5) 18deg 36deg, transparent 36deg 54deg, rgba(251,191,36,0.5) 54deg 72deg, transparent 72deg 90deg, rgba(251,191,36,0.5) 90deg 108deg, transparent 108deg 126deg, rgba(251,191,36,0.5) 126deg 144deg, transparent 144deg 162deg, rgba(251,191,36,0.5) 162deg 180deg, transparent 180deg 198deg, rgba(251,191,36,0.5) 198deg 216deg, transparent 216deg 234deg, rgba(251,191,36,0.5) 234deg 252deg, transparent 252deg 270deg, rgba(251,191,36,0.5) 270deg 288deg, transparent 288deg 306deg, rgba(251,191,36,0.5) 306deg 324deg, transparent 324deg 342deg, rgba(251,191,36,0.5) 342deg 360deg)',
             }}
           />
-          <div className="relative z-10 bg-gradient-to-b from-slate-900 to-indigo-950 border-2 border-amber-400/70 text-white rounded-3xl max-w-2xl w-full max-h-[90dvh] overflow-y-auto p-6 sm:p-8 text-center shadow-[0_0_60px_rgba(251,191,36,0.3)] space-y-5">
+          <div className="relative z-10 bg-gradient-to-b from-slate-900 to-indigo-950 border-2 border-amber-400/70 text-white rounded-3xl max-w-3xl w-full max-h-[90dvh] overflow-y-auto p-6 sm:p-8 text-center shadow-[0_0_60px_rgba(251,191,36,0.3)] space-y-5">
             <div className="text-xs font-black uppercase tracking-[0.2em] text-amber-300">
-              🎉 Xin chúc mừng bạn được chọn!
+              {winners.length > 1
+                ? `🎉 Xin chúc mừng ${winners.length} bạn được chọn lên bảng!`
+                : '🎉 Xin chúc mừng bạn được chọn!'}
             </div>
 
-            <div className="flex justify-center">
-              <GameAvatarBadge avatarId={winner.avatarId} streak={3} size="lg" />
-            </div>
-
-            <div>
-              <div
-                className="font-black leading-tight text-white"
-                style={{ fontSize: 'clamp(1.85rem, 4.5vw, 3.25rem)' }}
-              >
-                {winner.name}
-              </div>
-              {winner.studentCode && (
-                <div className="text-base font-mono font-bold text-indigo-300 mt-1">
-                  MSSV: {winner.studentCode}
+            {winners.length === 1 ? (
+              <>
+                <div className="flex justify-center">
+                  <GameAvatarBadge avatarId={winners[0].avatarId} streak={3} size="lg" />
                 </div>
-              )}
-            </div>
+
+                <div>
+                  <div
+                    className="font-black leading-tight text-white"
+                    style={{ fontSize: 'clamp(1.85rem, 4.5vw, 3.25rem)' }}
+                  >
+                    {winners[0].name}
+                  </div>
+                  {winners[0].studentCode && (
+                    <div className="text-base font-mono font-bold text-indigo-300 mt-1">
+                      MSSV: {winners[0].studentCode}
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left max-h-[44dvh] overflow-y-auto pr-1">
+                {winners.map((w, idx) => (
+                  <div
+                    key={w.id}
+                    className="flex items-center justify-between gap-3 rounded-2xl bg-white/10 border border-amber-300/35 px-4 py-3"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="w-7 h-7 rounded-full bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">
+                        {idx + 1}
+                      </span>
+                      <div className="min-w-0">
+                        <div className="font-black text-base sm:text-lg text-white truncate">
+                          {w.name}
+                        </div>
+                        {w.studentCode && (
+                          <div className="text-xs font-mono font-bold text-indigo-300">
+                            {w.studentCode}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleMarkWinnerAbsent(w)}
+                      className="px-2.5 py-1.5 rounded-lg bg-rose-500/25 hover:bg-rose-500/45 border border-rose-400/40 text-rose-100 text-[11px] font-bold shrink-0"
+                      title="Đánh dấu vắng cho sinh viên này"
+                    >
+                      Vắng
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {/* Optional Instructor Question Bank Drawer */}
             {isInstructor && questions.length > 0 && (
@@ -510,16 +620,18 @@ export const MinigameStageLayout: React.FC = () => {
             )}
 
             <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+              {winners.length === 1 && (
+                <button
+                  type="button"
+                  onClick={() => handleMarkWinnerAbsent(winners[0])}
+                  className="px-4 py-2.5 rounded-xl bg-rose-500/25 border border-rose-400/40 hover:bg-rose-500/40 text-rose-100 font-bold text-sm flex items-center gap-1.5"
+                >
+                  <UserX className="w-4 h-4" /> Vắng (Quay lại)
+                </button>
+              )}
               <button
                 type="button"
-                onClick={handleMarkWinnerAbsent}
-                className="px-4 py-2.5 rounded-xl bg-rose-500/25 border border-rose-400/40 hover:bg-rose-500/40 text-rose-100 font-bold text-sm flex items-center gap-1.5"
-              >
-                <UserX className="w-4 h-4" /> Vắng (Quay lại)
-              </button>
-              <button
-                type="button"
-                onClick={() => setWinner(null)}
+                onClick={() => setWinners([])}
                 className="px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-sm"
               >
                 Đóng &amp; Tiếp tục

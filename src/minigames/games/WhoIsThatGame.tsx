@@ -12,7 +12,8 @@ import {
 } from 'lucide-react';
 import { ConfettiBurst } from '../../components/game/ConfettiBurst';
 import { playWinnerFanfare, unlockGameAudio } from '../../utils/gameAudio';
-import { cryptoRandomInt } from '../rosterStorage';
+import { cryptoShuffle } from '../rosterStorage';
+import { useMinigameStageSettings } from '../stageContext';
 import type { MinigameProps } from '../types';
 
 interface EphemeralPhoto {
@@ -52,6 +53,7 @@ const MARQUEE_BULBS: Array<{ left: string; top: string }> = (() => {
 })();
 
 export const WhoIsThatGame: React.FC<MinigameProps> = ({ muted }) => {
+  const { pickCount } = useMinigameStageSettings();
   // Ephemeral RAM-only photo list (never persisted to storage or server)
   const [photos, setPhotos] = useState<EphemeralPhoto[]>([]);
   const [customAudioUrl, setCustomAudioUrl] = useState<string | null>(null);
@@ -62,7 +64,7 @@ export const WhoIsThatGame: React.FC<MinigameProps> = ({ muted }) => {
 
   // Live show state
   const [act, setAct] = useState<ShowAct>('SETUP');
-  const [winner, setWinner] = useState<EphemeralPhoto | null>(null);
+  const [winners, setWinners] = useState<EphemeralPhoto[]>([]);
   const [flashPhotoIdx, setFlashPhotoIdx] = useState<number>(0);
   const [bulbTick, setBulbTick] = useState<number>(0);
   const [flashBurst, setFlashBurst] = useState<boolean>(false);
@@ -151,7 +153,7 @@ export const WhoIsThatGame: React.FC<MinigameProps> = ({ muted }) => {
   const handleClearAllPhotos = () => {
     photos.forEach((p) => URL.revokeObjectURL(p.url));
     setPhotos([]);
-    setWinner(null);
+    setWinners([]);
     setAct('SETUP');
   };
 
@@ -187,8 +189,10 @@ export const WhoIsThatGame: React.FC<MinigameProps> = ({ muted }) => {
     void unlockGameAudio();
     stopShowAudio();
 
-    const chosen = pool[cryptoRandomInt(pool.length)];
-    setWinner(chosen);
+    const k = Math.max(1, Math.min(pickCount, pool.length));
+    const chosenList = cryptoShuffle([...pool]).slice(0, k);
+    const chosenIds = new Set(chosenList.map((p) => p.id));
+    setWinners(chosenList);
     setAct('INTRO_TITLE');
     setConfetti(false);
     setFlashBurst(false);
@@ -228,7 +232,7 @@ export const WhoIsThatGame: React.FC<MinigameProps> = ({ muted }) => {
         setFlashBurst(true);
         setConfetti(true);
         setPhotos((prev) =>
-          prev.map((p) => (p.id === chosen.id ? { ...p, revealed: true } : p)),
+          prev.map((p) => (chosenIds.has(p.id) ? { ...p, revealed: true } : p)),
         );
         if (flashTimerRef.current !== null) window.clearTimeout(flashTimerRef.current);
         flashTimerRef.current = window.setTimeout(() => setFlashBurst(false), 380);
@@ -538,9 +542,9 @@ export const WhoIsThatGame: React.FC<MinigameProps> = ({ muted }) => {
               </div>
             )}
 
-            {/* ACT 4: BEAT DROP REVEAL — POP OUT STUDENT PHOTO! */}
-            {act === 'REVEALED' && winner && (
-              <div className="relative z-20 w-[82%] max-w-3xl h-[84%] rounded-3xl border-[6px] border-amber-300 bg-gradient-to-b from-amber-900/50 via-red-950/75 to-black/90 shadow-[0_0_80px_rgba(251,191,36,0.75)] flex flex-col items-center justify-center p-4 sm:p-6 gap-3">
+            {/* ACT 4: BEAT DROP REVEAL — POP OUT 1 OR K STUDENT PHOTOS! */}
+            {act === 'REVEALED' && winners.length > 0 && (
+              <div className="relative z-20 w-[86%] max-w-4xl h-[86%] rounded-3xl border-[6px] border-amber-300 bg-gradient-to-b from-amber-900/50 via-red-950/75 to-black/90 shadow-[0_0_80px_rgba(251,191,36,0.75)] flex flex-col items-center justify-center p-4 sm:p-6 gap-3">
                 {MARQUEE_BULBS.map((b, i) => (
                   <span
                     key={i}
@@ -554,20 +558,46 @@ export const WhoIsThatGame: React.FC<MinigameProps> = ({ muted }) => {
                 ))}
 
                 <div className="text-xs sm:text-sm font-black uppercase tracking-[0.25em] text-amber-300 drop-shadow">
-                  ✨ CHÍNH LÀ BẠN NÀY ĐÂY!! ✨
+                  {winners.length > 1
+                    ? `✨ CHÍNH LÀ ${winners.length} BẠN NÀY ĐÂY!! ✨`
+                    : '✨ CHÍNH LÀ BẠN NÀY ĐÂY!! ✨'}
                 </div>
 
-                <div className="flex-1 min-h-0 flex items-center justify-center w-full">
-                  <img
-                    src={winner.url}
-                    alt={winner.label}
-                    className="max-h-full max-w-full object-contain rounded-2xl border-4 border-yellow-300 shadow-[0_0_40px_rgba(250,204,21,0.65)]"
-                  />
-                </div>
+                {winners.length === 1 ? (
+                  <>
+                    <div className="flex-1 min-h-0 flex items-center justify-center w-full">
+                      <img
+                        src={winners[0].url}
+                        alt={winners[0].label}
+                        className="max-h-full max-w-full object-contain rounded-2xl border-4 border-yellow-300 shadow-[0_0_40px_rgba(250,204,21,0.65)]"
+                      />
+                    </div>
 
-                {showNameOnReveal && (
-                  <div className="px-6 py-2 rounded-full bg-gradient-to-r from-yellow-300 via-amber-400 to-orange-400 text-slate-950 font-black text-lg sm:text-2xl uppercase tracking-wide shadow-xl">
-                    {winner.label}
+                    {showNameOnReveal && (
+                      <div className="px-6 py-2 rounded-full bg-gradient-to-r from-yellow-300 via-amber-400 to-orange-400 text-slate-950 font-black text-lg sm:text-2xl uppercase tracking-wide shadow-xl">
+                        {winners[0].label}
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="flex-1 min-h-0 w-full grid grid-cols-2 sm:grid-cols-3 gap-3 overflow-y-auto p-1">
+                    {winners.map((w) => (
+                      <div
+                        key={w.id}
+                        className="flex flex-col items-center justify-center gap-1.5 bg-black/45 rounded-2xl p-2 border-2 border-yellow-300/70"
+                      >
+                        <img
+                          src={w.url}
+                          alt={w.label}
+                          className="max-h-40 w-auto max-w-full object-contain rounded-xl"
+                        />
+                        {showNameOnReveal && (
+                          <div className="px-3 py-0.5 rounded-full bg-amber-400 text-slate-950 font-black text-xs sm:text-sm uppercase truncate max-w-full">
+                            {w.label}
+                          </div>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>

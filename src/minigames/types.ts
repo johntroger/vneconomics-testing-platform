@@ -57,6 +57,7 @@ export interface MinigameProps {
   muted: boolean;
   theme: StageTheme;
   onPickStudent: (student: RosterStudent, note?: string) => void;
+  onPickStudents?: (students: RosterStudent[], note?: string) => void;
 }
 
 export interface MinigamePlugin {
