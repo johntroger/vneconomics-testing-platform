@@ -113,7 +113,7 @@ function applyCorsHeaders(): void
     }
 
     header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Admin-Token, X-Requested-With');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization, X-Admin-Token, X-Poll-Host-Key, X-Requested-With');
     header('Access-Control-Max-Age: 3600');
 
     if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'OPTIONS') {

@@ -34,6 +34,7 @@ import { StudentQuestionMatrixCard } from '../components/admin/StudentQuestionMa
 import { CreateGameModal } from '../components/admin/CreateGameModal';
 import { EssayGradingModal } from '../components/admin/EssayGradingModal';
 import { MinigameHubPanel } from '../components/admin/MinigameHubPanel';
+import { QuickPollHubPanel } from '../components/poll/QuickPollHubPanel';
 import { fetchInstructorGames, type GameListItem } from '../services/gameApi';
 import { ExamAnalyticsCharts } from '../components/admin/ExamAnalyticsCharts';
 const ExcelQuestionBankModal = lazy(() =>
@@ -217,9 +218,12 @@ export const AdminDashboardPage: React.FC = () => {
   } | null>(null);
   const [instructorGames, setInstructorGames] = useState<GameListItem[]>([]);
   const [loadingGames, setLoadingGames] = useState(false);
-  const [liveGameSubTab, setLiveGameSubTab] = useState<'KAHOOT' | 'MINIGAME'>(() =>
-    searchParams.get('sub') === 'MINIGAME' ? 'MINIGAME' : 'KAHOOT',
-  );
+  const [liveGameSubTab, setLiveGameSubTab] = useState<'KAHOOT' | 'MINIGAME' | 'POLL'>(() => {
+    const sub = searchParams.get('sub');
+    if (sub === 'POLL') return 'POLL';
+    if (sub === 'MINIGAME') return 'MINIGAME';
+    return 'KAHOOT';
+  });
 
   const loadInstructorGames = async () => {
     setLoadingGames(true);
@@ -3500,10 +3504,10 @@ export const AdminDashboardPage: React.FC = () => {
           />
         )}
 
-        {/* TAB 7: LIVE GAME & MINIGAME */}
+        {/* TAB 7: LIVE GAME, MINIGAME & QUICK POLL */}
         {activeTab === 'LIVE_GAME' && (
           <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 sm:p-6 space-y-5">
-            {/* 2 Sub-tabs inside Tab 7 */}
+            {/* 3 Sub-tabs inside Tab 7 */}
             <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 pb-3">
               <button
                 type="button"
@@ -3528,9 +3532,23 @@ export const AdminDashboardPage: React.FC = () => {
               >
                 🎯 2. Gọi tên &amp; Chia nhóm (Minigame)
               </button>
+              <button
+                type="button"
+                onClick={() => setLiveGameSubTab('POLL')}
+                className={`px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition ${
+                  liveGameSubTab === 'POLL'
+                    ? 'bg-gradient-to-r from-cyan-600 to-teal-600 text-white shadow-sm'
+                    : 'bg-slate-100 text-ink-700 hover:bg-slate-200'
+                }`}
+              >
+                <BarChart3 className="w-4 h-4" />
+                3. Quick Poll Tools (Khảo sát Live)
+              </button>
             </div>
 
-            {liveGameSubTab === 'MINIGAME' ? (
+            {liveGameSubTab === 'POLL' ? (
+              <QuickPollHubPanel isAdminEmbedded />
+            ) : liveGameSubTab === 'MINIGAME' ? (
               <MinigameHubPanel exams={exams} returnSource="admin" />
             ) : (
               <>

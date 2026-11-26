@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ArrowRight,
+  BarChart3,
   BookOpen,
   CheckCircle2,
   ChevronDown,
@@ -361,7 +362,7 @@ export const HomePortalPage: React.FC = () => {
               </p>
             </div>
           </div>
-          <nav className="grid grid-cols-4 sm:flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto shrink-0">
+          <nav className="grid grid-cols-3 sm:flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto shrink-0">
             <Link
               to="/huong-dan"
               className="text-[11px] sm:text-xs font-bold px-2 sm:px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-ink-700 flex items-center justify-center gap-1 sm:gap-1.5 transition whitespace-nowrap"
@@ -392,6 +393,13 @@ export const HomePortalPage: React.FC = () => {
             >
               <Sparkles className="w-3.5 h-3.5 shrink-0" />
               <span>Minigame</span>
+            </Link>
+            <Link
+              to="/poll"
+              className="text-[11px] sm:text-xs font-bold px-2 sm:px-3 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-700 hover:to-teal-700 text-white flex items-center justify-center gap-1 sm:gap-1.5 transition shadow-sm whitespace-nowrap"
+            >
+              <BarChart3 className="w-3.5 h-3.5 shrink-0" />
+              <span>Quick Poll</span>
             </Link>
             <Link
               to="/admin"

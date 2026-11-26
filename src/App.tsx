@@ -37,6 +37,15 @@ const MinigameHubPage = lazy(() =>
 const MinigameStageLayout = lazy(() =>
   import('./minigames/MinigameStageLayout').then((m) => ({ default: m.MinigameStageLayout })),
 );
+const QuickPollHubPage = lazy(() =>
+  import('./pages/QuickPollHubPage').then((m) => ({ default: m.QuickPollHubPage })),
+);
+const PollHostPage = lazy(() =>
+  import('./pages/PollHostPage').then((m) => ({ default: m.PollHostPage })),
+);
+const PollVotePage = lazy(() =>
+  import('./pages/PollVotePage').then((m) => ({ default: m.PollVotePage })),
+);
 
 const RouteLoadingFallback: React.FC = () => (
   <div className="min-h-screen bg-surface-100 flex items-center justify-center p-6">
@@ -76,6 +85,10 @@ export const App: React.FC = () => {
             <Route path="/game/play/:sessionId" element={<GamePlayPage />} />
             <Route path="/minigame" element={<MinigameHubPage />} />
             <Route path="/minigame/:gameId" element={<MinigameStageLayout />} />
+            <Route path="/poll" element={<QuickPollHubPage />} />
+            <Route path="/poll/host/:sessionId" element={<PollHostPage />} />
+            <Route path="/vote" element={<PollVotePage />} />
+            <Route path="/vote/:pin" element={<PollVotePage />} />
             <Route path="/admin" element={<AdminDashboardPage />} />
             <Route path="/huong-dan" element={<InstructorGuidePage />} />
             <Route path="/guide" element={<Navigate to="/huong-dan" replace />} />

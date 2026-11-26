@@ -1809,3 +1809,106 @@ function ensureGameSchema(PDO $pdo, string $driver): void
 
     $checked = true;
 }
+
+/**
+ * Ensure Quick Poll Tools tables exist (idempotent for MySQL 8+ & SQLite WAL).
+ * Kept separate from ensureExamSchema & ensureGameSchema so fast polling never runs unrelated DDL.
+ */
+function ensurePollSchema(PDO $pdo, string $driver): void
+{
+    static $checked = false;
+    if ($checked) {
+        return;
+    }
+
+    try {
+        $pdo->query('SELECT id, poll_pin, state_version, host_key_hash, expires_at FROM poll_sessions LIMIT 1');
+        $pdo->query('SELECT id, session_id, question_index, device_token FROM poll_votes LIMIT 1');
+        $checked = true;
+        return;
+    } catch (Throwable) {
+        // Proceed with DDL creation
+    }
+
+    if ($driver === 'mysql') {
+        $statements = [
+            "CREATE TABLE IF NOT EXISTS poll_sessions (
+                id VARCHAR(64) PRIMARY KEY,
+                owner_id VARCHAR(64) NOT NULL DEFAULT 'PUBLIC_ANON',
+                host_key_hash VARCHAR(64) NOT NULL,
+                title VARCHAR(255) NOT NULL,
+                poll_pin VARCHAR(16) NOT NULL,
+                questions_json LONGTEXT NOT NULL,
+                current_q_index INT NOT NULL DEFAULT 0,
+                is_locked TINYINT(1) NOT NULL DEFAULT 0,
+                hide_results TINYINT(1) NOT NULL DEFAULT 0,
+                allow_multiple_votes TINYINT(1) NOT NULL DEFAULT 0,
+                hidden_items_json TEXT NULL,
+                pinned_items_json TEXT NULL,
+                state_version INT NOT NULL DEFAULT 1,
+                status VARCHAR(24) NOT NULL DEFAULT 'ACTIVE',
+                created_at VARCHAR(40) NOT NULL,
+                updated_at VARCHAR(40) NOT NULL,
+                expires_at VARCHAR(40) NULL,
+                INDEX idx_poll_pin (poll_pin),
+                INDEX idx_poll_owner (owner_id),
+                INDEX idx_poll_expires (expires_at)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+
+            "CREATE TABLE IF NOT EXISTS poll_votes (
+                id VARCHAR(64) PRIMARY KEY,
+                session_id VARCHAR(64) NOT NULL,
+                question_index INT NOT NULL,
+                device_token VARCHAR(128) NOT NULL,
+                voter_name VARCHAR(100) NOT NULL DEFAULT '',
+                payload_json TEXT NOT NULL,
+                created_at VARCHAR(40) NOT NULL,
+                INDEX idx_pv_session_q (session_id, question_index),
+                INDEX idx_pv_device (session_id, question_index, device_token)
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+        ];
+    } else {
+        $statements = [
+            "CREATE TABLE IF NOT EXISTS poll_sessions (
+                id TEXT PRIMARY KEY,
+                owner_id TEXT NOT NULL DEFAULT 'PUBLIC_ANON',
+                host_key_hash TEXT NOT NULL,
+                title TEXT NOT NULL,
+                poll_pin TEXT NOT NULL,
+                questions_json TEXT NOT NULL,
+                current_q_index INTEGER NOT NULL DEFAULT 0,
+                is_locked INTEGER NOT NULL DEFAULT 0,
+                hide_results INTEGER NOT NULL DEFAULT 0,
+                allow_multiple_votes INTEGER NOT NULL DEFAULT 0,
+                hidden_items_json TEXT NULL,
+                pinned_items_json TEXT NULL,
+                state_version INTEGER NOT NULL DEFAULT 1,
+                status TEXT NOT NULL DEFAULT 'ACTIVE',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                expires_at TEXT NULL
+            )",
+            "CREATE INDEX IF NOT EXISTS idx_poll_pin ON poll_sessions(poll_pin)",
+            "CREATE INDEX IF NOT EXISTS idx_poll_owner ON poll_sessions(owner_id)",
+            "CREATE INDEX IF NOT EXISTS idx_poll_expires ON poll_sessions(expires_at)",
+
+            "CREATE TABLE IF NOT EXISTS poll_votes (
+                id TEXT PRIMARY KEY,
+                session_id TEXT NOT NULL,
+                question_index INTEGER NOT NULL,
+                device_token TEXT NOT NULL,
+                voter_name TEXT NOT NULL DEFAULT '',
+                payload_json TEXT NOT NULL,
+                created_at TEXT NOT NULL
+            )",
+            "CREATE INDEX IF NOT EXISTS idx_pv_session_q ON poll_votes(session_id, question_index)",
+            "CREATE INDEX IF NOT EXISTS idx_pv_device ON poll_votes(session_id, question_index, device_token)",
+        ];
+    }
+
+    foreach ($statements as $sql) {
+        $pdo->exec($sql);
+    }
+
+    $checked = true;
+}
