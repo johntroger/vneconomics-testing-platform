@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   AlertOctagon,
   CheckCircle2,
@@ -113,13 +113,34 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
     });
   };
 
-  useEffect(() => {
-    const id = window.setInterval(() => setTickNow(Date.now()), 1000);
-    return () => window.clearInterval(id);
-  }, []);
+  const examAttempts = useMemo(
+    () => attempts.filter((a) => a.examId === exam.id),
+    [attempts, exam.id],
+  );
+  const lockedQueue = useMemo(
+    () => examAttempts.filter((a) => a.status === 'LOCKED'),
+    [examAttempts],
+  );
+  const hasActiveAttempts = useMemo(
+    () =>
+      examAttempts.some(
+        (a) =>
+          a.status === 'IN_PROGRESS' ||
+          a.status === 'LOCKED' ||
+          a.status === 'PAUSED',
+      ),
+    [examAttempts],
+  );
 
-  const examAttempts = attempts.filter((a) => a.examId === exam.id);
-  const lockedQueue = examAttempts.filter((a) => a.status === 'LOCKED');
+  useEffect(() => {
+    if (!hasActiveAttempts) return;
+    const id = window.setInterval(() => {
+      if (typeof document === 'undefined' || !document.hidden) {
+        setTickNow(Date.now());
+      }
+    }, 1000);
+    return () => window.clearInterval(id);
+  }, [hasActiveAttempts]);
 
   const haversineMeters = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
     const R = 6371000;
@@ -135,44 +156,55 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
   const formatDist = (meters: number): string =>
     meters >= 1000 ? `${(meters / 1000).toFixed(2)} km` : `${meters} m`;
 
-  const locatedAttempts = examAttempts.filter(
-    (a) => typeof a.locationLat === 'number' && typeof a.locationLng === 'number',
-  );
-  const medianCoords = (() => {
-    if (locatedAttempts.length < 2) return null;
-    const lats = locatedAttempts.map((a) => a.locationLat as number).sort((x, y) => x - y);
-    const lngs = locatedAttempts.map((a) => a.locationLng as number).sort((x, y) => x - y);
-    const mid = Math.floor(lats.length / 2);
-    return { lat: lats[mid], lng: lngs[mid] };
-  })();
-
   const FAR_LOCATION_METERS = 200;
-  const distanceByAttemptId = new Map<string, number>();
-  if (medianCoords) {
-    for (const a of locatedAttempts) {
-      distanceByAttemptId.set(
-        a.id,
-        haversineMeters(
-          medianCoords.lat,
-          medianCoords.lng,
-          a.locationLat as number,
-          a.locationLng as number,
-        ),
-      );
+  const { distanceByAttemptId, farLocationAttempts } = useMemo(() => {
+    const located = examAttempts.filter(
+      (a) => typeof a.locationLat === 'number' && typeof a.locationLng === 'number',
+    );
+    let median: { lat: number; lng: number } | null = null;
+    if (located.length >= 2) {
+      const lats = located.map((a) => a.locationLat as number).sort((x, y) => x - y);
+      const lngs = located.map((a) => a.locationLng as number).sort((x, y) => x - y);
+      const mid = Math.floor(lats.length / 2);
+      median = { lat: lats[mid], lng: lngs[mid] };
     }
-  }
+    const distMap = new Map<string, number>();
+    if (median) {
+      for (const a of located) {
+        distMap.set(
+          a.id,
+          haversineMeters(
+            median.lat,
+            median.lng,
+            a.locationLat as number,
+            a.locationLng as number,
+          ),
+        );
+      }
+    }
+    const farList = examAttempts.filter(
+      (a) => (distMap.get(a.id) ?? 0) > FAR_LOCATION_METERS,
+    );
+    return {
+      distanceByAttemptId: distMap,
+      farLocationAttempts: farList,
+    };
+  }, [examAttempts]);
 
-  const farLocationAttempts = examAttempts.filter(
-    (a) => (distanceByAttemptId.get(a.id) ?? 0) > FAR_LOCATION_METERS,
-  );
   const isMultiDeviceAttempt = (a: ExamAttempt): boolean =>
     (a.loginDevices?.length ?? 0) > 1 ||
     a.violations.some(
       (v) => v.eventType === 'SECOND_DEVICE_LOGIN' || v.eventType === 'DUPLICATE_LOGIN',
     );
-  const multiDeviceAttempts = examAttempts.filter(isMultiDeviceAttempt);
+  const multiDeviceAttempts = useMemo(
+    () => examAttempts.filter(isMultiDeviceAttempt),
+    [examAttempts],
+  );
 
-  const joinedCodeSet = new Set(examAttempts.map((a) => a.studentCode.trim().toUpperCase()));
+  const joinedCodeSet = useMemo(
+    () => new Set(examAttempts.map((a) => a.studentCode.trim().toUpperCase())),
+    [examAttempts],
+  );
   const absentRosterStudents = rosterEntries.filter(
     (entry) => !joinedCodeSet.has(entry.studentCode.trim().toUpperCase()),
   );
@@ -499,13 +531,13 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
           </button>
           <button
             type="button"
-            onClick={() =>
-              exportExamGradebookXlsx(
+            onClick={() => {
+              void exportExamGradebookXlsx(
                 exam,
                 attempts,
                 computeChapterMastery(attempts, exam.id),
-              )
-            }
+              );
+            }}
             className="px-3.5 py-2 rounded-xl border border-support-300 bg-support-50 hover:bg-support-100 text-support-800 text-xs font-bold flex items-center gap-1.5 transition"
           >
             <FileSpreadsheet className="w-4 h-4" />
@@ -579,7 +611,9 @@ export const LiveProctorTable: React.FC<LiveProctorTableProps> = ({
             />
             <button
               type="button"
-              onClick={() => downloadStudentRosterTemplateXlsx(exam.title)}
+              onClick={() => {
+                void downloadStudentRosterTemplateXlsx(exam.title);
+              }}
               className="h-8 px-3 rounded-lg border border-slate-200 bg-white hover:border-brand-300 text-ink-700 text-xs font-bold flex items-center gap-1.5"
             >
               <Download className="w-3.5 h-3.5" /> Tải mẫu Excel

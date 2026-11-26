@@ -5,6 +5,7 @@ import {
   buildExamCsvContent,
   formatStudentAnswerForReport,
 } from '../src/utils/csvExport.ts';
+import { normalizeRosterDob } from '../src/utils/studentRosterXlsx.ts';
 
 const mockQuestions: Question[] = [
   {
@@ -196,4 +197,88 @@ test('buildExamCsvContent shows "Đúng" for full-credit questions and actual st
   assert.match(csv, /3122102081,Le Minh Khoa,Câu 1,Chương 1,Đúng,1,1/);
   assert.match(csv, /3122102081,Le Minh Khoa,Câu 2,Chương 3,99,0,1/);
   assert.match(csv, /3122102081,Le Minh Khoa,Câu 3,Chương 2,a\) Đúng · b\) Đúng,0\.5,1/);
+});
+
+test('buildExamCsvContent neutralizes CSV formula injection while keeping negative numbers intact', () => {
+  const exam: Exam = {
+    id: 'ex_sec',
+    courseId: 'c1',
+    title: 'Security Test',
+    roomPin: '202600',
+    unlockPin: '9999',
+    instructorEmail: 'gv@vneconomics.com',
+    durationMinutes: 45,
+    chapterMatrix: [],
+    pinnedQuestionIds: [],
+    shuffleQuestions: false,
+    shuffleMode: 'NONE',
+    shuffleOptions: false,
+    maxLeaveCount: 3,
+    maxAwaySeconds: 60,
+    gracePeriodMs: 3000,
+    oneWayMode: false,
+    perQuestionSeconds: 0,
+    canvasAntiOcr: false,
+    emailDeliveryMode: 'DELAYED_BATCH',
+    rosterWhitelist: [],
+    status: 'CLOSED',
+    reportSentStatus: 'PENDING',
+    createdAt: '2026-11-26T00:00:00Z',
+  };
+
+  const attempt: ExamAttempt = {
+    id: 'att_sec',
+    examId: 'ex_sec',
+    studentCode: '3122109999',
+    studentName: '=CMD|" /C calc"!A0',
+    studentEmail: 'attacker@example.com',
+    className: '@SUM(A1:A2)',
+    status: 'SUBMITTED',
+    startedAt: '2026-11-26T08:00:00Z',
+    assignedQuestions: [
+      {
+        questionId: 'q_num',
+        chapterCategory: 'Chương 3',
+        orderIndex: 0,
+        maxPoints: 1,
+        seedVars: {},
+        renderedContent: 'Tính X',
+      },
+      {
+        questionId: 'q_blank',
+        chapterCategory: 'Chương 2',
+        orderIndex: 1,
+        maxPoints: 1,
+        seedVars: {},
+        renderedContent: 'Điền công thức',
+      },
+    ],
+    answers: {
+      q_num: makeAnswer('q_num', '-12.5', 0, 1),
+      q_blank: makeAnswer('q_blank', ['+1+1'], 0, 1),
+    },
+    violations: [],
+    leaveCount: 0,
+    totalAwaySeconds: 0,
+    integrityScore: 100,
+    aiFlag: false,
+    autoScore: 0,
+    essayScore: 0,
+    totalScore: 0,
+    maxTotalScore: 2,
+    scale10Score: 0,
+    emailSentStatus: 'SENT',
+  };
+
+  const csv = buildExamCsvContent(exam, [attempt], [], mockQuestions);
+  assert.ok(csv.includes(`'=CMD|" /C calc"!A0`.replace(/"/g, '""')), 'Should prefix = formula with single quote');
+  assert.ok(csv.includes("'@SUM(A1:A2)"), 'Should prefix @ formula with single quote');
+  assert.ok(csv.includes(',-12.5,0,1,'), 'Should NOT alter plain negative number -12.5');
+});
+
+test('normalizeRosterDob parses Excel serial numbers and common date strings accurately without xlsx dependency', () => {
+  assert.equal(normalizeRosterDob(38391), '08-02-2005');
+  assert.equal(normalizeRosterDob('8/2/2005'), '08-02-2005');
+  assert.equal(normalizeRosterDob('2005-02-08'), '08-02-2005');
+  assert.equal(normalizeRosterDob(''), '');
 });

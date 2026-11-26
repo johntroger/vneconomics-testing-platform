@@ -108,59 +108,105 @@ export const ExamTakePage: React.FC = () => {
     }
   }, [attempt, effectiveRoomStatus, exam, navigate]);
 
-  // Global countdown with bonusSeconds compensation
+  // Prevent duplicate auto-submit when global timer reaches 0
+  const autoSubmittedRef = useRef(false);
+  const activeAttemptId = attempt?.id;
+  const attemptStartedAt = attempt?.startedAt;
+  const attemptBonusSeconds = attempt?.bonusSeconds ?? 0;
+  const attemptStatus = attempt?.status;
+  const totalAssigned = attempt?.assignedQuestions.length ?? 0;
+  const examDurationMinutes = exam?.durationMinutes;
+  const oneWayMode = exam?.oneWayMode ?? false;
+  const perQuestionSeconds = exam?.perQuestionSeconds ?? 0;
+
   useEffect(() => {
-    if (!exam || !attempt) return;
+    autoSubmittedRef.current = false;
+  }, [activeAttemptId]);
+
+  // Global countdown with bonusSeconds compensation (depends on stable primitives only)
+  useEffect(() => {
+    if (!activeAttemptId || !attemptStartedAt || !examDurationMinutes) return;
+    const startedMs = new Date(attemptStartedAt).getTime();
+    const totalAllowedMs =
+      (examDurationMinutes * 60 + attemptBonusSeconds) * 1000;
     const computeLeft = () => {
-      const startedMs = new Date(attempt.startedAt).getTime();
-      const totalAllowedMs =
-        (exam.durationMinutes * 60 + attempt.bonusSeconds) * 1000;
       const nowServerMs = Date.now() + serverClockOffsetMs;
       return Math.max(0, Math.floor((startedMs + totalAllowedMs - nowServerMs) / 1000));
     };
 
-    setRemainingSeconds(computeLeft());
+    const initialLeft = computeLeft();
+    setRemainingSeconds(initialLeft);
+    if (initialLeft <= 0 && !autoSubmittedRef.current) {
+      autoSubmittedRef.current = true;
+      void submitAttempt(activeAttemptId, true);
+      return;
+    }
+
     const id = window.setInterval(() => {
       const left = computeLeft();
       setRemainingSeconds(left);
-      if (left <= 0) {
+      if (left <= 0 && !autoSubmittedRef.current) {
+        autoSubmittedRef.current = true;
         window.clearInterval(id);
-        void submitAttempt(attempt.id, true);
+        void submitAttempt(activeAttemptId, true);
       }
     }, 1000);
     return () => window.clearInterval(id);
-  }, [attempt, exam, serverClockOffsetMs, submitAttempt]);
+  }, [
+    attemptBonusSeconds,
+    activeAttemptId,
+    attemptStartedAt,
+    examDurationMinutes,
+    serverClockOffsetMs,
+    submitAttempt,
+  ]);
 
   const currentIndex = Math.min(
     attempt?.currentQuestionIndex ?? 0,
-    Math.max(0, (attempt?.assignedQuestions.length ?? 1) - 1),
+    Math.max(0, totalAssigned - 1),
   );
   const currentSnapshot = attempt?.assignedQuestions[currentIndex];
   const currentQuestion = currentSnapshot
     ? questionMap.get(currentSnapshot.questionId)
     : undefined;
 
-  // One-way micro-timer per question if enabled
+  // One-way micro-timer per question if enabled (independent of answering updates)
   useEffect(() => {
-    if (!exam?.oneWayMode || !attempt || attempt.status === 'LOCKED' || pausedModal) {
+    if (
+      !oneWayMode ||
+      !activeAttemptId ||
+      attemptStatus === 'LOCKED' ||
+      pausedModal ||
+      perQuestionSeconds <= 0
+    ) {
       return;
     }
-    setOneWaySeconds(exam.perQuestionSeconds);
+    setOneWaySeconds(perQuestionSeconds);
     const id = window.setInterval(() => {
       setOneWaySeconds((prev) => {
         if (prev <= 1) {
-          if (currentIndex < attempt.assignedQuestions.length - 1) {
-            updateCurrentIndex(attempt.id, currentIndex + 1);
+          if (currentIndex < totalAssigned - 1) {
+            updateCurrentIndex(activeAttemptId, currentIndex + 1);
           } else {
-            void submitAttempt(attempt.id, false);
+            void submitAttempt(activeAttemptId, false);
           }
-          return exam.perQuestionSeconds;
+          return perQuestionSeconds;
         }
         return prev - 1;
       });
     }, 1000);
     return () => window.clearInterval(id);
-  }, [attempt, currentIndex, exam, pausedModal, submitAttempt, updateCurrentIndex]);
+  }, [
+    activeAttemptId,
+    attemptStatus,
+    currentIndex,
+    oneWayMode,
+    pausedModal,
+    perQuestionSeconds,
+    submitAttempt,
+    totalAssigned,
+    updateCurrentIndex,
+  ]);
 
   const handlePauseChange = useCallback(
     (paused: boolean, _awayDelta: number, reason: string) => {

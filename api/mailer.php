@@ -504,6 +504,9 @@ function buildInstructorCsvAttachment(array $exam, array $attempts, ?PDO $pdo = 
 {
     $esc = static function (mixed $v): string {
         $s = $v === null ? '' : (string) $v;
+        if ($s !== '' && preg_match('/^[=+\-@\t\r]/', $s) === 1 && preg_match('/^[+-]?\d+(?:[.,]\d+)?$/', $s) !== 1) {
+            $s = "'" . $s;
+        }
         if (preg_match('/[",\n\r]/', $s) === 1) {
             return '"' . str_replace('"', '""', $s) . '"';
         }

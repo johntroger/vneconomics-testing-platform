@@ -100,30 +100,45 @@ export const GameHostPage: React.FC = () => {
       }
     });
 
+    let inFlight = false;
     const interval = window.setInterval(async () => {
-      if (!view?.session.gamePin) return;
-      const poll = await pollGameStatus(view.session.gamePin);
-      if (!poll) return;
-      clockOffsetRef.current = poll.now - Date.now();
-      if (poll.rx && poll.rx.length > 0) {
-        const fresh = poll.rx.filter((r) => !seenRxIdsRef.current.has(r.id));
-        if (fresh.length > 0) {
-          fresh.forEach((r) => seenRxIdsRef.current.add(r.id));
-          const items = fresh.map((r) => ({
-            id: r.id,
-            e: r.e,
-            left: 10 + Math.floor(Math.random() * 80),
-          }));
-          setFloatingRx((prev) => [...prev.slice(-20), ...items]);
-          window.setTimeout(() => {
-            const ids = new Set(items.map((x) => x.id));
-            setFloatingRx((prev) => prev.filter((x) => !ids.has(x.id)));
-          }, 2600);
+      if (document.hidden || inFlight || !view?.session.gamePin) return;
+      inFlight = true;
+      try {
+        const poll = await pollGameStatus(view.session.gamePin);
+        if (!poll) return;
+        clockOffsetRef.current = poll.now - Date.now();
+        if (poll.rx && poll.rx.length > 0) {
+          const fresh = poll.rx.filter((r) => !seenRxIdsRef.current.has(r.id));
+          if (fresh.length > 0) {
+            fresh.forEach((r) => seenRxIdsRef.current.add(r.id));
+            if (seenRxIdsRef.current.size > 200) {
+              const trimCount = seenRxIdsRef.current.size - 200;
+              let removed = 0;
+              for (const oldId of seenRxIdsRef.current) {
+                seenRxIdsRef.current.delete(oldId);
+                removed += 1;
+                if (removed >= trimCount) break;
+              }
+            }
+            const items = fresh.map((r) => ({
+              id: r.id,
+              e: r.e,
+              left: 10 + Math.floor(Math.random() * 80),
+            }));
+            setFloatingRx((prev) => [...prev.slice(-20), ...items]);
+            window.setTimeout(() => {
+              const ids = new Set(items.map((x) => x.id));
+              setFloatingRx((prev) => prev.filter((x) => !ids.has(x.id)));
+            }, 2600);
+          }
         }
-      }
-      const countKey = `${poll.pc}:${poll.ac}`;
-      if (poll.v !== lastVersionRef.current || countKey !== lastCountsRef.current) {
-        await loadHostView();
+        const countKey = `${poll.pc}:${poll.ac}`;
+        if (poll.v !== lastVersionRef.current || countKey !== lastCountsRef.current) {
+          await loadHostView();
+        }
+      } finally {
+        inFlight = false;
       }
     }, 900);
 

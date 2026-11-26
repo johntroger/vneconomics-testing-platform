@@ -21,28 +21,57 @@ export const BROWSER_ID_KEY = 'vne_browser_id';
 export const DEMO_MAILER_QUOTA_KEY = 'vne_demo_mailer_quota_v1';
 export const SYNC_CHANNEL_NAME = 'vne_exam_sync_channel';
 
+let memoryDeviceToken = '';
+let memoryBrowserId = '';
+
 export function getOrCreateDeviceToken(): string {
-  let token = localStorage.getItem(DEVICE_TOKEN_KEY);
-  if (!token) {
-    token = `dev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-    localStorage.setItem(DEVICE_TOKEN_KEY, token);
+  try {
+    let token = localStorage.getItem(DEVICE_TOKEN_KEY);
+    if (!token) {
+      token =
+        memoryDeviceToken ||
+        `dev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+      memoryDeviceToken = token;
+      localStorage.setItem(DEVICE_TOKEN_KEY, token);
+    }
+    memoryDeviceToken = token;
+    return token;
+  } catch {
+    if (!memoryDeviceToken) {
+      memoryDeviceToken = `dev_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+    }
+    return memoryDeviceToken;
   }
-  return token;
 }
 
 export function getOrCreateBrowserId(): string {
-  const cookieMatch = document.cookie.match(/(?:^|;\s*)vne_browser_id=([^;]+)/);
-  const fromCookie = cookieMatch?.[1] ? decodeURIComponent(cookieMatch[1]) : '';
-  const fromStorage = localStorage.getItem(BROWSER_ID_KEY) || '';
-  let id =
-    (fromStorage && /^[a-zA-Z0-9_-]{8,80}$/.test(fromStorage) && fromStorage) ||
-    (fromCookie && /^[a-zA-Z0-9_-]{8,80}$/.test(fromCookie) && fromCookie) ||
-    '';
+  let id = memoryBrowserId;
+  try {
+    const cookieMatch = document.cookie.match(/(?:^|;\s*)vne_browser_id=([^;]+)/);
+    const fromCookie = cookieMatch?.[1] ? decodeURIComponent(cookieMatch[1]) : '';
+    const fromStorage = localStorage.getItem(BROWSER_ID_KEY) || '';
+    id =
+      (fromStorage && /^[a-zA-Z0-9_-]{8,80}$/.test(fromStorage) && fromStorage) ||
+      (fromCookie && /^[a-zA-Z0-9_-]{8,80}$/.test(fromCookie) && fromCookie) ||
+      memoryBrowserId ||
+      '';
+  } catch {
+    // Fallback to memoryBrowserId when storage/cookie is restricted
+  }
   if (!id) {
     id = `brw_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
   }
-  localStorage.setItem(BROWSER_ID_KEY, id);
-  document.cookie = `vne_browser_id=${encodeURIComponent(id)}; max-age=31536000; path=/; SameSite=Lax`;
+  memoryBrowserId = id;
+  try {
+    localStorage.setItem(BROWSER_ID_KEY, id);
+  } catch {
+    // Ignore storage restriction
+  }
+  try {
+    document.cookie = `vne_browser_id=${encodeURIComponent(id)}; max-age=31536000; path=/; SameSite=Lax`;
+  } catch {
+    // Ignore cookie restriction
+  }
   return id;
 }
 
@@ -118,9 +147,27 @@ export interface ApiDetailedResponse<T> {
 export async function apiRequestDetailed<T>(
   path: string,
   options: RequestInit = {},
+  timeoutMs = 25000,
 ): Promise<ApiDetailedResponse<T>> {
+  const controller = new AbortController();
+  const callerSignal = options.signal;
+  const onCallerAbort = () => controller.abort();
+  if (callerSignal) {
+    if (callerSignal.aborted) {
+      controller.abort();
+    } else {
+      callerSignal.addEventListener('abort', onCallerAbort, { once: true });
+    }
+  }
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+
   try {
-    const token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
+    let token: string | null = null;
+    try {
+      token = sessionStorage.getItem(ADMIN_TOKEN_KEY);
+    } catch {
+      token = null;
+    }
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...((options.headers as Record<string, string>) ?? {}),
@@ -130,6 +177,7 @@ export async function apiRequestDetailed<T>(
     }
     const res = await fetch(path, {
       ...options,
+      signal: controller.signal,
       headers,
     });
     const ct = res.headers.get('content-type') ?? '';
@@ -150,8 +198,18 @@ export async function apiRequestDetailed<T>(
       data: json,
       error: typeof json?.error === 'string' ? json.error : undefined,
     };
-  } catch {
-    return { reachedJson: false, ok: false, status: 0, data: null };
+  } catch (err) {
+    const isAbort = err instanceof DOMException && err.name === 'AbortError';
+    return {
+      reachedJson: false,
+      ok: false,
+      status: 0,
+      data: null,
+      error: isAbort ? 'Yêu cầu tới máy chủ quá thời gian chờ.' : undefined,
+    };
+  } finally {
+    window.clearTimeout(timer);
+    callerSignal?.removeEventListener('abort', onCallerAbort);
   }
 }
 

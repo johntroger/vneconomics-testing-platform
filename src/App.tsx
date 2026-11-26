@@ -1,5 +1,6 @@
 import React, { Suspense, lazy, useEffect } from 'react';
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import { AppErrorBoundary } from './components/common/AppErrorBoundary';
 import { ExamProvider } from './context/ExamContext';
 import { HomePortalPage } from './pages/HomePortalPage';
 import { trackPageView } from './utils/analytics';
@@ -71,30 +72,32 @@ export const App: React.FC = () => {
     <ExamProvider>
       <BrowserRouter>
         <PageViewTracker />
-        <Suspense fallback={<RouteLoadingFallback />}>
-          <Routes>
-            <Route path="/" element={<HomePortalPage />} />
-            <Route path="/exam/:examId/lobby" element={<ExamLobbyPage />} />
-            <Route path="/exam/:examId/take" element={<ExamTakePage />} />
-            <Route path="/exam/:examId/result" element={<ExamResultPage />} />
-            <Route path="/play" element={<GameJoinPage />} />
-            <Route path="/play/:pin" element={<GameJoinPage />} />
-            <Route path="/attend" element={<AttendanceCheckInPage />} />
-            <Route path="/attend/:pin" element={<AttendanceCheckInPage />} />
-            <Route path="/game/host/:sessionId" element={<GameHostPage />} />
-            <Route path="/game/play/:sessionId" element={<GamePlayPage />} />
-            <Route path="/minigame" element={<MinigameHubPage />} />
-            <Route path="/minigame/:gameId" element={<MinigameStageLayout />} />
-            <Route path="/poll" element={<QuickPollHubPage />} />
-            <Route path="/poll/host/:sessionId" element={<PollHostPage />} />
-            <Route path="/vote" element={<PollVotePage />} />
-            <Route path="/vote/:pin" element={<PollVotePage />} />
-            <Route path="/admin" element={<AdminDashboardPage />} />
-            <Route path="/huong-dan" element={<InstructorGuidePage />} />
-            <Route path="/guide" element={<Navigate to="/huong-dan" replace />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </Suspense>
+        <AppErrorBoundary>
+          <Suspense fallback={<RouteLoadingFallback />}>
+            <Routes>
+              <Route path="/" element={<HomePortalPage />} />
+              <Route path="/exam/:examId/lobby" element={<ExamLobbyPage />} />
+              <Route path="/exam/:examId/take" element={<ExamTakePage />} />
+              <Route path="/exam/:examId/result" element={<ExamResultPage />} />
+              <Route path="/play" element={<GameJoinPage />} />
+              <Route path="/play/:pin" element={<GameJoinPage />} />
+              <Route path="/attend" element={<AttendanceCheckInPage />} />
+              <Route path="/attend/:pin" element={<AttendanceCheckInPage />} />
+              <Route path="/game/host/:sessionId" element={<GameHostPage />} />
+              <Route path="/game/play/:sessionId" element={<GamePlayPage />} />
+              <Route path="/minigame" element={<MinigameHubPage />} />
+              <Route path="/minigame/:gameId" element={<MinigameStageLayout />} />
+              <Route path="/poll" element={<QuickPollHubPage />} />
+              <Route path="/poll/host/:sessionId" element={<PollHostPage />} />
+              <Route path="/vote" element={<PollVotePage />} />
+              <Route path="/vote/:pin" element={<PollVotePage />} />
+              <Route path="/admin" element={<AdminDashboardPage />} />
+              <Route path="/huong-dan" element={<InstructorGuidePage />} />
+              <Route path="/guide" element={<Navigate to="/huong-dan" replace />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
+        </AppErrorBoundary>
       </BrowserRouter>
     </ExamProvider>
   );

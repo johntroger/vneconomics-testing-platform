@@ -105,11 +105,12 @@ function applyCorsHeaders(): void
     $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
     $allowed = $cfg['cors_origins'] ?? [];
 
+    header('X-Content-Type-Options: nosniff');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+
     if ($origin !== '' && (in_array($origin, $allowed, true) || str_starts_with($origin, 'http://localhost:') || str_starts_with($origin, 'http://127.0.0.1:'))) {
         header('Access-Control-Allow-Origin: ' . $origin);
         header('Vary: Origin');
-    } else {
-        header('Access-Control-Allow-Origin: *');
     }
 
     header('Access-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS');

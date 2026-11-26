@@ -1,4 +1,12 @@
-import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
+import React, {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import {
   SEED_ATTEMPTS,
   SEED_COURSES,
@@ -468,8 +476,24 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
   isOfficialInstructorRef.current = instructorUser?.role === 'OFFICIAL';
   const [googleClientId, setGoogleClientId] = useState('');
   const [lobbyPeers, setLobbyPeers] = useState<LobbyPeerEntry[]>([]);
+  const latestStateRef = useRef<ExamPlatformState>(state);
+  latestStateRef.current = state;
+  const dirtyPersistRef = useRef(false);
+  const broadcastChannelRef = useRef<BroadcastChannel | null>(null);
+
+  useEffect(() => {
+    return () => {
+      try {
+        broadcastChannelRef.current?.close();
+      } catch {
+        // Ignore channel close errors
+      }
+      broadcastChannelRef.current = null;
+    };
+  }, []);
 
   const persistState = useCallback((next: ExamPlatformState) => {
+    dirtyPersistRef.current = false;
     const myDeviceToken = getOrCreateDeviceToken();
     const compactForStorage = (src: ExamPlatformState, maxAttempts: number): ExamPlatformState => {
       if (src.attempts.length <= maxAttempts) return src;
@@ -490,9 +514,10 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
       const bounded = compactForStorage(next, 80);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(bounded));
       if (typeof BroadcastChannel !== 'undefined') {
-        const ch = new BroadcastChannel(SYNC_CHANNEL_NAME);
-        ch.postMessage({ type: 'STATE_UPDATED', ts: Date.now() });
-        ch.close();
+        if (!broadcastChannelRef.current) {
+          broadcastChannelRef.current = new BroadcastChannel(SYNC_CHANNEL_NAME);
+        }
+        broadcastChannelRef.current.postMessage({ type: 'STATE_UPDATED', ts: Date.now() });
       }
     } catch {
       try {
@@ -504,15 +529,34 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, []);
 
+  useEffect(() => {
+    if (!dirtyPersistRef.current) return;
+    const timer = window.setTimeout(() => {
+      persistState(state);
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [state, persistState]);
+
+  useEffect(() => {
+    const flushDirtyState = () => {
+      if (dirtyPersistRef.current) {
+        persistState(latestStateRef.current);
+      }
+    };
+    window.addEventListener('pagehide', flushDirtyState);
+    window.addEventListener('beforeunload', flushDirtyState);
+    return () => {
+      window.removeEventListener('pagehide', flushDirtyState);
+      window.removeEventListener('beforeunload', flushDirtyState);
+    };
+  }, [persistState]);
+
   const updateState = useCallback(
     (updater: (prev: ExamPlatformState) => ExamPlatformState) => {
-      setState((prev) => {
-        const next = updater(prev);
-        persistState(next);
-        return next;
-      });
+      dirtyPersistRef.current = true;
+      setState(updater);
     },
-    [persistState],
+    [],
   );
 
   useEffect(() => {
@@ -676,13 +720,24 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
     void pullAdminState(true);
     let tickCount = 0;
     const intervalId = window.setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) {
+        return;
+      }
       tickCount += 1;
       void pullAdminState(tickCount % 5 === 0);
     }, 5000);
 
+    const handleVisibilityChange = () => {
+      if (typeof document !== 'undefined' && !document.hidden) {
+        void pullAdminState(false);
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
     return () => {
       cancelled = true;
       window.clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, [backendConnected, isAdminAuthenticated, updateState]);
 
@@ -3398,58 +3453,109 @@ export const ExamProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, [backendConnected, persistState, updateState]);
 
+  const contextValue = useMemo<ExamContextValue>(
+    () => ({
+      ...state,
+      backendConnected,
+      lobbyPeers,
+      updateAttemptAvatar,
+      serverClockOffsetMs,
+      syncStatus,
+      isAdminAuthenticated,
+      instructorUser,
+      googleClientId,
+      adminLogin,
+      instructorLogin,
+      instructorRegister,
+      instructorGoogleLogin,
+      adminLogout,
+      startOrResumeAttempt,
+      beginAttemptTake,
+      saveAnswer,
+      toggleFlagQuestion,
+      updateCurrentIndex,
+      recordViolation,
+      submitUnlockRequestNote,
+      verifyRescuePin,
+      submitAttempt,
+      correctStudentEmail,
+      proctorDecision,
+      resetAttemptDevice,
+      addBonusTimeToAttempt,
+      closeExamAndSweep,
+      overrideEssayScore,
+      enrichRubricAndRegradeExam,
+      regradeExamAttempts,
+      addCourse,
+      updateCourse,
+      deleteCourse,
+      upsertQuestion,
+      deleteQuestion,
+      importQuestionsBulk,
+      upsertExam,
+      deleteExam,
+      cloneExam,
+      upsertShift,
+      deleteShift,
+      createShiftForExam,
+      resendStudentScoreEmail,
+      checkDemoMailerQuota,
+      sendTestMailer,
+      resetDemoData,
+    }),
+    [
+      state,
+      backendConnected,
+      lobbyPeers,
+      updateAttemptAvatar,
+      serverClockOffsetMs,
+      syncStatus,
+      isAdminAuthenticated,
+      instructorUser,
+      googleClientId,
+      adminLogin,
+      instructorLogin,
+      instructorRegister,
+      instructorGoogleLogin,
+      adminLogout,
+      startOrResumeAttempt,
+      beginAttemptTake,
+      saveAnswer,
+      toggleFlagQuestion,
+      updateCurrentIndex,
+      recordViolation,
+      submitUnlockRequestNote,
+      verifyRescuePin,
+      submitAttempt,
+      correctStudentEmail,
+      proctorDecision,
+      resetAttemptDevice,
+      addBonusTimeToAttempt,
+      closeExamAndSweep,
+      overrideEssayScore,
+      enrichRubricAndRegradeExam,
+      regradeExamAttempts,
+      addCourse,
+      updateCourse,
+      deleteCourse,
+      upsertQuestion,
+      deleteQuestion,
+      importQuestionsBulk,
+      upsertExam,
+      deleteExam,
+      cloneExam,
+      upsertShift,
+      deleteShift,
+      createShiftForExam,
+      resendStudentScoreEmail,
+      checkDemoMailerQuota,
+      sendTestMailer,
+      resetDemoData,
+    ],
+  );
+
   return (
-    <ExamContext.Provider
-      value={{
-        ...state,
-        backendConnected,
-        lobbyPeers,
-        updateAttemptAvatar,
-        serverClockOffsetMs,
-        syncStatus,
-        isAdminAuthenticated,
-        instructorUser,
-        googleClientId,
-        adminLogin,
-        instructorLogin,
-        instructorRegister,
-        instructorGoogleLogin,
-        adminLogout,
-        startOrResumeAttempt,
-        beginAttemptTake,
-        saveAnswer,
-        toggleFlagQuestion,
-        updateCurrentIndex,
-        recordViolation,
-        submitUnlockRequestNote,
-        verifyRescuePin,
-        submitAttempt,
-        correctStudentEmail,
-        proctorDecision,
-        resetAttemptDevice,
-        addBonusTimeToAttempt,
-        closeExamAndSweep,
-        overrideEssayScore,
-        enrichRubricAndRegradeExam,
-        regradeExamAttempts,
-        addCourse,
-        updateCourse,
-        deleteCourse,
-        upsertQuestion,
-        deleteQuestion,
-        importQuestionsBulk,
-        upsertExam,
-        deleteExam,
-        cloneExam,
-        upsertShift,
-        deleteShift,
-        createShiftForExam,
-        resendStudentScoreEmail,
-        checkDemoMailerQuota,
-        sendTestMailer,
-        resetDemoData,
-      }}
-    >
+    <ExamContext.Provider value={contextValue}>
       {children}
     </ExamContext.Provider>
   );

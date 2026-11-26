@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx';
 import type {
   AttemptAnswer,
   ChapterMasteryStat,
@@ -7,8 +6,14 @@ import type {
   Question,
 } from '../types/exam';
 
+const CSV_FORMULA_TRIGGER_RE = /^[=+\-@\t\r]/;
+const CSV_PLAIN_NUMBER_RE = /^[+-]?\d+(?:[.,]\d+)?$/;
+
 function escapeCsvCell(value: string | number | boolean | undefined): string {
-  const str = value === undefined || value === null ? '' : String(value);
+  let str = value === undefined || value === null ? '' : String(value);
+  if (str !== '' && CSV_FORMULA_TRIGGER_RE.test(str) && !CSV_PLAIN_NUMBER_RE.test(str)) {
+    str = `'${str}`;
+  }
   if (/[",\n\r]/.test(str)) {
     return `"${str.replace(/"/g, '""')}"`;
   }
@@ -228,12 +233,13 @@ export function exportQuestionBankJson(questions: Question[], courseCode: string
   );
 }
 
-export function exportExamGradebookXlsx(
+export async function exportExamGradebookXlsx(
   exam: Exam,
   attempts: ExamAttempt[],
   chapterStats: ChapterMasteryStat[],
   questions: Question[] = [],
-): void {
+): Promise<void> {
+  const XLSX = await import('xlsx');
   const examAttempts = attempts.filter((a) => a.examId === exam.id);
   const wb = XLSX.utils.book_new();
 

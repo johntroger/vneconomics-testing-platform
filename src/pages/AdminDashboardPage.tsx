@@ -28,15 +28,43 @@ import {
   X,
 } from 'lucide-react';
 import { CoursesTabPanel } from '../components/admin/CoursesTabPanel';
-import { AttendanceTabPanel } from '../components/admin/AttendanceTabPanel';
 import { EmailLogsTabPanel } from '../components/admin/EmailLogsTabPanel';
-import { StudentQuestionMatrixCard } from '../components/admin/StudentQuestionMatrixCard';
-import { CreateGameModal } from '../components/admin/CreateGameModal';
-import { EssayGradingModal } from '../components/admin/EssayGradingModal';
-import { MinigameHubPanel } from '../components/admin/MinigameHubPanel';
-import { QuickPollHubPanel } from '../components/poll/QuickPollHubPanel';
 import { fetchInstructorGames, type GameListItem } from '../services/gameApi';
-import { ExamAnalyticsCharts } from '../components/admin/ExamAnalyticsCharts';
+const AttendanceTabPanel = lazy(() =>
+  import('../components/admin/AttendanceTabPanel').then((m) => ({
+    default: m.AttendanceTabPanel,
+  })),
+);
+const StudentQuestionMatrixCard = lazy(() =>
+  import('../components/admin/StudentQuestionMatrixCard').then((m) => ({
+    default: m.StudentQuestionMatrixCard,
+  })),
+);
+const CreateGameModal = lazy(() =>
+  import('../components/admin/CreateGameModal').then((m) => ({
+    default: m.CreateGameModal,
+  })),
+);
+const EssayGradingModal = lazy(() =>
+  import('../components/admin/EssayGradingModal').then((m) => ({
+    default: m.EssayGradingModal,
+  })),
+);
+const MinigameHubPanel = lazy(() =>
+  import('../components/admin/MinigameHubPanel').then((m) => ({
+    default: m.MinigameHubPanel,
+  })),
+);
+const QuickPollHubPanel = lazy(() =>
+  import('../components/poll/QuickPollHubPanel').then((m) => ({
+    default: m.QuickPollHubPanel,
+  })),
+);
+const ExamAnalyticsCharts = lazy(() =>
+  import('../components/admin/ExamAnalyticsCharts').then((m) => ({
+    default: m.ExamAnalyticsCharts,
+  })),
+);
 const ExcelQuestionBankModal = lazy(() =>
   import('../components/admin/ExcelQuestionBankModal').then((m) => ({
     default: m.ExcelQuestionBankModal,
@@ -44,7 +72,11 @@ const ExcelQuestionBankModal = lazy(() =>
 );
 import { GoogleSignInButton } from '../components/admin/GoogleSignInButton';
 import { LiveProctorTable } from '../components/admin/LiveProctorTable';
-import { QuestionEditorModal } from '../components/admin/QuestionEditorModal';
+const QuestionEditorModal = lazy(() =>
+  import('../components/admin/QuestionEditorModal').then((m) => ({
+    default: m.QuestionEditorModal,
+  })),
+);
 import { CaptchaField } from '../components/common/CaptchaField';
 import { InfoHint } from '../components/common/InfoHint';
 import { PaginationBar, paginateSlice } from '../components/common/PaginationBar';
@@ -3057,11 +3089,13 @@ export const AdminDashboardPage: React.FC = () => {
               </div>
             </div>
 
-            <ExamAnalyticsCharts
-              exam={shiftScopedExam ?? selectedExam}
-              attempts={shiftScopedAttempts}
-              itemAnalysisRows={itemAnalysisRows}
-            />
+            <Suspense fallback={<div className="p-6 text-center text-xs text-ink-500">Đang tải biểu đồ phân tích...</div>}>
+              <ExamAnalyticsCharts
+                exam={shiftScopedExam ?? selectedExam}
+                attempts={shiftScopedAttempts}
+                itemAnalysisRows={itemAnalysisRows}
+              />
+            </Suspense>
 
             <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
@@ -3082,14 +3116,14 @@ export const AdminDashboardPage: React.FC = () => {
                 <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
-                    onClick={() =>
-                      exportExamGradebookXlsx(
+                    onClick={() => {
+                      void exportExamGradebookXlsx(
                         shiftScopedExam ?? selectedExam,
                         selectedShift ? shiftScopedAttempts : attempts,
                         chapterMasteryStats,
                         questions,
-                      )
-                    }
+                      );
+                    }}
                     className="px-3.5 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold flex items-center gap-1.5"
                   >
                     <FileSpreadsheet className="w-4 h-4" />
@@ -3368,11 +3402,13 @@ export const AdminDashboardPage: React.FC = () => {
             </div>
 
             {/* Per-Student Per-Question Matrix */}
-            <StudentQuestionMatrixCard
-              exam={shiftScopedExam ?? selectedExam}
-              attempts={shiftScopedAttempts}
-              questions={questions}
-            />
+            <Suspense fallback={<div className="p-6 text-center text-xs text-ink-500">Đang tải ma trận kết quả...</div>}>
+              <StudentQuestionMatrixCard
+                exam={shiftScopedExam ?? selectedExam}
+                attempts={shiftScopedAttempts}
+                questions={questions}
+              />
+            </Suspense>
 
             <div className="bg-white rounded-2xl border border-slate-200 shadow-card p-5 space-y-3">
               {(() => {
@@ -3547,9 +3583,13 @@ export const AdminDashboardPage: React.FC = () => {
             </div>
 
             {liveGameSubTab === 'POLL' ? (
-              <QuickPollHubPanel isAdminEmbedded />
+              <Suspense fallback={<div className="p-6 text-center text-xs text-ink-500">Đang tải Quick Poll...</div>}>
+                <QuickPollHubPanel isAdminEmbedded />
+              </Suspense>
             ) : liveGameSubTab === 'MINIGAME' ? (
-              <MinigameHubPanel exams={exams} returnSource="admin" />
+              <Suspense fallback={<div className="p-6 text-center text-xs text-ink-500">Đang tải Kho Minigame...</div>}>
+                <MinigameHubPanel exams={exams} returnSource="admin" />
+              </Suspense>
             ) : (
               <>
             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -3759,43 +3799,47 @@ export const AdminDashboardPage: React.FC = () => {
 
         {/* TAB 8: SMART QR ATTENDANCE */}
         {activeTab === 'ATTENDANCE' && (
-          <AttendanceTabPanel
-            defaultInstructorName={instructorUser?.name ?? ''}
-            onToast={showToast}
-          />
+          <Suspense fallback={<div className="p-6 text-center text-xs text-ink-500">Đang tải mô-đun Điểm danh...</div>}>
+            <AttendanceTabPanel
+              defaultInstructorName={instructorUser?.name ?? ''}
+              onToast={showToast}
+            />
+          </Suspense>
         )}
       </main>
 
-      {selectedCourse && (
-        <QuestionEditorModal
-          key={`${editingQuestion?.id ?? 'new'}_${questionModalDefaultChapter ?? ''}`}
-          isOpen={questionModalOpen}
-          courseId={selectedCourse.id}
-          existingChapters={chapterGroups.map(([name]) => name)}
-          defaultChapter={questionModalDefaultChapter}
-          initialQuestion={editingQuestion}
-          onClose={() => setQuestionModalOpen(false)}
-          onSave={async (q) => {
-            await upsertQuestion(q);
-            const isExistingUsedInExam =
-              Boolean(editingQuestion) &&
-              Boolean(selectedExam) &&
-              attempts.some(
-                (a) =>
-                  a.examId === selectedExam?.id &&
-                  (a.status === 'SUBMITTED' || a.status === 'AUTO_SUBMITTED') &&
-                  a.assignedQuestions.some((s) => s.questionId === q.id),
-              );
-            if (isExistingUsedInExam && selectedExam) {
-              const res = await regradeExamAttempts(selectedExam.id, selectedShift?.id);
-              showToast(
-                `Đã cập nhật đáp án câu hỏi và tự động chấm lại ${res.regradedCount} bài đã nộp!`,
-              );
-            } else {
-              showToast('Đã lưu câu hỏi vào ngân hàng.');
-            }
-          }}
-        />
+      {selectedCourse && questionModalOpen && (
+        <Suspense fallback={null}>
+          <QuestionEditorModal
+            key={`${editingQuestion?.id ?? 'new'}_${questionModalDefaultChapter ?? ''}`}
+            isOpen={questionModalOpen}
+            courseId={selectedCourse.id}
+            existingChapters={chapterGroups.map(([name]) => name)}
+            defaultChapter={questionModalDefaultChapter}
+            initialQuestion={editingQuestion}
+            onClose={() => setQuestionModalOpen(false)}
+            onSave={async (q) => {
+              await upsertQuestion(q);
+              const isExistingUsedInExam =
+                Boolean(editingQuestion) &&
+                Boolean(selectedExam) &&
+                attempts.some(
+                  (a) =>
+                    a.examId === selectedExam?.id &&
+                    (a.status === 'SUBMITTED' || a.status === 'AUTO_SUBMITTED') &&
+                    a.assignedQuestions.some((s) => s.questionId === q.id),
+                );
+              if (isExistingUsedInExam && selectedExam) {
+                const res = await regradeExamAttempts(selectedExam.id, selectedShift?.id);
+                showToast(
+                  `Đã cập nhật đáp án câu hỏi và tự động chấm lại ${res.regradedCount} bài đã nộp!`,
+                );
+              } else {
+                showToast('Đã lưu câu hỏi vào ngân hàng.');
+              }
+            }}
+          />
+        </Suspense>
       )}
 
       {selectedCourse && excelModalOpen && (
@@ -3826,16 +3870,18 @@ export const AdminDashboardPage: React.FC = () => {
         </Suspense>
       )}
 
-      {selectedExam && (
-        <EssayGradingModal
-          isOpen={Boolean(essayModalAttemptId)}
-          examId={selectedExam.id}
-          attempt={essayAttemptTarget}
-          questions={questions}
-          onClose={() => setEssayModalAttemptId(null)}
-          onOverrideScore={overrideEssayScore}
-          onEnrichRubricAndRegrade={enrichRubricAndRegradeExam}
-        />
+      {selectedExam && essayModalAttemptId && (
+        <Suspense fallback={null}>
+          <EssayGradingModal
+            isOpen={Boolean(essayModalAttemptId)}
+            examId={selectedExam.id}
+            attempt={essayAttemptTarget}
+            questions={questions}
+            onClose={() => setEssayModalAttemptId(null)}
+            onOverrideScore={overrideEssayScore}
+            onEnrichRubricAndRegrade={enrichRubricAndRegradeExam}
+          />
+        </Suspense>
       )}
 
       {/* Preview Mode Simulator Modal */}
@@ -4446,13 +4492,15 @@ export const AdminDashboardPage: React.FC = () => {
       )}
 
       {gameModalConfig && (
-        <CreateGameModal
-          open={true}
-          onClose={() => setGameModalConfig(null)}
-          defaultTitle={gameModalConfig.title}
-          courseId={gameModalConfig.courseId}
-          sourceQuestions={gameModalConfig.questions}
-        />
+        <Suspense fallback={null}>
+          <CreateGameModal
+            open={true}
+            onClose={() => setGameModalConfig(null)}
+            defaultTitle={gameModalConfig.title}
+            courseId={gameModalConfig.courseId}
+            sourceQuestions={gameModalConfig.questions}
+          />
+        </Suspense>
       )}
 
       {projectorModalOpen && (selectedShift || selectedExam) && (() => {

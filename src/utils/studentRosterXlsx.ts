@@ -1,4 +1,3 @@
-import * as XLSX from 'xlsx';
 import type { StudentRosterEntry } from '../types/exam';
 
 export function normalizeRosterText(val: string): string {
@@ -7,14 +6,13 @@ export function normalizeRosterText(val: string): string {
 
 export function normalizeRosterDob(raw: unknown): string {
   if (raw === null || raw === undefined) return '';
-  if (typeof raw === 'number' && Number.isFinite(raw)) {
-    const parsed = XLSX.SSF.parse_date_code(raw);
-    if (parsed && parsed.y && parsed.m && parsed.d) {
-      const dd = String(parsed.d).padStart(2, '0');
-      const mm = String(parsed.m).padStart(2, '0');
-      const yyyy = String(parsed.y).padStart(4, '0');
-      return `${dd}-${mm}-${yyyy}`;
-    }
+  if (typeof raw === 'number' && Number.isFinite(raw) && raw > 0 && raw < 100000) {
+    const utcMs = Date.UTC(1899, 11, 30) + Math.round(raw) * 86400000;
+    const d = new Date(utcMs);
+    const dd = String(d.getUTCDate()).padStart(2, '0');
+    const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+    const yyyy = String(d.getUTCFullYear()).padStart(4, '0');
+    return `${dd}-${mm}-${yyyy}`;
   }
   const s = String(raw).trim();
   if (!s) return '';
@@ -40,7 +38,8 @@ function stripAccentsLower(s: string): string {
     .toLowerCase();
 }
 
-export function downloadStudentRosterTemplateXlsx(examTitle?: string): void {
+export async function downloadStudentRosterTemplateXlsx(examTitle?: string): Promise<void> {
+  const XLSX = await import('xlsx');
   const wb = XLSX.utils.book_new();
   const rows: (string | number)[][] = [
     ['STT', 'Mã sinh viên', 'Họ đệm', 'Tên', 'Giới tính', 'Ngày sinh'],
@@ -70,6 +69,7 @@ export function downloadStudentRosterTemplateXlsx(examTitle?: string): void {
 export async function parseStudentRosterXlsx(
   file: File,
 ): Promise<{ entries: StudentRosterEntry[]; errors: string[] }> {
+  const XLSX = await import('xlsx');
   const buffer = await file.arrayBuffer();
   const wb = XLSX.read(buffer, { type: 'array', cellDates: false });
   const sheetName = wb.SheetNames[0];
