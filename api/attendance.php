@@ -138,7 +138,7 @@ function attFormatClass(array $row, int $sessionCount = 0): array
     return [
         'id' => (string) $row['id'],
         'ownerId' => (string) $row['owner_id'],
-        'courseId' => $row['course_id'] !== null ? (string) $row['course_id'] : undefined,
+        'courseId' => $row['course_id'] !== null ? (string) $row['course_id'] : null,
         'classCode' => (string) ($row['class_code'] ?? ''),
         'title' => (string) ($row['title'] ?? ''),
         'semester' => (string) ($row['semester'] ?? ''),
