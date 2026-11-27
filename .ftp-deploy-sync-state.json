@@ -1,0 +1,1067 @@
+{
+    "description": "DO NOT DELETE THIS FILE. This file is used to keep track of which files have been synced in the most recent deployment. If you delete this file a resync will need to be done (which can take a while) - read more: https://github.com/SamKirkland/FTP-Deploy-Action",
+    "version": "1.0.0",
+    "generatedTime": 1795789216717,
+    "data": [
+        {
+            "type": "file",
+            "name": ".htaccess",
+            "size": 1634,
+            "hash": "39e24abb35cf7eea09bbbe294110e15bd05822fe77db54a3efddf484d01c8fbf"
+        },
+        {
+            "type": "folder",
+            "name": "api"
+        },
+        {
+            "type": "folder",
+            "name": "assets"
+        },
+        {
+            "type": "file",
+            "name": "build-info.txt",
+            "size": 88,
+            "hash": "54de8e53739711ca086328cf2572f4cd7c16691e1686c5d97bea3705741ce035"
+        },
+        {
+            "type": "file",
+            "name": "favicon.svg",
+            "size": 322,
+            "hash": "a8385ee4650a4e9a8f4d33f723742d523435a3d45381487192cf5ab3a15462b2"
+        },
+        {
+            "type": "file",
+            "name": "index.html",
+            "size": 2130,
+            "hash": "fe6c7f4bc13ec6ae179284c39b9eaf4b4bc4c8b7e308538042391d293c8792be"
+        },
+        {
+            "type": "file",
+            "name": "logo.png",
+            "size": 10965,
+            "hash": "94871e7ac2dce03a6b7d416e7f90557b4efe22f0867f7e65fff032b20b9723bf"
+        },
+        {
+            "type": "folder",
+            "name": "mediapipe"
+        },
+        {
+            "type": "file",
+            "name": "api/admin_auth.php",
+            "size": 21419,
+            "hash": "dc98cb84d60866c4df3142b9e314c28bb05f29f8f0a947791bf68caa65697dd4"
+        },
+        {
+            "type": "file",
+            "name": "api/attempts.php",
+            "size": 68337,
+            "hash": "346a7354555348fc10af2fbda8e692d8ae6c6cb7df1078c1da8dd7caf197c68c"
+        },
+        {
+            "type": "file",
+            "name": "api/attendance.php",
+            "size": 40631,
+            "hash": "de5a527779932d1e3f250ab31019d3800d0aef1d4ea1e8566e69a8eb68e1eff2"
+        },
+        {
+            "type": "file",
+            "name": "api/class_points.php",
+            "size": 24665,
+            "hash": "c53e8cd6ee609835bfabf568b6b34aa3974ca597e944f2b82e0f11ce11d29b2e"
+        },
+        {
+            "type": "file",
+            "name": "api/config.sample.php",
+            "size": 2125,
+            "hash": "554d76d65a72b6034e0f2951b298a68acfdfcdb1a56bffc4762bc395d1a26ecb"
+        },
+        {
+            "type": "file",
+            "name": "api/essay_grader.php",
+            "size": 24402,
+            "hash": "95c26bb408091a72593a0dc094082384a40b485dbca1756e641542c1e6ea6732"
+        },
+        {
+            "type": "file",
+            "name": "api/db.php",
+            "size": 8099,
+            "hash": "3e8ef28ead4158a7f494032969ced2603310f72566a6e4170779e6f71a1ce714"
+        },
+        {
+            "type": "file",
+            "name": "api/exams.php",
+            "size": 58038,
+            "hash": "c0abed87b90cbcd53e6a29715b6634807d8c79470035faba298ab427627d6180"
+        },
+        {
+            "type": "file",
+            "name": "api/game.php",
+            "size": 44543,
+            "hash": "f0ec47905ccc3ea1b357be600cfa6cf0339f5ea2b93ac6b5f6717ffc7f2b0312"
+        },
+        {
+            "type": "file",
+            "name": "api/mailer.php",
+            "size": 39495,
+            "hash": "45eae5308523c2c102d69ae6a447b4868b12879f0a8091e8c43f87fb8f003bf5"
+        },
+        {
+            "type": "file",
+            "name": "api/poll.php",
+            "size": 38630,
+            "hash": "78e4f771e86f603fabd5130552d88e52877a5dd028f96a59d3b6070d1a6c53be"
+        },
+        {
+            "type": "file",
+            "name": "api/proctor.php",
+            "size": 23792,
+            "hash": "998da5bd74b645dbffd23c9bf51c3adc8a4f28c05d5672a81348b6fb9087948d"
+        },
+        {
+            "type": "file",
+            "name": "api/schema.php",
+            "size": 107528,
+            "hash": "98546d9d75f355b64c80cfedc28e01e0d7a5de9133eb833700789117bbf2d706"
+        },
+        {
+            "type": "file",
+            "name": "assets/AdminDashboardPage-K7VJG6sY.js",
+            "size": 198378,
+            "hash": "7ab8c6ddb0c935a09ace7c31e056e319f425f5acede49b11edf1d9c7918a9485"
+        },
+        {
+            "type": "file",
+            "name": "assets/AimTargetEngine-DnMGJo8Z.js",
+            "size": 4134,
+            "hash": "05709b429e410ce129b239de9cb9a376f55b1d2861968fa2060dfa1530758b2a"
+        },
+        {
+            "type": "file",
+            "name": "assets/ArcheryGame-C_1PBkJd.js",
+            "size": 626,
+            "hash": "d32dac547a6cd87bc4b6f2929b689d6f958e83528b4b61ceba0b547e22675d8f"
+        },
+        {
+            "type": "file",
+            "name": "assets/AttendanceCheckInPage-BWE00oFw.js",
+            "size": 16085,
+            "hash": "276f007b856c14242035b674b6406d4cf831b2e208c4ddf8e300c7d216b89c80"
+        },
+        {
+            "type": "file",
+            "name": "assets/AttendanceTabPanel-Dbj1o5W4.js",
+            "size": 43179,
+            "hash": "6c908327c19225b1182b047a97c7cadaac4db43dbd307769931ac9772e34c96f"
+        },
+        {
+            "type": "file",
+            "name": "assets/BalloonPopGame-alT8yPRf.js",
+            "size": 611,
+            "hash": "be7461c614a42210ab44bf71017fb029021a3e6293a46471d0230ed80827ec33"
+        },
+        {
+            "type": "file",
+            "name": "assets/BambooSticksGame-CDK64Kpi.js",
+            "size": 2555,
+            "hash": "8920242a8056f84ebec4ee08ad4886f4a0d063379c3ba1968a71f501a7377372"
+        },
+        {
+            "type": "file",
+            "name": "assets/BattleRoyaleGame-CKHquP3y.js",
+            "size": 2429,
+            "hash": "0988ba3efed931d486ef827f8b2a8b8229838b8e9596b7cf8650c1927347f139"
+        },
+        {
+            "type": "file",
+            "name": "assets/BombPassGame-BROmRpHd.js",
+            "size": 2298,
+            "hash": "b07a51d46df5f949ab6901a6a2a2332b6fe65463aef0db43688743b11acc40fb"
+        },
+        {
+            "type": "file",
+            "name": "assets/ClassPointsTabPanel-jZrEMSjk.js",
+            "size": 32162,
+            "hash": "3ca03952ad4883a6c5f94adcd740eeaa3afca79fe8901ccaab8df108915c21dd"
+        },
+        {
+            "type": "file",
+            "name": "assets/CaptainDraftGame-BfeEDS_A.js",
+            "size": 4549,
+            "hash": "a50565847ab4c59536247e833d54968c7dbb717b6327f6209b9f48ca2c69024a"
+        },
+        {
+            "type": "file",
+            "name": "assets/ClayPotGame-mdIXnUiD.js",
+            "size": 587,
+            "hash": "eb00c83af13eba6fcd7db90785aa28ef6e0d683f472c6b226d3270766d0826a0"
+        },
+        {
+            "type": "file",
+            "name": "assets/ConfettiBurst-Bxmrm_7M.js",
+            "size": 1320,
+            "hash": "964930a97d3da18091110d9d5bdeb8e4a022c615062830be2678e669cbdf34da"
+        },
+        {
+            "type": "file",
+            "name": "assets/CreateGameModal-CrbHun1R.js",
+            "size": 9399,
+            "hash": "29d906a42da4312fa53971f0b24b7f813bf8ab74e8d0866c5442ca2aec7ef482"
+        },
+        {
+            "type": "file",
+            "name": "assets/DartboardGame-gxdlG5Bg.js",
+            "size": 591,
+            "hash": "c9800fc7d4cbbe29894c0683f7746d94da0be7f89af4f83f995d965ec642c71c"
+        },
+        {
+            "type": "file",
+            "name": "assets/DjTurntableGame-DRttdIIq.js",
+            "size": 664,
+            "hash": "66413494ae0f1fc620fbc2d48aaa9d4534482270454c47f8db81f9f94b906d8a"
+        },
+        {
+            "type": "file",
+            "name": "assets/DogChaseGame-GTlWtP76.js",
+            "size": 16177,
+            "hash": "1b6a643ca26738a424fde7a8e27e91fdab6fe5041972b44f7da37fd5f94816f3"
+        },
+        {
+            "type": "file",
+            "name": "assets/DragonBoatGame-CK3ZSeg-.js",
+            "size": 662,
+            "hash": "ee83024c96b761c0ef133d3033ee91d70cd4e3a3c8c53329cb858f4ecc0e976a"
+        },
+        {
+            "type": "file",
+            "name": "assets/DragonSnakeGame-BhMHivHq.js",
+            "size": 13994,
+            "hash": "dad40b8f851e05494ffb79906a279f79f5d71cfc7cc148aded175debf6803f1a"
+        },
+        {
+            "type": "file",
+            "name": "assets/DuckRaceGame-jp-s89cQ.js",
+            "size": 690,
+            "hash": "18752e26afbecd2784c82e157887389cf22945f8b25e1cb0a0e9b4cfc326e149"
+        },
+        {
+            "type": "file",
+            "name": "assets/EssayGradingModal-drD5mttl.js",
+            "size": 8039,
+            "hash": "90ae42fcb73a2d4ab88776f96cfc64cbceb176f0497f23b66822b841594a56fb"
+        },
+        {
+            "type": "file",
+            "name": "assets/ExamAnalyticsCharts-DAoRNOmx.js",
+            "size": 22595,
+            "hash": "ecec15afc07a5b532d413e4dfb13799ac9b254c4560686e9863e3382a325c54b"
+        },
+        {
+            "type": "file",
+            "name": "assets/ExamLobbyPage-Dkho5RFf.js",
+            "size": 16982,
+            "hash": "41ea0c8c188e02f695e4a39835164aa5f5eb4056a5df0de2ea970ceeb341cbe0"
+        },
+        {
+            "type": "file",
+            "name": "assets/ExamResultPage-CMbewnWC.js",
+            "size": 8264,
+            "hash": "f4e47170f3297e2c2904f5078604a1a5a725741f7f827fd2e61d99e81a03a573"
+        },
+        {
+            "type": "file",
+            "name": "assets/ExamTakePage-D3iZV0Kx.js",
+            "size": 54501,
+            "hash": "9691d894040cc384746935b9930b09a1f101ba1d692c4a2d78fdfea5c7ce9539"
+        },
+        {
+            "type": "file",
+            "name": "assets/ExcelQuestionBankModal-D6VBtFYC.js",
+            "size": 19797,
+            "hash": "490bac0872b956abe99ff35faabc760e488c36cfb339a6a1ce60cd37cffa4ed1"
+        },
+        {
+            "type": "file",
+            "name": "assets/F1RaceGame-DfLMftwW.js",
+            "size": 674,
+            "hash": "b8659bbd61bb00a775d733c2136d4154ef76741613b74caa54554a5d3702b411"
+        },
+        {
+            "type": "file",
+            "name": "assets/FortuneCookieGame-C0sC37Ta.js",
+            "size": 606,
+            "hash": "6518027c82b6a0d797107cfe631d245dee7e4aa9bb37304d754885ed343b8977"
+        },
+        {
+            "type": "file",
+            "name": "assets/FrogJumpGame-bDq_qe5I.js",
+            "size": 668,
+            "hash": "3b41d1ea24461216383f8d6d6f310b398a35846aa20b4776df411e5e9ea3aef8"
+        },
+        {
+            "type": "file",
+            "name": "assets/GachaCapsuleGame-BHdvVjwj.js",
+            "size": 2909,
+            "hash": "b5e22327bf2c70718776f79a940ec1c66976d820dd1c670442775607a28cdc07"
+        },
+        {
+            "type": "file",
+            "name": "assets/GameAvatarBadge-COxBWe1P.js",
+            "size": 6461,
+            "hash": "1a439cd39aa8bbf70c7798819d4c5325d656e66c27ecce1e14129fa9ba4dd7c7"
+        },
+        {
+            "type": "file",
+            "name": "assets/GameHostPage-DyTxGlRn.js",
+            "size": 24108,
+            "hash": "11ad73c2c15b087ecbd9c6483b3c4870a9e2f4bf72002529a06ed108929c84cc"
+        },
+        {
+            "type": "file",
+            "name": "assets/GameJoinPage-wR-E69gv.js",
+            "size": 7842,
+            "hash": "9b638b08c936f8aa6864f7e6d8ced4bc1ab455e844178c2fd94c89e9812978e7"
+        },
+        {
+            "type": "file",
+            "name": "assets/GamePlayPage-DAIwTOXc.js",
+            "size": 20284,
+            "hash": "14eb6d5302ff7f2152ba09602d17fafe3e8a34afe15506342349570f067a02b3"
+        },
+        {
+            "type": "file",
+            "name": "assets/GoldMinerGame-BZFa6Cg-.js",
+            "size": 3517,
+            "hash": "19e06bdc885240f45dd9d32fc12822ba491941733375d0d3b322ce8478e505f1"
+        },
+        {
+            "type": "file",
+            "name": "assets/GoldenEggGame-BS90J7cr.js",
+            "size": 604,
+            "hash": "e1867ec042b426c0d03508081562393ba520d323c51b7798b9e9270eab1c55c7"
+        },
+        {
+            "type": "file",
+            "name": "assets/GridPickEngine-B_jkhC4y.js",
+            "size": 4576,
+            "hash": "7bd66b23217532bdc361274d7bd0386eae3edf2aa249a9752158a17141ba42e9"
+        },
+        {
+            "type": "file",
+            "name": "assets/HorseRaceGame-HVhDD254.js",
+            "size": 676,
+            "hash": "861b99f6eacac7af633d4e99880211ff0fa468298d7cce2d7dea452f0a2bfc20"
+        },
+        {
+            "type": "file",
+            "name": "assets/InstructorGuidePage-CVq-SBxp.js",
+            "size": 14576,
+            "hash": "5eaa12422c51df2953f45a5aec4081722cb676019e52ca6a309566e835da2c65"
+        },
+        {
+            "type": "file",
+            "name": "assets/LastChairGame-BJQNLUzK.js",
+            "size": 26099,
+            "hash": "87a95c8b14d373d11f7856a4c4a75a0770bf455cc52da47be577bb0d0cfdb3a5"
+        },
+        {
+            "type": "file",
+            "name": "assets/LuckyEnvelopeGame-CDYT6Cnw.js",
+            "size": 593,
+            "hash": "5cd7caf7337c353af3719405e07dcb778d13f9ad0d6f07405fe3f2d064d5fb6e"
+        },
+        {
+            "type": "file",
+            "name": "assets/LuckyLensGame-BiiDXT51.js",
+            "size": 171002,
+            "hash": "bae5845f69c6a44fd014398d8f24bed9dfa61bd0fdeb7f478792b2217e62b874"
+        },
+        {
+            "type": "file",
+            "name": "assets/LuckyStarGame-BUEM1HFt.js",
+            "size": 11336,
+            "hash": "18b0594aa04ae42ae0c113e370b7757eb0bea311832984c6d481f91f7a17ea1b"
+        },
+        {
+            "type": "file",
+            "name": "assets/MangoHarvestGame-CwFq968m.js",
+            "size": 19828,
+            "hash": "dad5b00f6379bac638bee9f14d1b14eba09fb5af43d10a27f8fc426dea5037f2"
+        },
+        {
+            "type": "file",
+            "name": "assets/MemoryFlipGame-DgBdjDU1.js",
+            "size": 582,
+            "hash": "dbdc58ced0f78cabba487f6938883e90befda11e80295a704a30de333bd2f7ed"
+        },
+        {
+            "type": "file",
+            "name": "assets/MinigameHubPage-V_PQHAvp.js",
+            "size": 2790,
+            "hash": "231d040b9ff505baaadd225167b1300640dc2106c16213ed2481f713c12505cb"
+        },
+        {
+            "type": "file",
+            "name": "assets/MinigameHubPanel-DZxBd9qY.js",
+            "size": 16359,
+            "hash": "ea1894d202e196482f6c2a0b58be5aaf09f7f9bf2bec4a8b147f16a0080b3e00"
+        },
+        {
+            "type": "file",
+            "name": "assets/MinigameStageLayout-CBy7DZWU.js",
+            "size": 35286,
+            "hash": "3081ae3ac0d2e8f4e4daee815a971367b80446acb7caf00d30e6c15c88dabd2a"
+        },
+        {
+            "type": "file",
+            "name": "assets/MountainClimbGame-DMLMW_be.js",
+            "size": 679,
+            "hash": "3c7f90c825ec278f81e4a948da73b642813d942545d4de91a93f30b2d5767de3"
+        },
+        {
+            "type": "file",
+            "name": "assets/MusicalChairsGame-CWtcBTCi.js",
+            "size": 16351,
+            "hash": "e9bfe912e6b2e07966213e1152bef34d109f67d4225e56c24e8fcbd75e3cd979"
+        },
+        {
+            "type": "file",
+            "name": "assets/MysteryBoxGame-Bh2DQ8o7.js",
+            "size": 586,
+            "hash": "7bddac936bd74ba0fc5da49a97c807b1b4a128df31eeb905016ef7480303afb3"
+        },
+        {
+            "type": "file",
+            "name": "assets/NeonRouletteGame-DzJuXUSi.js",
+            "size": 657,
+            "hash": "c174fb6b030d6776ca34b97f3591bcd02d671b5cac856d5b5e1b8b00fb8f0a4f"
+        },
+        {
+            "type": "file",
+            "name": "assets/PairMatchGame-BP-pt2SY.js",
+            "size": 3197,
+            "hash": "cb57e264e998c9a9bfe37dfba7e4cf2fc946edeadc834fcc8c21926b0bbd86de"
+        },
+        {
+            "type": "file",
+            "name": "assets/ParachuteDropGame-B1Iliei8.js",
+            "size": 20118,
+            "hash": "a6abb077e3ccb4a9cffb9ecfee1cc07bff77369f8a5086dac2426d9cbbdba30d"
+        },
+        {
+            "type": "file",
+            "name": "assets/PirateCompassGame-DVVp9Fdb.js",
+            "size": 667,
+            "hash": "303034e43a44e224a3eaa61a39e1a4b7e0bf0293eaa5cd4048bf526c925a1df9"
+        },
+        {
+            "type": "file",
+            "name": "assets/PlinkoGame-CEmtNIkB.js",
+            "size": 3549,
+            "hash": "96188fcc62fcc26e8c8ae67ff40bb8e0d808f0f19d494c591cec8476951eabb6"
+        },
+        {
+            "type": "file",
+            "name": "assets/PollResultChart-yQmjo6nt.js",
+            "size": 23729,
+            "hash": "5db8d7d43b04da0cb7d292bae1ad9a9f584ff9ccd1c4d487a8cd1a6a5e175181"
+        },
+        {
+            "type": "file",
+            "name": "assets/PollStudentCard-DPAod1ty.js",
+            "size": 7575,
+            "hash": "da4962f7b1e433d6b10685503b2c76465b4c364c86c761e87da535201c560ef4"
+        },
+        {
+            "type": "file",
+            "name": "assets/PollHostPage-CvBTMRwY.js",
+            "size": 12343,
+            "hash": "3fb6758e9902c5fe5ecff2c5c8ea2e1b9fcd087ddd64562ac1acc66c2256e02b"
+        },
+        {
+            "type": "file",
+            "name": "assets/PollVotePage-BS8D60B1.js",
+            "size": 6521,
+            "hash": "68bafda5af8380a31f4f6de52027edd4406bd8121d28bcf1081e9900f8e2935a"
+        },
+        {
+            "type": "file",
+            "name": "assets/QuestionEditorModal-CI4W7Mgu.js",
+            "size": 30431,
+            "hash": "b504c1798e0823189b04ad491650f50240942f606953608cdf0ebf48bb2afc60"
+        },
+        {
+            "type": "file",
+            "name": "assets/QuickPollHubPage-pwcWYheO.js",
+            "size": 2944,
+            "hash": "b1f1f18aa691401db832e7d6facde16f7925061f92f74272157f0405658a626b"
+        },
+        {
+            "type": "file",
+            "name": "assets/QuickPollHubPanel-mlUviUIo.js",
+            "size": 25928,
+            "hash": "18d5f01d71d01ce3ae94d12f3f19ef84e84c50abda772ac686e6b30bdfc94fe8"
+        },
+        {
+            "type": "file",
+            "name": "assets/RaceEngine-DZw7lbJT.js",
+            "size": 14083,
+            "hash": "777386dd320c6bd10cda1628549fdda01da30793e0ca254e47ec74bf94ab72af"
+        },
+        {
+            "type": "file",
+            "name": "assets/RaceEngine3D-zOUYYSZJ.js",
+            "size": 8338,
+            "hash": "1ae313c19ce79520c4c97f843618132c7353ce8a747a437af8bc7f59055fd116"
+        },
+        {
+            "type": "file",
+            "name": "assets/RadarScanGame-BAMqO2Pc.js",
+            "size": 2403,
+            "hash": "e654f82763376d2ab9e3ec8a396e7601618e32974be45baa92340c15f133bcdd"
+        },
+        {
+            "type": "file",
+            "name": "assets/RiverFerryGame-DqGu5Zmo.js",
+            "size": 23327,
+            "hash": "879ae614bfb92a88ab805dd1ac2733577161467ee20bec1ef67b6c4fc0df5c72"
+        },
+        {
+            "type": "file",
+            "name": "assets/RocketRaceGame-BYFBK36t.js",
+            "size": 667,
+            "hash": "ba83d897eda65f5657e80d2ddf424fb7250ed60f0b0224fccef9adf65d29cbfa"
+        },
+        {
+            "type": "file",
+            "name": "assets/ScratchCardGame-BqYkQfgX.js",
+            "size": 3171,
+            "hash": "97aab804737adfbcb570fa451124ffe5554b8ab9be473f88611df1a535480893"
+        },
+        {
+            "type": "file",
+            "name": "assets/SlotMachineGame-cGXJd_-0.js",
+            "size": 2852,
+            "hash": "a4e31ee4da137a062e972f0f386629a4332877812fdedf8fb91e19560bb8c1c7"
+        },
+        {
+            "type": "file",
+            "name": "assets/SpotlightSweepGame-B0KSQddt.js",
+            "size": 2382,
+            "hash": "d2423bd8f77144d1eb3d19619df867f4d5597c286b9766260b3c6f154637dbef"
+        },
+        {
+            "type": "file",
+            "name": "assets/StudentQuestionMatrixCard-CMor-tWG.js",
+            "size": 10929,
+            "hash": "b871cb7b6c43ff83d2c5af77e5ee1e1a71c119b0d6c13d7875e45edfd4b4ca93"
+        },
+        {
+            "type": "file",
+            "name": "assets/SwimRaceGame-DNGS1Ubi.js",
+            "size": 658,
+            "hash": "948943e568b77b020b2e21f347fcf60f7d55aaedee5ddab228178b11b1892878"
+        },
+        {
+            "type": "file",
+            "name": "assets/TeamDraftGame-ChbkXiRg.js",
+            "size": 5322,
+            "hash": "86514a36fca22b6af09759f26e6f5e50f1f2b0d6159c832b289e91270eefb61f"
+        },
+        {
+            "type": "file",
+            "name": "assets/TreasureChestGame-B7T7O-7Y.js",
+            "size": 591,
+            "hash": "f9516a2e88c1d5d1c218effe72ca653fa735d5dfa05f65a7723bfa6f06cdc73e"
+        },
+        {
+            "type": "file",
+            "name": "assets/TurnOrderGame-C3oW7xoY.js",
+            "size": 3880,
+            "hash": "de2833de9554aa646361500bd9d9d2ee75ea066e518fad098a9266309f01be83"
+        },
+        {
+            "type": "file",
+            "name": "assets/WheelEngine-DnCv7qWh.js",
+            "size": 7378,
+            "hash": "e7f93fcb798adb151a5327ff32030e71b798de569c0bd854c5bb89a961429aca"
+        },
+        {
+            "type": "file",
+            "name": "assets/WheelEngine3D-s7jQ83yg.js",
+            "size": 8563,
+            "hash": "d332bff8a72b0c0cffc8519c099b3e6d37d095bbe3012c880262c6290c54483a"
+        },
+        {
+            "type": "file",
+            "name": "assets/WheelGame-BpwOYr8G.js",
+            "size": 605,
+            "hash": "b72fa7c7b90cba02142600b8f0c54fee58406bccc57034e7ebd7fa524a2cb44b"
+        },
+        {
+            "type": "file",
+            "name": "assets/WhoIsThatGame-Dy5qaUQT.js",
+            "size": 16515,
+            "hash": "93ef60ed0c0c380d0f3ac1a32e6140408a407a0bb13ad9283e1ef94f2d5ce3da"
+        },
+        {
+            "type": "file",
+            "name": "assets/attendanceApi-U3m5P-Gw.js",
+            "size": 15207,
+            "hash": "44efc9de416deb63a7de0019314cc0d01d059c7ff998d7352ec6c81268f858f2"
+        },
+        {
+            "type": "file",
+            "name": "assets/browser-9WW79tVI.js",
+            "size": 25400,
+            "hash": "5d0233a04b9b048de7ea0fe116eff5e1869d600beec823821d031df8b1a24df1"
+        },
+        {
+            "type": "file",
+            "name": "assets/classPointsApi-Jwj1JjZE.js",
+            "size": 6811,
+            "hash": "41cf61800eb1873f87f929cb8161ec5b0cded18143e44494f6c83be7c31bdd43"
+        },
+        {
+            "type": "file",
+            "name": "assets/exam-seed-data-CBQG1u-Z.js",
+            "size": 51536,
+            "hash": "49d433b1e2e891087f997ef5253113b0acefa6ebd77926ada968d181fda2a06a"
+        },
+        {
+            "type": "file",
+            "name": "assets/excelQuestionBank-Bca00cRU.js",
+            "size": 28836,
+            "hash": "3c393fbd7bbde9fffdc38ce12f6260e334cc527a60e642b02c458dbef55fb363"
+        },
+        {
+            "type": "file",
+            "name": "assets/game-uKfRR_xA.js",
+            "size": 824,
+            "hash": "366cec7dae3278b8885d56a6260c3d9cea08f1b8d21d13a7350d111de4488907"
+        },
+        {
+            "type": "file",
+            "name": "assets/gameApi-DW82ge8x.js",
+            "size": 15289,
+            "hash": "fafc704ba2708f3a5adb2d4758abd281fe31777e870c6da0d895f82992d3ecd0"
+        },
+        {
+            "type": "file",
+            "name": "assets/gameAudio-CS3StKxL.js",
+            "size": 6966,
+            "hash": "86c528331d3c4c8d0bd1cf5c558d839087e6b82becb9a4f5f3be8d26c2769d10"
+        },
+        {
+            "type": "file",
+            "name": "assets/index-DnWr2c6y.css",
+            "size": 139917,
+            "hash": "58ddcf27bd05079bfda1939e748b5a5c9765b2e4cd6d7833de8e18f795f5fbb2"
+        },
+        {
+            "type": "file",
+            "name": "assets/index-Dx_RGNEa.js",
+            "size": 107452,
+            "hash": "18a4e68c4a8dbee726dfebe1060342aab69c381d3d895f1d2ba10f381f680dfd"
+        },
+        {
+            "type": "folder",
+            "name": "assets/minigames"
+        },
+        {
+            "type": "file",
+            "name": "assets/registry-AeCEsXOh.js",
+            "size": 19116,
+            "hash": "eba5ad4d30d6944c74a6b43bb6033ff23b9f62d37adc2643c81df220e823adf8"
+        },
+        {
+            "type": "file",
+            "name": "assets/rosterStorage-DdI5yd2X.js",
+            "size": 7216,
+            "hash": "fa4a2d6e9f8540979ca42d0642632575999b90db9ddece141818252993149110"
+        },
+        {
+            "type": "file",
+            "name": "assets/stageContext-DpG3aodR.js",
+            "size": 766,
+            "hash": "b75148bd1ab54476a719c9b6597adcc390d4cf47371378ba9c90d9cfcd8421ba"
+        },
+        {
+            "type": "file",
+            "name": "assets/three.module-Bq3cg2zL.js",
+            "size": 539364,
+            "hash": "de5d3d32368b49366fb38de93b38bc318a5bf00f2640dd930679680144fad68f"
+        },
+        {
+            "type": "file",
+            "name": "assets/vendor-icons-B6_Mu9ZN.js",
+            "size": 47651,
+            "hash": "b472fa9976213cdca8e8a24216fe51f19a0f37e738570a5267ad33c0fb036577"
+        },
+        {
+            "type": "file",
+            "name": "assets/vendor-react-CFaZxKXT.js",
+            "size": 182883,
+            "hash": "cd90ec81fb51a03b2eb138c39fde4ad462a976d3c05fbe795496d93e950869f4"
+        },
+        {
+            "type": "file",
+            "name": "assets/vendor-xlsx-CbTSpprj.js",
+            "size": 429521,
+            "hash": "855f398e30a2aa18adf8e16a8be541a7ce46ad96bdeffc041fec1caeb1674078"
+        },
+        {
+            "type": "file",
+            "name": "mediapipe/blaze_face_short_range.tflite",
+            "size": 229746,
+            "hash": "b4578f35940bf5a1a655214a1cce5cab13eba73c1297cd78e1a04c2380b0152f"
+        },
+        {
+            "type": "folder",
+            "name": "mediapipe/wasm"
+        },
+        {
+            "type": "folder",
+            "name": "assets/minigames/chiec-ghe-cuoi"
+        },
+        {
+            "type": "folder",
+            "name": "assets/minigames/cho-ruot"
+        },
+        {
+            "type": "folder",
+            "name": "assets/minigames/chuyen-do"
+        },
+        {
+            "type": "folder",
+            "name": "assets/minigames/gianh-ghe"
+        },
+        {
+            "type": "folder",
+            "name": "assets/minigames/hai-xoai"
+        },
+        {
+            "type": "folder",
+            "name": "assets/minigames/nguoi-ay-la-ai"
+        },
+        {
+            "type": "folder",
+            "name": "assets/minigames/nhay-du"
+        },
+        {
+            "type": "folder",
+            "name": "assets/minigames/rong-ran"
+        },
+        {
+            "type": "file",
+            "name": "mediapipe/wasm/vision_wasm_internal.js",
+            "size": 336624,
+            "hash": "2aa5fd3fdd3d8208cd7587df0bb19fb6925c4ea16a76dd025aedc1f64d6a6309"
+        },
+        {
+            "type": "file",
+            "name": "mediapipe/wasm/vision_wasm_internal.wasm",
+            "size": 14665716,
+            "hash": "225bc06c0f51a9cf31fea0e9e0b0243e9e01fb5ef332cc1a7fa6656dbdfdaabf"
+        },
+        {
+            "type": "file",
+            "name": "mediapipe/wasm/vision_wasm_module_internal.js",
+            "size": 336662,
+            "hash": "d29996249490361715c769c6a49b43ad47e6ac9a28a8e8bce8d02b238e897851"
+        },
+        {
+            "type": "file",
+            "name": "mediapipe/wasm/vision_wasm_module_internal.wasm",
+            "size": 14665738,
+            "hash": "a269e84b12aefc93c9d6a4d62b01f41e5434a9fa941533bb8e75b1e3d1669e46"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/chiec-ghe-cuoi/black-cat.png",
+            "size": 46948,
+            "hash": "4355a9bd8f86098270b12d69089a530b5800926e9fb6be856101e47f96f8cc76"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/chiec-ghe-cuoi/chu-tu-mc.png",
+            "size": 69466,
+            "hash": "005d74160de7a6f2e67c04b76c6ce79203aa24d79bc629dfff9ad50565ef54ae"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/chiec-ghe-cuoi/guard-chair.png",
+            "size": 54323,
+            "hash": "d8c53c32ced14e69590484f3ab4ec9c2e0259eef620cb2a62ed9ff87d6a154a4"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/chiec-ghe-cuoi/hs-nam-dive.png",
+            "size": 48966,
+            "hash": "4c6fe629ffbff71eedff5d73410b97e078fed2026c14d3b4b30e7395806eae77"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/chiec-ghe-cuoi/hs-nu-dive.png",
+            "size": 54493,
+            "hash": "84fb439793dc5c3d47185b5f88da5afdbbbc3a84edf0e488fe223349be799c0b"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/cho-ruot/bg-street.jpg",
+            "size": 255108,
+            "hash": "b5c58a45ca9e48d2d2eab8d00a80790656a5329994e5bc331c9f84dea6288866"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/cho-ruot/dog-bark.png",
+            "size": 69674,
+            "hash": "83884b1c256ba4398696c9c1d642b1ea561d897f24d76fb2f1c6b8a286d40eed"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/cho-ruot/dog-run.png",
+            "size": 79518,
+            "hash": "0a5fdb86c08626dcab8b21e762ac29c5af1bfdb3486eaa402e7857a8cc992217"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/cho-ruot/hs-nam-idle.png",
+            "size": 48652,
+            "hash": "07e95c13c295c515133766ce88d3156b4160112359fb859bcf75f81797236a4c"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/cho-ruot/hs-nam-run.png",
+            "size": 66875,
+            "hash": "7c309d55a2045486936b71af6ba56d9188d8cfd70f6513bf19098c87d15ec4b7"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/cho-ruot/hs-nu-idle.png",
+            "size": 49762,
+            "hash": "4e3e10c725dbf738107d0e6e4db560453e7fd819e449da957d1d2ed63be335f3"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/chuyen-do/bg-river.jpg",
+            "size": 302514,
+            "hash": "07902d4769dcd1d65a98f1c3287bb563441e084bfaa95d61b7879d932ec8a373"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/chuyen-do/bg-school-dock.jpg",
+            "size": 486026,
+            "hash": "f47e7ba584d0a84b54554959ec513d701147cc4b26046083eaac077311c357ee"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/chuyen-do/boat.png",
+            "size": 523688,
+            "hash": "9f31f975da14cf82508bdbf3e1a27efb57b122f62cb6d5b05b77d43679180adb"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/chuyen-do/hs-nam-awake.png",
+            "size": 58082,
+            "hash": "45b78c97a6b54452d7efee70ee85214d05a9c8550d5970269a7418e85747b945"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/chuyen-do/hs-nam-sleep.png",
+            "size": 53337,
+            "hash": "2fd3e951ed790e744d476c3bbd4fa867bd089ee7c12de75b5b0d5e08e6cf796c"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/chuyen-do/hs-nu-awake.png",
+            "size": 65633,
+            "hash": "9749baf421ec6a580c4a2efe935cd429beeaead222165c1c106f4f6ab141e1dc"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/chuyen-do/hs-nu-sleep.png",
+            "size": 64537,
+            "hash": "02c8595cc18e67b85c4390b3c035221778c9c22d2c978858d3fd8168e4b193d2"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/chuyen-do/teacher-row.png",
+            "size": 110552,
+            "hash": "974d624796b6c0c5466db995e1327d66d82e61211a11cbaca3673affae5e570f"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/gianh-ghe/bg-schoolyard.jpg",
+            "size": 348294,
+            "hash": "709afb3cb07ce0b3a6e38c523a6cc8426a82ae1f7a6c3d4311a4b1c8de9afa25"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/gianh-ghe/chair-red.png",
+            "size": 24942,
+            "hash": "55368f07254fd9b542ad2542f28d180dea7e233e7a917b1660b4a43a95fdd994"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/gianh-ghe/hs-nam-dance.png",
+            "size": 36674,
+            "hash": "446771237ee59d435a2efada56162c524a172c6cbb4bca93988eac838df9530f"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/gianh-ghe/hs-nam-sad.png",
+            "size": 35241,
+            "hash": "2c2ef5b6110904176c97c150026e78b4a7da5cc0269a4eeee46d91d28e43361b"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/gianh-ghe/hs-nam-sit.png",
+            "size": 36762,
+            "hash": "3ea599d0d7305f25a974d4c697b2b663f77cf0a9b249b2c1628450def27d61f3"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/gianh-ghe/hs-nu-dance.png",
+            "size": 41325,
+            "hash": "25a42743c7d93fe6d2254df1603b4d9849b21bd8b825ece431b10cee66df21c7"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/gianh-ghe/hs-nu-sad.png",
+            "size": 42552,
+            "hash": "6cf8356cad53c20052d92dc4a0fea5ba9522375069ee064929fbac053bef8a98"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/gianh-ghe/hs-nu-sit.png",
+            "size": 42101,
+            "hash": "03d1f9d6da317e1217216e24e1e73a225c9ca34a16b5dfbd26452a13f0d412e6"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/gianh-ghe/teacher-mc.png",
+            "size": 63035,
+            "hash": "cef1e0d1d0ffeb56f033fa7c1a078c296664716be35b5e7174d934fb18c570ea"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/hai-xoai/anh-ba.png",
+            "size": 58219,
+            "hash": "7978530ccd5b1e69c1b7a7f83be41b53c4c5bfd4b3c5de61d968dfa6e89c7774"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/hai-xoai/bg-mango-yard.jpg",
+            "size": 368449,
+            "hash": "7dbc30b0c4074d028ce3d8c961fc1bbf3541ced9c2905649c6a4d8e1c5fe9569"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/hai-xoai/ti.png",
+            "size": 37025,
+            "hash": "4d09c00958ebc433c6ce7c2de6bf5c4e567a1bff1a2c3b2076c573e55dc4a74a"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/hai-xoai/na.png",
+            "size": 38285,
+            "hash": "b91ac855536cf7e980a35a6b9a953f9bf01904c417ba67be97f9b52a9b3a575a"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/nguoi-ay-la-ai/theme.mp3",
+            "size": 187288,
+            "hash": "e155a88d3c7a2bca09d32939b37dc149ea90340cbe207160fec6b0c4350be752"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/nhay-du/bg-valley.jpg",
+            "size": 421699,
+            "hash": "3545da7e168929a2946372f994f948a553d9b2b5a835224704fcceef21dfc843"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/nhay-du/cliff.png",
+            "size": 387951,
+            "hash": "3bdf435ae10cd6c62ce9e4a730eefb1f787de7bd1ec467cf24eef1ebe854ad4a"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/nhay-du/flying-duck.png",
+            "size": 64256,
+            "hash": "1c54935b6b9b9b737aa41697d489b56cbc8d1cc0f1dc4b91e792b6d6b91d5bee"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/nhay-du/hs-nam-charred.png",
+            "size": 50579,
+            "hash": "4e1448c3f439928046cd25449e195ecd53cf4b129a34f2751c24d3156ae96b7c"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/nhay-du/hs-nam-fly.png",
+            "size": 42248,
+            "hash": "20e33bd9a71ab4f02eaef1dea5283288c198f495da37bfff6c1a6245cc67f7f2"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/nhay-du/hs-nu-charred.png",
+            "size": 60258,
+            "hash": "6f6f950970f12eacaef7f8c0d9b94815010548f8b090c4a856db007d269aa778"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/nhay-du/hs-nu-fly.png",
+            "size": 50286,
+            "hash": "b77ddd19b3d5df02a9557cf89ec7b22d5cc7c21965a5dbc12dd43b46f77a41a6"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/nhay-du/storm-cloud.png",
+            "size": 45066,
+            "hash": "80f4c1972c1e74817ef49a5fc7007f4213cd495bb1f2665b9a319aca7564f046"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/nhay-du/theme.mp3",
+            "size": 457387,
+            "hash": "22e21c02bf7f00d43a1e935fa9b9de7c279f83378e23ef5beb586dec48523fa8"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/rong-ran/bg-courtyard.jpg",
+            "size": 297157,
+            "hash": "8536b4891712703a6a0d850e10185b30b3c72591516025acbb91d491f0eb9a99"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/rong-ran/dau-rong.png",
+            "size": 59449,
+            "hash": "b4544b99f916e324615da2aa50cd2d3f6bfe99952399f5aa2f30940449000f8d"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/rong-ran/than-rong-nam.png",
+            "size": 44722,
+            "hash": "dab50de58161bc575466fdba58359ada5c18007b153c2e54f3c56c135778237a"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/rong-ran/than-rong-nu.png",
+            "size": 50455,
+            "hash": "328fe148baf2fbe6230db1304f3097509c55ad2f6a605a86f42ab0db4a70a8a3"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/rong-ran/thay-thuoc-grab.png",
+            "size": 73984,
+            "hash": "3f108db2e6c6fb00ea746d29ce26f0cf263f83dd021619372f0c9e0567f80baa"
+        },
+        {
+            "type": "file",
+            "name": "assets/minigames/rong-ran/thay-thuoc-idle.png",
+            "size": 63208,
+            "hash": "baed472bcff581049157ca889fe30cee273aeb5955f7910eae020157b199ae60"
+        }
+    ]
+}
