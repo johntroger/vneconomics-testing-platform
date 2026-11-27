@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { Check, Plus, RotateCcw, Trash2, Undo2, X } from 'lucide-react';
+import { Check, Pencil, Plus, RotateCcw, Trash2, Undo2, X } from 'lucide-react';
 import { GameAvatarBadge } from '../components/game/GameAvatarBadge';
 import { playCatchSound, playWheelTick } from '../utils/gameAudio';
 import {
@@ -47,10 +47,15 @@ export const PointAwardModal: React.FC<PointAwardModalProps> = ({
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [pulseBadge, setPulseBadge] = useState<'REWARD' | 'PENALTY' | null>(null);
 
-  // Custom criterion inline form
+  // Custom criterion & edit mode state
+  const [editMode, setEditMode] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editLabel, setEditLabel] = useState('');
+  const [editPoints, setEditPoints] = useState<number>(1);
   const [showAddForm, setShowAddForm] = useState(false);
   const [newLabel, setNewLabel] = useState('');
   const [newPoints, setNewPoints] = useState<number>(5);
+  const [quickPoints, setQuickPoints] = useState<string>('1');
 
   const liveTargets = useMemo(() => {
     const map = new Map(allStudents.map((s) => [s.id, s]));
@@ -137,10 +142,46 @@ export const PointAwardModal: React.FC<PointAwardModalProps> = ({
     setShowAddForm(false);
   };
 
-  const handleDeleteCustom = (id: string) => {
+  const handleDeleteCriterion = (id: string) => {
     const next = criteria.filter((c) => c.id !== id);
     setCriteria(next);
     writePointCriteria(next);
+    if (editingId === id) setEditingId(null);
+  };
+
+  const handleStartEdit = (c: PointCriterion) => {
+    setEditingId(c.id);
+    setEditLabel(c.label);
+    setEditPoints(c.points);
+    setShowAddForm(false);
+  };
+
+  const handleSaveEdit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingId) return;
+    const clean = editLabel.trim();
+    const pts = Math.max(0.5, Math.min(100, Number(editPoints) || 1));
+    if (!clean) return;
+    const next = criteria.map((c) =>
+      c.id === editingId ? { ...c, label: clean, points: pts } : c,
+    );
+    setCriteria(next);
+    writePointCriteria(next);
+    setEditingId(null);
+    setToastMsg(`✏️ Đã cập nhật tiêu chí "${clean}" (${tab === 'REWARD' ? '+' : '-'}${pts} điểm)!`);
+  };
+
+  const handleQuickAward = (e: React.FormEvent) => {
+    e.preventDefault();
+    const pts = Number(quickPoints);
+    if (!Number.isFinite(pts) || pts <= 0) return;
+    handleAward({
+      id: 'quick',
+      type: tab,
+      points: pts,
+      label: tab === 'REWARD' ? 'Thưởng nhanh' : 'Trừ điểm nhanh',
+      icon: tab === 'REWARD' ? '🌸' : '⚡',
+    });
   };
 
   const handleResetDefaultCriteria = () => {
@@ -293,51 +334,81 @@ export const PointAwardModal: React.FC<PointAwardModalProps> = ({
 
           {/* RIGHT COLUMN: Reward / Penalty Tabs + Flower Criteria Grid */}
           <div className="md:col-span-8 flex flex-col gap-4">
-            {/* Tabs matching BeeClass */}
-            <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl">
+            {/* Tabs + Edit Criteria Toggle */}
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex-1 flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTab('REWARD');
+                    setNewPoints(5);
+                    setEditingId(null);
+                  }}
+                  className={`flex-1 py-2.5 rounded-xl font-black text-sm transition ${
+                    tab === 'REWARD'
+                      ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-md'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  🌸 ĐIỂM THƯỞNG
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTab('PENALTY');
+                    setNewPoints(2);
+                    setEditingId(null);
+                  }}
+                  className={`flex-1 py-2.5 rounded-xl font-black text-sm transition ${
+                    tab === 'PENALTY'
+                      ? 'bg-gradient-to-r from-violet-600 to-purple-700 text-white shadow-md'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  ⚡ ĐIỂM TRỪ
+                </button>
+              </div>
+
               <button
                 type="button"
                 onClick={() => {
-                  setTab('REWARD');
-                  setNewPoints(5);
+                  setEditMode((v) => !v);
+                  setEditingId(null);
                 }}
-                className={`flex-1 py-2.5 rounded-xl font-black text-sm transition ${
-                  tab === 'REWARD'
-                    ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-md'
-                    : 'text-slate-600 hover:text-slate-900'
+                className={`px-3.5 py-2.5 rounded-2xl font-black text-xs flex items-center gap-1.5 border-2 transition ${
+                  editMode
+                    ? 'bg-amber-400 border-amber-500 text-slate-950 shadow'
+                    : 'bg-white border-slate-200 text-slate-700 hover:border-amber-400 hover:bg-amber-50'
                 }`}
+                title="Bật để chỉnh sửa mức điểm, tên tiêu chí hoặc xóa thẻ"
               >
-                🌸 ĐIỂM THƯỞNG
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setTab('PENALTY');
-                  setNewPoints(2);
-                }}
-                className={`flex-1 py-2.5 rounded-xl font-black text-sm transition ${
-                  tab === 'PENALTY'
-                    ? 'bg-gradient-to-r from-violet-600 to-purple-700 text-white shadow-md'
-                    : 'text-slate-600 hover:text-slate-900'
-                }`}
-              >
-                ⚡ ĐIỂM TRỪ
+                <Pencil className="w-3.5 h-3.5" />
+                {editMode ? 'Xong chỉnh sửa' : 'Sửa mức điểm'}
               </button>
             </div>
+
+            {editMode && (
+              <div className="px-3.5 py-2 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs font-bold">
+                ✏️ Đang ở chế độ chỉnh sửa: Bấm vào bất kỳ thẻ nào bên dưới để đổi tên &amp; số điểm, hoặc bấm biểu tượng thùng rác để xóa.
+              </div>
+            )}
 
             {/* Criteria Cards Grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {visibleCriteria.map((c) => {
                 const isReward = c.type === 'REWARD';
+                const isBeingEdited = editingId === c.id;
                 return (
                   <div key={c.id} className="relative group">
                     <button
                       type="button"
-                      onClick={() => handleAward(c)}
+                      onClick={() => (editMode ? handleStartEdit(c) : handleAward(c))}
                       className={`w-full h-full rounded-2xl border-2 p-3.5 flex flex-col items-center justify-center gap-2 text-center transition active:scale-95 shadow-sm hover:shadow-md ${
-                        isReward
-                          ? 'bg-gradient-to-b from-rose-50/70 to-amber-50/70 border-rose-200 hover:border-rose-400'
-                          : 'bg-gradient-to-b from-violet-50/70 to-slate-50 border-violet-200 hover:border-violet-400'
+                        isBeingEdited
+                          ? 'ring-2 ring-amber-400 border-amber-500 bg-amber-50'
+                          : isReward
+                            ? 'bg-gradient-to-b from-rose-50/70 to-amber-50/70 border-rose-200 hover:border-rose-400'
+                            : 'bg-gradient-to-b from-violet-50/70 to-slate-50 border-violet-200 hover:border-violet-400'
                       }`}
                     >
                       <div className="relative">
@@ -355,16 +426,35 @@ export const PointAwardModal: React.FC<PointAwardModalProps> = ({
                       </span>
                     </button>
 
-                    {c.custom && (
+                    {/* Quick Edit / Delete Icons */}
+                    <div
+                      className={`absolute top-1.5 right-1.5 flex items-center gap-1 transition ${
+                        editMode ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                      }`}
+                    >
                       <button
                         type="button"
-                        onClick={() => handleDeleteCustom(c.id)}
-                        className="absolute top-1.5 right-1.5 p-1 rounded-lg bg-white/90 text-slate-400 hover:text-rose-600 opacity-0 group-hover:opacity-100 transition"
-                        title="Xóa tiêu chí tùy chỉnh"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          handleStartEdit(c);
+                        }}
+                        className="p-1 rounded-lg bg-white/95 border border-slate-200 text-slate-600 hover:text-amber-600 shadow-sm"
+                        title="Sửa tên & mức điểm thẻ này"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
+                        <Pencil className="w-3 h-3" />
                       </button>
-                    )}
+                      <button
+                        type="button"
+                        onClick={(ev) => {
+                          ev.stopPropagation();
+                          handleDeleteCriterion(c.id);
+                        }}
+                        className="p-1 rounded-lg bg-white/95 border border-slate-200 text-slate-500 hover:text-rose-600 shadow-sm"
+                        title="Xóa thẻ này"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -373,7 +463,10 @@ export const PointAwardModal: React.FC<PointAwardModalProps> = ({
               {!showAddForm && (
                 <button
                   type="button"
-                  onClick={() => setShowAddForm(true)}
+                  onClick={() => {
+                    setShowAddForm(true);
+                    setEditingId(null);
+                  }}
                   className="rounded-2xl border-2 border-dashed border-slate-300 hover:border-sky-400 hover:bg-sky-50/50 p-3.5 flex flex-col items-center justify-center gap-1.5 text-slate-500 hover:text-sky-700 transition min-h-[110px]"
                 >
                   <Plus className="w-6 h-6" />
@@ -381,6 +474,83 @@ export const PointAwardModal: React.FC<PointAwardModalProps> = ({
                 </button>
               )}
             </div>
+
+            {/* Inline Edit Existing Criterion Form */}
+            {editingId && (
+              <form
+                onSubmit={handleSaveEdit}
+                className="rounded-2xl bg-amber-50 border-2 border-amber-300 p-3 flex flex-wrap items-center gap-2"
+              >
+                <span className="text-xs font-black text-amber-900">✏️ Sửa thẻ:</span>
+                <input
+                  type="text"
+                  value={editLabel}
+                  onChange={(e) => setEditLabel(e.target.value)}
+                  className="flex-1 min-w-[170px] px-3 py-1.5 rounded-xl bg-white border border-amber-300 text-xs font-semibold focus:outline-none focus:border-amber-500"
+                  required
+                />
+                <div className="flex items-center gap-1">
+                  <span className="text-xs font-black text-slate-700">
+                    {tab === 'REWARD' ? '+' : '-'}
+                  </span>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min={0.5}
+                    max={100}
+                    value={editPoints}
+                    onChange={(e) => setEditPoints(Number(e.target.value))}
+                    className="w-16 px-2 py-1.5 rounded-xl bg-white border border-amber-300 text-xs font-black text-center"
+                  />
+                  <span className="text-xs font-bold text-slate-500">điểm</span>
+                </div>
+                <button
+                  type="submit"
+                  className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black"
+                >
+                  Lưu thay đổi
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingId(null)}
+                  className="px-2.5 py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 text-xs font-bold"
+                >
+                  Hủy
+                </button>
+              </form>
+            )}
+
+            {/* Quick Custom Point Entry Bar (for any arbitrary number on the fly!) */}
+            <form
+              onSubmit={handleQuickAward}
+              className="rounded-2xl bg-slate-50 border border-slate-200 px-3.5 py-2.5 flex flex-wrap items-center justify-between gap-2"
+            >
+              <span className="text-xs font-extrabold text-slate-700">
+                {tab === 'REWARD' ? '⚡ Cộng điểm tùy ý:' : '⚡ Trừ điểm tùy ý:'}
+              </span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  step="0.5"
+                  min={0.5}
+                  max={100}
+                  value={quickPoints}
+                  onChange={(e) => setQuickPoints(e.target.value)}
+                  className="w-20 px-2.5 py-1.5 rounded-xl bg-white border border-slate-300 text-xs font-black text-center focus:outline-none focus:border-sky-500"
+                  aria-label="Nhập số điểm tùy ý"
+                />
+                <button
+                  type="submit"
+                  className={`px-4 py-1.5 rounded-xl text-white text-xs font-black shadow-sm transition active:scale-95 ${
+                    tab === 'REWARD'
+                      ? 'bg-rose-500 hover:bg-rose-400'
+                      : 'bg-violet-600 hover:bg-violet-500'
+                  }`}
+                >
+                  {tab === 'REWARD' ? `+ Cộng ${quickPoints || 0} điểm` : `- Trừ ${quickPoints || 0} điểm`}
+                </button>
+              </div>
+            </form>
 
             {/* Inline Custom Criterion Form */}
             {showAddForm && (
