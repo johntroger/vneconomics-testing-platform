@@ -129,7 +129,7 @@ function cpRound2(float $v): float
 }
 
 try {
-    $pdo = getDbConnection();
+    $pdo = getDb();
     $action = trim((string) ($_GET['action'] ?? 'list_classes'));
 
     // Strictly require OFFICIAL instructor account (rejects Demo / unauthenticated)
