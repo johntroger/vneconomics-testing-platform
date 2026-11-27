@@ -187,7 +187,7 @@ export const PointAwardModal: React.FC<PointAwardModalProps> = ({
   const handleResetDefaultCriteria = () => {
     setCriteria(DEFAULT_POINT_CRITERIA);
     writePointCriteria(DEFAULT_POINT_CRITERIA);
-    setToastMsg('Đã khôi phục bộ tiêu chí chuẩn BeeClass!');
+    setToastMsg('Đã khôi phục bộ tiêu chí mặc định!');
   };
 
   if (!primaryStudent) return null;
@@ -249,7 +249,7 @@ export const PointAwardModal: React.FC<PointAwardModalProps> = ({
           </div>
         )}
 
-        {/* Main 2-Column BeeClass Layout */}
+        {/* Main 2-Column Layout */}
         <div className="grid grid-cols-1 md:grid-cols-12 gap-5 p-5">
           {/* LEFT COLUMN: Student Profile + Reward/Penalty Badges */}
           <div className="md:col-span-4 rounded-3xl bg-gradient-to-b from-amber-50/90 to-rose-50/70 border-2 border-amber-200/80 p-5 flex flex-col items-center justify-between gap-4">
@@ -297,7 +297,7 @@ export const PointAwardModal: React.FC<PointAwardModalProps> = ({
               )}
             </div>
 
-            {/* Avatar with BeeClass-style circular Red Reward & Purple Penalty badges */}
+            {/* Avatar with circular Red Reward & Purple Penalty badges */}
             <div className="relative flex items-center justify-center py-2">
               <div
                 className={`absolute -left-7 top-1 w-12 h-12 rounded-full bg-gradient-to-br from-rose-500 to-red-600 text-white font-black text-base flex items-center justify-center shadow-lg border-2 border-white transition-transform duration-300 ${

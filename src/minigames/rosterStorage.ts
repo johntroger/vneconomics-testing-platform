@@ -14,7 +14,7 @@ const SYNC_CHANNEL = 'vne_minigame_sync_v1';
 const CRITERIA_STORAGE_KEY = 'vne_minigame_point_criteria_v1';
 
 export const DEFAULT_POINT_CRITERIA: PointCriterion[] = [
-  // Điểm Thưởng (Thang BeeClass: +1 / +2 / +5 / +10)
+  // Điểm Thưởng (+1 / +2 / +5 / +10)
   { id: 'r_active', type: 'REWARD', points: 1, label: 'Phát biểu tích cực / Giơ tay', icon: '🌸' },
   { id: 'r_correct', type: 'REWARD', points: 2, label: 'Trả lời đúng câu hỏi', icon: '🌺' },
   { id: 'r_good', type: 'REWARD', points: 2, label: 'Tác phong tốt / Hỗ trợ bạn', icon: '🌼' },

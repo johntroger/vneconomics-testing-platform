@@ -245,7 +245,7 @@ export const MINIGAME_REGISTRY: MinigamePlugin[] = [
     id: 'balloon-pop',
     name: 'Đập Bóng bay',
     category: 'MYSTERY',
-    description: 'Cảm hứng BeeClass: Chùm bóng bay lơ lửng, chạm nổ "BÙM!" ra tên.',
+    description: 'Chùm bóng bay lơ lửng, chạm nổ "BÙM!" ra tên.',
     badge: 'Hot',
     gradient: 'from-sky-500 to-indigo-600',
     icon: '🎈',

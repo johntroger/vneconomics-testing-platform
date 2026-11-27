@@ -677,7 +677,7 @@ export const MinigameStageLayout: React.FC = () => {
         </div>
       )}
 
-      {/* BeeClass-style Reward / Penalty Point Award Modal */}
+      {/* Reward / Penalty Point Award Modal */}
       {pointModalOpen && winners.length > 0 && (
         <PointAwardModal
           targets={winners}

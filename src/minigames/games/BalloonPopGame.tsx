@@ -6,7 +6,7 @@ export const BalloonPopGame: React.FC<MinigameProps> = ({ students, muted, onPic
   <GridPickEngine
     students={students}
     muted={muted}
-    title="Đập Bóng bay (BeeClass-style) — Chạm nổ BÙM để gọi tên!"
+    title="Đập Bóng bay — Chạm nổ BÙM để gọi tên!"
     itemEmoji="🎈"
     openedEmoji="💥"
     cardGradient="from-sky-500 to-indigo-600"
