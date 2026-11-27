@@ -54,6 +54,8 @@ export interface PickHistoryEntry {
 export interface MinigameStateStore {
   version: number;
   activePresetName: string;
+  activeFixedClassId?: string;
+  activeFixedClassTitle?: string;
   excludeCalled: boolean;
   courseId: string;
   students: RosterStudent[];

@@ -60,6 +60,11 @@ const QuickPollHubPanel = lazy(() =>
     default: m.QuickPollHubPanel,
   })),
 );
+const ClassPointsTabPanel = lazy(() =>
+  import('../components/admin/ClassPointsTabPanel').then((m) => ({
+    default: m.ClassPointsTabPanel,
+  })),
+);
 const ExamAnalyticsCharts = lazy(() =>
   import('../components/admin/ExamAnalyticsCharts').then((m) => ({
     default: m.ExamAnalyticsCharts,
@@ -250,10 +255,11 @@ export const AdminDashboardPage: React.FC = () => {
   } | null>(null);
   const [instructorGames, setInstructorGames] = useState<GameListItem[]>([]);
   const [loadingGames, setLoadingGames] = useState(false);
-  const [liveGameSubTab, setLiveGameSubTab] = useState<'KAHOOT' | 'MINIGAME' | 'POLL'>(() => {
+  const [liveGameSubTab, setLiveGameSubTab] = useState<'KAHOOT' | 'MINIGAME' | 'POLL' | 'CLASS_POINTS'>(() => {
     const sub = searchParams.get('sub');
     if (sub === 'POLL') return 'POLL';
     if (sub === 'MINIGAME') return 'MINIGAME';
+    if (sub === 'CLASS_POINTS') return 'CLASS_POINTS';
     return 'KAHOOT';
   });
 
@@ -3580,15 +3586,58 @@ export const AdminDashboardPage: React.FC = () => {
                 <BarChart3 className="w-4 h-4" />
                 3. Quick Poll Tools (Khảo sát Live)
               </button>
+              <button
+                type="button"
+                onClick={() => setLiveGameSubTab('CLASS_POINTS')}
+                className={`px-4 py-2 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition ${
+                  liveGameSubTab === 'CLASS_POINTS'
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-sm'
+                    : 'bg-slate-100 text-ink-700 hover:bg-slate-200'
+                }`}
+              >
+                🏆 4. Sổ Điểm Lớp {isDemoMode ? '🔒' : ''}
+              </button>
             </div>
 
-            {liveGameSubTab === 'POLL' ? (
+            {liveGameSubTab === 'CLASS_POINTS' ? (
+              <Suspense fallback={<div className="p-6 text-center text-xs text-ink-500">Đang tải Sổ Điểm Lớp...</div>}>
+                <ClassPointsTabPanel
+                  isOfficial={!isDemoMode}
+                  instructorName={instructorUser?.name ?? ''}
+                  onRequireOfficialLogin={() => {
+                    requireOfficialOrPrompt();
+                  }}
+                  onPlayMinigameWithClass={async (cls) => {
+                    const [{ fetchClassPointsSummary }, { buildMinigameStoreFromFixedClass, readMinigameStore, writeMinigameStore }] = await Promise.all([
+                      import('../services/classPointsApi'),
+                      import('../minigames/rosterStorage'),
+                    ]);
+                    const sumRes = await fetchClassPointsSummary(cls.id);
+                    const nextStore = buildMinigameStoreFromFixedClass(
+                      cls,
+                      sumRes.ok && sumRes.data ? sumRes.data.students : [],
+                      readMinigameStore(),
+                    );
+                    writeMinigameStore(nextStore);
+                    setLiveGameSubTab('MINIGAME');
+                  }}
+                />
+              </Suspense>
+            ) : liveGameSubTab === 'POLL' ? (
               <Suspense fallback={<div className="p-6 text-center text-xs text-ink-500">Đang tải Quick Poll...</div>}>
                 <QuickPollHubPanel isAdminEmbedded />
               </Suspense>
             ) : liveGameSubTab === 'MINIGAME' ? (
               <Suspense fallback={<div className="p-6 text-center text-xs text-ink-500">Đang tải Kho Minigame...</div>}>
-                <MinigameHubPanel exams={exams} returnSource="admin" />
+                <MinigameHubPanel
+                  exams={exams}
+                  returnSource="admin"
+                  isOfficial={!isDemoMode}
+                  onRequireOfficialLogin={() => {
+                    requireOfficialOrPrompt();
+                  }}
+                  onOpenClassPointsTab={() => setLiveGameSubTab('CLASS_POINTS')}
+                />
               </Suspense>
             ) : (
               <>

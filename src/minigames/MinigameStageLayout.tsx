@@ -1,4 +1,4 @@
-import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -17,6 +17,8 @@ import { ConfettiBurst } from '../components/game/ConfettiBurst';
 import { GameAvatarBadge } from '../components/game/GameAvatarBadge';
 import { useExamPlatform } from '../context/ExamContext';
 import { ADMIN_TOKEN_KEY } from '../services/apiClient';
+import { deleteClassPointEntry, recordClassPoints } from '../services/classPointsApi';
+import type { AddPointsEntryInput } from '../types/classPoints';
 import type { Question } from '../types/exam';
 import {
   evaluateFormula,
@@ -214,27 +216,87 @@ export const MinigameStageLayout: React.FC = () => {
     setWinners((prev) => prev.filter((w) => w.id !== targetStudent.id));
   };
 
+  const lastServerEntryIdsRef = useRef<string[]>([]);
+  const [syncNotice, setSyncNotice] = useState<string>('');
+  const [syncError, setSyncError] = useState<{
+    message: string;
+    classId: string;
+    pendingEntries: AddPointsEntryInput[];
+  } | null>(null);
+
+  const pushPointsToServer = useCallback(
+    async (classId: string, entries: AddPointsEntryInput[]) => {
+      if (!classId || entries.length === 0) return;
+      const res = await recordClassPoints(classId, entries);
+      if (res.ok && res.data) {
+        lastServerEntryIdsRef.current = res.data.entries.map((e) => e.id);
+        setSyncError(null);
+        setSyncNotice(`☁️ Đã lưu vào Sổ Lớp (${res.data.addedCount} lượt)`);
+        window.setTimeout(() => setSyncNotice(''), 2600);
+      } else {
+        const msg =
+          res.status === 401 || res.status === 403
+            ? 'Phiên tài khoản chính đã hết hạn — hãy đăng nhập lại ở trang Giảng viên để lưu điểm vào Sổ Lớp.'
+            : res.error || 'Mất kết nối máy chủ khi lưu điểm vào Sổ Lớp.';
+        setSyncError({ message: msg, classId, pendingEntries: entries });
+      }
+    },
+    [],
+  );
+
   const handleApplyPoints = (
     studentIds: string[],
     deltaBonus: number,
     deltaPenalty: number,
+    reason?: string,
   ) => {
     const idSet = new Set(studentIds);
+    const affected = store.students.filter((s) => idSet.has(s.id));
     const nextStudents = store.students.map((s) => {
       if (!idSet.has(s.id)) return s;
       return {
         ...s,
-        bonusPoints: Math.max(0, s.bonusPoints + deltaBonus),
-        penaltyPoints: Math.max(0, (s.penaltyPoints ?? 0) + deltaPenalty),
+        bonusPoints: Math.max(0, Math.round((s.bonusPoints + deltaBonus) * 100) / 100),
+        penaltyPoints: Math.max(0, Math.round(((s.penaltyPoints ?? 0) + deltaPenalty) * 100) / 100),
       };
     });
     const netDelta = deltaBonus - deltaPenalty;
     const nextHistory = store.history.map((h, idx) =>
       idx < 25 && idSet.has(h.studentId) && h.status === 'PICKED'
-        ? { ...h, bonusAwarded: h.bonusAwarded + netDelta }
+        ? { ...h, bonusAwarded: Math.round((h.bonusAwarded + netDelta) * 100) / 100 }
         : h,
     );
     updateStore({ ...store, students: nextStudents, history: nextHistory });
+
+    // Sync to Server Fixed Class Ledger when a fixed class is active
+    const activeClassId = store.activeFixedClassId;
+    if (activeClassId && affected.length > 0) {
+      if (deltaBonus < 0 || deltaPenalty < 0) {
+        // Undo last recorded server entries
+        const idsToDelete = [...lastServerEntryIdsRef.current];
+        lastServerEntryIdsRef.current = [];
+        if (idsToDelete.length > 0) {
+          void Promise.all(idsToDelete.map((eid) => deleteClassPointEntry(eid))).then(() => {
+            setSyncNotice('↩️ Đã hoàn tác trên Sổ Lớp');
+            window.setTimeout(() => setSyncNotice(''), 2400);
+          });
+        }
+      } else if (deltaBonus > 0 || deltaPenalty > 0) {
+        const pointType = deltaBonus > 0 ? 'REWARD' : 'PENALTY';
+        const pts = deltaBonus > 0 ? deltaBonus : deltaPenalty;
+        const entries: AddPointsEntryInput[] = affected.map((stu) => ({
+          studentCode: stu.studentCode || stu.id,
+          studentName: stu.name,
+          pointType,
+          points: pts,
+          reason: reason || (pointType === 'REWARD' ? 'Cộng điểm Minigame' : 'Trừ điểm Minigame'),
+          sourceType: 'MINIGAME',
+          sourceId: plugin.id,
+          sourceTitle: plugin.name,
+        }));
+        void pushPointsToServer(activeClassId, entries);
+      }
+    }
   };
 
   const handleResetCalls = () => {
@@ -282,6 +344,27 @@ export const MinigameStageLayout: React.FC = () => {
       <ConfettiBurst active={confetti} />
 
       {/* Top Stage Bar */}
+      {syncError && (
+        <div className="px-4 py-2 bg-rose-600 text-white text-xs font-bold flex flex-wrap items-center justify-between gap-2">
+          <span>⚠️ {syncError.message}</span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => void pushPointsToServer(syncError.classId, syncError.pendingEntries)}
+              className="px-3 py-1 rounded-lg bg-white text-rose-700 font-extrabold hover:bg-rose-50"
+            >
+              Thử lưu lại
+            </button>
+            <button
+              type="button"
+              onClick={() => setSyncError(null)}
+              className="px-2 py-1 rounded-lg bg-rose-700 hover:bg-rose-800"
+            >
+              Đóng
+            </button>
+          </div>
+        </div>
+      )}
       <header className="px-4 sm:px-6 py-3 border-b border-white/10 backdrop-blur-md bg-black/15 flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <Link
@@ -293,8 +376,24 @@ export const MinigameStageLayout: React.FC = () => {
             <span className="hidden sm:inline">Danh sách Game</span>
           </Link>
           <div className="min-w-0">
-            <div className="text-[11px] font-bold uppercase tracking-wider opacity-75 truncate">
-              {store.activePresetName} • Còn {availableStudents.length}/{store.students.length} sinh viên
+            <div className="text-[11px] font-bold uppercase tracking-wider opacity-85 flex items-center gap-2 flex-wrap">
+              <span className="truncate">
+                {store.activePresetName} • Còn {availableStudents.length}/{store.students.length} học sinh
+              </span>
+              {store.activeFixedClassId ? (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/25 border border-emerald-400/50 text-emerald-200 normal-case">
+                  🏫 Đang tích điểm: {store.activeFixedClassTitle || store.activePresetName}
+                </span>
+              ) : (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-white/10 border border-white/15 opacity-80 normal-case">
+                  🎮 Chơi tự do
+                </span>
+              )}
+              {syncNotice && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-sky-500/25 border border-sky-400/50 text-sky-100 normal-case">
+                  {syncNotice}
+                </span>
+              )}
             </div>
             <h1 className="font-black text-base sm:text-lg flex items-center gap-2 truncate">
               <span>{plugin.icon}</span>

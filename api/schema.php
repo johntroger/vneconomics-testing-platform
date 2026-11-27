@@ -29,6 +29,7 @@ function ensureExamSchema(PDO $pdo, string $driver): void
         $pdo->query('SELECT id, credits, instructor_name FROM attendance_classes LIMIT 1');
         $pdo->query('SELECT id, session_passcode, periods_count FROM attendance_sessions LIMIT 1');
         $pdo->query('SELECT id, hardware_fingerprint, attendance_status FROM attendance_records LIMIT 1');
+        $pdo->query('SELECT id, occurred_date, delta_points FROM class_point_ledger LIMIT 1');
         if (!$pdo->query("SELECT 1 FROM questions WHERE id = 'q_micro_c1_4' LIMIT 1")->fetchColumn()) {
             throw new RuntimeException('Backfill demo FILL_IN_BLANK sample');
         }
@@ -555,6 +556,24 @@ function ensureExamSchema(PDO $pdo, string $driver): void
                     updated_at VARCHAR(40) NOT NULL,
                     UNIQUE KEY uq_att_ses_stu (session_id, student_code),
                     INDEX idx_att_rec_ses (session_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
+                "CREATE TABLE IF NOT EXISTS class_point_ledger (
+                    id VARCHAR(64) PRIMARY KEY,
+                    owner_id VARCHAR(64) NOT NULL,
+                    class_id VARCHAR(64) NOT NULL,
+                    student_code VARCHAR(64) NOT NULL,
+                    student_name VARCHAR(255) NOT NULL,
+                    source_type VARCHAR(32) NOT NULL DEFAULT 'MINIGAME',
+                    source_id VARCHAR(64) NOT NULL DEFAULT '',
+                    source_title VARCHAR(255) NOT NULL DEFAULT '',
+                    point_type VARCHAR(16) NOT NULL DEFAULT 'REWARD',
+                    delta_points DOUBLE NOT NULL DEFAULT 0,
+                    reason VARCHAR(255) NOT NULL DEFAULT '',
+                    occurred_date VARCHAR(10) NOT NULL,
+                    created_at VARCHAR(40) NOT NULL,
+                    INDEX idx_cpl_owner_cls (owner_id, class_id),
+                    INDEX idx_cpl_cls_date (class_id, occurred_date),
+                    INDEX idx_cpl_cls_stu (class_id, student_code)
                 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci"
             ]
             : [
@@ -624,7 +643,25 @@ function ensureExamSchema(PDO $pdo, string $driver): void
                     updated_at TEXT NOT NULL,
                     UNIQUE(session_id, student_code)
                 )",
-                "CREATE INDEX IF NOT EXISTS idx_att_rec_ses ON attendance_records(session_id)"
+                "CREATE INDEX IF NOT EXISTS idx_att_rec_ses ON attendance_records(session_id)",
+                "CREATE TABLE IF NOT EXISTS class_point_ledger (
+                    id TEXT PRIMARY KEY,
+                    owner_id TEXT NOT NULL,
+                    class_id TEXT NOT NULL,
+                    student_code TEXT NOT NULL,
+                    student_name TEXT NOT NULL,
+                    source_type TEXT NOT NULL DEFAULT 'MINIGAME',
+                    source_id TEXT NOT NULL DEFAULT '',
+                    source_title TEXT NOT NULL DEFAULT '',
+                    point_type TEXT NOT NULL DEFAULT 'REWARD',
+                    delta_points REAL NOT NULL DEFAULT 0,
+                    reason TEXT NOT NULL DEFAULT '',
+                    occurred_date TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )",
+                "CREATE INDEX IF NOT EXISTS idx_cpl_owner_cls ON class_point_ledger(owner_id, class_id)",
+                "CREATE INDEX IF NOT EXISTS idx_cpl_cls_date ON class_point_ledger(class_id, occurred_date)",
+                "CREATE INDEX IF NOT EXISTS idx_cpl_cls_stu ON class_point_ledger(class_id, student_code)"
             ];
         foreach ($attendanceTables as $sql) {
             $pdo->exec($sql);

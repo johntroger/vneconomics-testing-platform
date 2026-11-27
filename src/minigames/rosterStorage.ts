@@ -117,6 +117,8 @@ export function readMinigameStore(): MinigameStateStore {
     return {
       version: 1,
       activePresetName: parsed.activePresetName || 'Danh sách lớp',
+      activeFixedClassId: parsed.activeFixedClassId || '',
+      activeFixedClassTitle: parsed.activeFixedClassTitle || '',
       excludeCalled: parsed.excludeCalled ?? true,
       courseId: parsed.courseId || '',
       students: parsed.students,
@@ -315,4 +317,61 @@ export function exportMinigameHistoryXlsx(
   }
 
   XLSX.writeFile(wb, `Minigame_${presetName.replace(/\s+/g, '_')}.xlsx`);
+}
+
+export function buildMinigameStoreFromFixedClass(
+  classItem: {
+    id: string;
+    title: string;
+    rosterEntries: Array<{
+      studentCode: string;
+      lastName: string;
+      firstName: string;
+      gender?: string;
+    }>;
+  },
+  serverTotals: Array<{
+    studentCode: string;
+    rewardPoints: number;
+    penaltyPoints: number;
+  }>,
+  prevStore: MinigameStateStore,
+): MinigameStateStore {
+  const totalsByCode = new Map(
+    serverTotals.map((s) => [s.studentCode.toUpperCase(), s]),
+  );
+  const sameClass = prevStore.activeFixedClassId === classItem.id;
+  const prevByCode = new Map(
+    sameClass
+      ? prevStore.students.map((s) => [(s.studentCode || '').toUpperCase(), s])
+      : [],
+  );
+
+  const students: RosterStudent[] = classItem.rosterEntries.map((entry, idx) => {
+    const code = (entry.studentCode || `HS${String(idx + 1).padStart(2, '0')}`).toUpperCase();
+    const fullName = `${entry.lastName || ''} ${entry.firstName || ''}`.trim() || code;
+    const prev = prevByCode.get(code);
+    const srv = totalsByCode.get(code);
+    return {
+      id: prev?.id || `fc_${classItem.id}_${code}`,
+      name: fullName,
+      studentCode: code,
+      gender: entry.gender || '',
+      avatarId:
+        prev?.avatarId ||
+        GAME_AVATARS[idx % GAME_AVATARS.length].id,
+      called: sameClass ? Boolean(prev?.called) : false,
+      absent: sameClass ? Boolean(prev?.absent) : false,
+      bonusPoints: srv ? srv.rewardPoints : prev?.bonusPoints ?? 0,
+      penaltyPoints: srv ? srv.penaltyPoints : prev?.penaltyPoints ?? 0,
+    };
+  });
+
+  return {
+    ...prevStore,
+    activePresetName: classItem.title,
+    activeFixedClassId: classItem.id,
+    activeFixedClassTitle: classItem.title,
+    students,
+  };
 }

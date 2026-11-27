@@ -6,15 +6,18 @@ import {
   ExternalLink,
   FileSpreadsheet,
   FolderOpen,
+  Lock,
   RotateCcw,
   Search,
   Sparkles,
   Trash2,
+  Trophy,
   Upload,
   Users,
 } from 'lucide-react';
 import { MINIGAME_REGISTRY } from '../../minigames/registry';
 import {
+  buildMinigameStoreFromFixedClass,
   exportMinigameHistoryXlsx,
   parseRosterFromExam,
   parseRosterFromExcelFile,
@@ -29,18 +32,29 @@ import {
   type MinigameCategory,
   type MinigameStateStore,
 } from '../../minigames/types';
+import {
+  fetchClassPointsSummary,
+  listFixedClasses,
+} from '../../services/classPointsApi';
+import type { FixedClassSummary } from '../../types/classPoints';
 import type { Exam } from '../../types/exam';
 
 interface MinigameHubPanelProps {
   exams: Exam[];
   isPublicPage?: boolean;
   returnSource?: 'admin' | 'public';
+  isOfficial?: boolean;
+  onRequireOfficialLogin?: () => void;
+  onOpenClassPointsTab?: () => void;
 }
 
 export const MinigameHubPanel: React.FC<MinigameHubPanelProps> = ({
   exams,
   isPublicPage = false,
   returnSource = 'public',
+  isOfficial = false,
+  onRequireOfficialLogin,
+  onOpenClassPointsTab,
 }) => {
   const [store, setStore] = useState<MinigameStateStore>(() => readMinigameStore());
   const [inputMode, setInputMode] = useState<'PASTE' | 'EXAM' | 'EXCEL'>('PASTE');
@@ -50,7 +64,50 @@ export const MinigameHubPanel: React.FC<MinigameHubPanelProps> = ({
   const [statusMsg, setStatusMsg] = useState('');
   const [catFilter, setCatFilter] = useState<'ALL' | MinigameCategory>('ALL');
   const [gameSearch, setGameSearch] = useState('');
+  const [fixedClasses, setFixedClasses] = useState<FixedClassSummary[]>([]);
+  const [loadingFixedClass, setLoadingFixedClass] = useState(false);
   const fileRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!isOfficial) {
+      setFixedClasses([]);
+      return;
+    }
+    let cancelled = false;
+    void listFixedClasses().then((res) => {
+      if (!cancelled && res.ok && res.data) {
+        setFixedClasses(res.data);
+      }
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [isOfficial]);
+
+  const handleSelectFixedClass = async (classId: string) => {
+    if (!classId) {
+      updateStore({
+        ...store,
+        activeFixedClassId: '',
+        activeFixedClassTitle: '',
+      });
+      notify('Đã chuyển sang chế độ Chơi tự do (không lưu sổ điểm lớp).');
+      return;
+    }
+    const cls = fixedClasses.find((c) => c.id === classId);
+    if (!cls) return;
+    setLoadingFixedClass(true);
+    const sumRes = await fetchClassPointsSummary(cls.id);
+    setLoadingFixedClass(false);
+    const nextStore = buildMinigameStoreFromFixedClass(
+      cls,
+      sumRes.ok && sumRes.data ? sumRes.data.students : [],
+      store,
+    );
+    setPresetNameInput(cls.title);
+    updateStore(nextStore);
+    notify(`🏫 Đã gắn lớp cố định "${cls.title}" (${nextStore.students.length} học sinh) — điểm cộng/trừ sẽ tự lưu lên Sổ Lớp!`);
+  };
 
   useEffect(() => {
     const unsub = subscribeMinigameSync(() => {
@@ -78,6 +135,8 @@ export const MinigameHubPanel: React.FC<MinigameHubPanelProps> = ({
     updateStore({
       ...store,
       activePresetName: presetNameInput.trim() || 'Danh sách dán nhanh',
+      activeFixedClassId: '',
+      activeFixedClassTitle: '',
       students: parsed,
     });
     setPasteText('');
@@ -96,6 +155,8 @@ export const MinigameHubPanel: React.FC<MinigameHubPanelProps> = ({
     updateStore({
       ...store,
       activePresetName: exam.title,
+      activeFixedClassId: '',
+      activeFixedClassTitle: '',
       students: parsed,
     });
     notify(`Đã nạp ${parsed.length} sinh viên từ "${exam.title}".`);
@@ -115,6 +176,8 @@ export const MinigameHubPanel: React.FC<MinigameHubPanelProps> = ({
       updateStore({
         ...store,
         activePresetName: cleanName,
+        activeFixedClassId: '',
+        activeFixedClassTitle: '',
         students: parsed,
       });
       notify(`Đã nhập ${parsed.length} sinh viên từ Excel.`);
@@ -142,6 +205,87 @@ export const MinigameHubPanel: React.FC<MinigameHubPanelProps> = ({
 
   return (
     <div className="space-y-6">
+      {/* Fixed Class Selector Banner for Long-Term Point Accumulation */}
+      {!isPublicPage && (
+        <div
+          className={`rounded-2xl border p-4 flex flex-wrap items-center justify-between gap-3 ${
+            store.activeFixedClassId && isOfficial
+              ? 'bg-emerald-50/80 border-emerald-300'
+              : 'bg-indigo-50/60 border-indigo-200'
+          }`}
+        >
+          <div className="flex items-start gap-2.5 min-w-0">
+            <div
+              className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${
+                store.activeFixedClassId && isOfficial
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-indigo-600 text-white'
+              }`}
+            >
+              {isOfficial ? <Trophy className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+            </div>
+            <div className="min-w-0">
+              <div className="text-xs font-extrabold text-ink-900 flex items-center gap-2 flex-wrap">
+                <span>Tích điểm theo Lớp cố định</span>
+                {isOfficial && store.activeFixedClassId ? (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white">
+                    🏫 Đang tích điểm: {store.activeFixedClassTitle || store.activePresetName}
+                  </span>
+                ) : (
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-700">
+                    🎮 Chơi tự do (không lưu Sổ Lớp)
+                  </span>
+                )}
+              </div>
+              <p className="text-[11px] text-ink-600 mt-0.5">
+                {isOfficial
+                  ? 'Chọn một Lớp cố định trước khi chơi để tự động lưu điểm cộng/trừ xuyên suốt học kỳ vào Tab 4 (Sổ Điểm Lớp).'
+                  : 'Đăng nhập Tài khoản Giáo viên chính thức để chọn Lớp cố định và tích lũy điểm theo thời gian.'}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            {isOfficial ? (
+              <>
+                <select
+                  value={store.activeFixedClassId || ''}
+                  disabled={loadingFixedClass}
+                  onChange={(e) => void handleSelectFixedClass(e.target.value)}
+                  className="px-3 py-2 rounded-xl border border-indigo-200 bg-white text-xs font-bold text-ink-800 focus:outline-none focus:ring-2 focus:ring-indigo-500 max-w-[260px]"
+                >
+                  <option value="">🎮 Chơi tự do (không lưu sổ)</option>
+                  {fixedClasses.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      🏫 {c.title} ({c.studentCount} em)
+                    </option>
+                  ))}
+                </select>
+                {onOpenClassPointsTab && (
+                  <button
+                    type="button"
+                    onClick={onOpenClassPointsTab}
+                    className="px-3 py-2 rounded-xl bg-white border border-indigo-200 hover:bg-indigo-50 text-indigo-700 text-xs font-extrabold"
+                  >
+                    🏆 Quản lý / Xem Sổ Điểm
+                  </button>
+                )}
+              </>
+            ) : (
+              onRequireOfficialLogin && (
+                <button
+                  type="button"
+                  onClick={onRequireOfficialLogin}
+                  className="px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-extrabold flex items-center gap-1.5"
+                >
+                  <Lock className="w-3.5 h-3.5" /> Đăng nhập Tài khoản Chính
+                </button>
+              )
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Section A: Unified Roster Manager */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
         <div className="lg:col-span-5 bg-slate-50 border border-slate-200 rounded-2xl p-4 space-y-3">
