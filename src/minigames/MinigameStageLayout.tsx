@@ -25,6 +25,7 @@ import {
 } from '../utils/dynamicQuestionEngine';
 import { playWinnerFanfare, unlockGameAudio } from '../utils/gameAudio';
 import { MinigameErrorBoundary } from './MinigameErrorBoundary';
+import { PointAwardModal } from './PointAwardModal';
 import { MINIGAME_REGISTRY } from './registry';
 import {
   cryptoRandomInt,
@@ -88,6 +89,7 @@ export const MinigameStageLayout: React.FC = () => {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [pickCount, setPickCountState] = useState<number>(1);
   const [winners, setWinners] = useState<RosterStudent[]>([]);
+  const [pointModalOpen, setPointModalOpen] = useState(false);
   const [confetti, setConfetti] = useState(false);
   const [pickedQuestion, setPickedQuestion] = useState<{
     question: Question;
@@ -210,6 +212,29 @@ export const MinigameStageLayout: React.FC = () => {
     );
     updateStore({ ...store, students: nextStudents, history: nextHistory });
     setWinners((prev) => prev.filter((w) => w.id !== targetStudent.id));
+  };
+
+  const handleApplyPoints = (
+    studentIds: string[],
+    deltaBonus: number,
+    deltaPenalty: number,
+  ) => {
+    const idSet = new Set(studentIds);
+    const nextStudents = store.students.map((s) => {
+      if (!idSet.has(s.id)) return s;
+      return {
+        ...s,
+        bonusPoints: Math.max(0, s.bonusPoints + deltaBonus),
+        penaltyPoints: Math.max(0, (s.penaltyPoints ?? 0) + deltaPenalty),
+      };
+    });
+    const netDelta = deltaBonus - deltaPenalty;
+    const nextHistory = store.history.map((h, idx) =>
+      idx < 25 && idSet.has(h.studentId) && h.status === 'PICKED'
+        ? { ...h, bonusAwarded: h.bonusAwarded + netDelta }
+        : h,
+    );
+    updateStore({ ...store, students: nextStudents, history: nextHistory });
   };
 
   const handleResetCalls = () => {
@@ -621,6 +646,13 @@ export const MinigameStageLayout: React.FC = () => {
             )}
 
             <div className="flex flex-wrap items-center justify-center gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setPointModalOpen(true)}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-500 via-pink-500 to-orange-500 hover:brightness-110 text-white font-black text-sm shadow-lg shadow-rose-500/30 flex items-center gap-1.5 transition active:scale-95"
+              >
+                🌸 Cộng điểm
+              </button>
               {winners.length === 1 && (
                 <button
                   type="button"
@@ -632,7 +664,10 @@ export const MinigameStageLayout: React.FC = () => {
               )}
               <button
                 type="button"
-                onClick={() => setWinners([])}
+                onClick={() => {
+                  setPointModalOpen(false);
+                  setWinners([]);
+                }}
                 className="px-5 py-2.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-sm"
               >
                 Đóng &amp; Tiếp tục
@@ -640,6 +675,17 @@ export const MinigameStageLayout: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* BeeClass-style Reward / Penalty Point Award Modal */}
+      {pointModalOpen && winners.length > 0 && (
+        <PointAwardModal
+          targets={winners}
+          allStudents={store.students}
+          muted={muted}
+          onApplyPoints={handleApplyPoints}
+          onClose={() => setPointModalOpen(false)}
+        />
       )}
     </div>
   );

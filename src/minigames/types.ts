@@ -20,6 +20,16 @@ export interface RosterStudent {
   called: boolean;
   absent: boolean;
   bonusPoints: number;
+  penaltyPoints?: number;
+}
+
+export interface PointCriterion {
+  id: string;
+  type: 'REWARD' | 'PENALTY';
+  points: number;
+  label: string;
+  icon: string;
+  custom?: boolean;
 }
 
 export interface RosterPreset {

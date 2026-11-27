@@ -4,12 +4,48 @@ import type { Exam } from '../types/exam';
 import type {
   MinigameStateStore,
   PickHistoryEntry,
+  PointCriterion,
   RosterPreset,
   RosterStudent,
 } from './types';
 
 const STORAGE_KEY = 'vne_minigame_hub_v1';
 const SYNC_CHANNEL = 'vne_minigame_sync_v1';
+const CRITERIA_STORAGE_KEY = 'vne_minigame_point_criteria_v1';
+
+export const DEFAULT_POINT_CRITERIA: PointCriterion[] = [
+  // Điểm Thưởng (Thang BeeClass: +1 / +2 / +5 / +10)
+  { id: 'r_active', type: 'REWARD', points: 1, label: 'Phát biểu tích cực / Giơ tay', icon: '🌸' },
+  { id: 'r_correct', type: 'REWARD', points: 2, label: 'Trả lời đúng câu hỏi', icon: '🌺' },
+  { id: 'r_good', type: 'REWARD', points: 2, label: 'Tác phong tốt / Hỗ trợ bạn', icon: '🌼' },
+  { id: 'r_homework', type: 'REWARD', points: 5, label: 'Hoàn thành tốt bài tập', icon: '🌻' },
+  { id: 'r_excellent', type: 'REWARD', points: 5, label: 'Trả lời xuất sắc / Giải bài hay', icon: '🌟' },
+  { id: 'r_mvp', type: 'REWARD', points: 10, label: 'Xuất sắc nhất tiết học', icon: '🏆' },
+  // Điểm Trừ (-1 / -2 / -5)
+  { id: 'p_focus', type: 'PENALTY', points: 1, label: 'Chưa tập trung / Nói chuyện riêng', icon: '⚡' },
+  { id: 'p_prep', type: 'PENALTY', points: 2, label: 'Chưa chuẩn bị bài / Quên tài liệu', icon: '📝' },
+  { id: 'p_rule', type: 'PENALTY', points: 5, label: 'Vi phạm nội quy lớp học', icon: '🚫' },
+];
+
+export function readPointCriteria(): PointCriterion[] {
+  try {
+    const raw = localStorage.getItem(CRITERIA_STORAGE_KEY);
+    if (!raw) return DEFAULT_POINT_CRITERIA;
+    const parsed = JSON.parse(raw) as PointCriterion[];
+    if (!Array.isArray(parsed) || parsed.length === 0) return DEFAULT_POINT_CRITERIA;
+    return parsed;
+  } catch {
+    return DEFAULT_POINT_CRITERIA;
+  }
+}
+
+export function writePointCriteria(criteria: PointCriterion[]): void {
+  try {
+    localStorage.setItem(CRITERIA_STORAGE_KEY, JSON.stringify(criteria));
+  } catch {
+    // Ignore storage error
+  }
+}
 
 export function cryptoRandomInt(maxExclusive: number): number {
   if (maxExclusive <= 1) return 0;
@@ -47,6 +83,7 @@ function makeStudent(
     called: false,
     absent: false,
     bonusPoints: 0,
+    penaltyPoints: 0,
   };
 }
 
@@ -256,7 +293,9 @@ export function exportMinigameHistoryXlsx(
     HoTen: s.name,
     GioiTinh: s.gender || '',
     TrangThai: s.absent ? 'Vắng' : s.called ? 'Đã gọi' : 'Chưa gọi',
-    DiemCong: s.bonusPoints,
+    DiemThuong: s.bonusPoints,
+    DiemTru: s.penaltyPoints ?? 0,
+    TongDiem: s.bonusPoints - (s.penaltyPoints ?? 0),
   }));
   const wsSummary = XLSX.utils.json_to_sheet(summaryRows);
   XLSX.utils.book_append_sheet(wb, wsSummary, 'TongHopLop');
